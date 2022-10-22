@@ -1,0 +1,13 @@
+/.idea
+/.vs
+/.vscode
+/.xmake
+/build
+/dev
+/support/cet/*.log
+/support/cet/*.sqlite3
+/support/vscode/out
+/support/vscode/node_modules
+/support/vscode/*.log
+/support/vscode/*.vsix
+CMakeLists.txt

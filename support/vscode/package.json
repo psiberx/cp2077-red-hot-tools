@@ -1,0 +1,72 @@
+{
+  "name": "red-hot-vscode",
+  "displayName": "Red Hot Tools",
+  "description": "Hot reload scripts and tweaks from VS Code",
+  "publisher": "psiberx",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": "https://github.com/psiberx/cp2077-red-hot-tools",
+  "engines": {
+		"vscode": "^1.52.0"
+  },
+  "categories": [
+		"Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+		"workspaceContains:**/*.reds",
+		"workspaceContains:**/*.tweak",
+		"workspaceContains:**/*.yaml"
+  ],
+  "contributes": {
+		"commands": [
+			{
+				"command": "redHotTools.reloadScripts",
+				"title": "Hot Reload Scripts",
+				"category": "RedHotTools"
+			},
+			{
+				"command": "redHotTools.reloadTweaks",
+				"title": "Hot Reload Tweaks",
+				"category": "RedHotTools"
+			}
+		],
+		"menus": {
+			"editor/title": [
+				{
+					"command": "redHotTools.reloadScripts",
+					"group": "1_run",
+					"when": "redHotTools.resourceIsScript"
+				},
+				{
+					"command": "redHotTools.reloadTweaks",
+					"group": "1_run",
+					"when": "redHotTools.resourceIsTweak"
+				}
+			]
+		},
+		"configuration": {
+			"title": "Red Hot Tools",
+			"properties": {
+				"redHotTools.gameDir": {
+					"type": "string",
+					"description": "Path to Cyberpunk 2077 directory"
+				}
+			}
+		}
+  },
+  "scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"lint": "eslint . --ext .ts,.tsx",
+		"watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+		"@types/node": "^16.11.7",
+		"@types/vscode": "^1.32.0",
+		"typescript": "^4.8.4"
+  },
+  "dependencies": {
+		"vsce": "^2.13.0"
+  }
+}

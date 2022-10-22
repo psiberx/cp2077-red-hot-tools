@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceRoot}"
+      ],
+      "sourceMaps": false,
+      "outFiles": [
+        "${workspaceRoot}/out/src/**/*.js"
+      ],
+      "preLaunchTask": "npm: compile"
+    }
+  ]
+}
