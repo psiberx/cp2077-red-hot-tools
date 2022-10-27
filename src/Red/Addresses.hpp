@@ -19,7 +19,6 @@ constexpr uintptr_t ISerializable_SetReference = 0x1401AFBD0 - ImageBase; // 40 
 
 constexpr uintptr_t ResourceBank_ForgetResource = 0x14025CA90 - ImageBase; // 48 89 5C 24 10 48 89 6C 24 20 56 57 41 54 41 56 41 57 48 83 EC 30 4C 8B F1 49 8B F8, expected: 1, index: 0
 
-constexpr uintptr_t ResourceDepot = 0x143F17528 - ImageBase; // 48 89 0D ? ? ? ? C3, expected: 26, index: 2, offset: 3
 constexpr uintptr_t ResourceDepot_LoadArchives = 0x14300B420 - ImageBase; // 48 8B C4 4C 89 48 20 55 53 56 41 55 48 8D 68 B1 48 81 EC C8 00 00 00 49 8B 18 4C 8B EA, expected: 1, index: 0
 constexpr uintptr_t ResourceDepot_DestructArchives = 0x14300AB40 - ImageBase; // 85 D2 0F 84 ? ? ? ? 48 89 74 24 10 57 48 83 EC 20 8D 42 FF 48 89 5C 24 30 48 8D 34 80 8B FA, expected: 1, index: 0
 constexpr uintptr_t ResourceDepot_RequestResource = 0x14300A880 - ImageBase; // 48 89 5C 24 18 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 D9 48 81 EC B0 00 00 00 33 F6 4C 8B FA, expected: 1, index: 0

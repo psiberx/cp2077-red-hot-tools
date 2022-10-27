@@ -32,6 +32,8 @@
 #include <RED4ext/ISerializable.hpp>
 #include <RED4ext/NativeTypes.hpp>
 #include <RED4ext/Relocation.hpp>
+#include <RED4ext/ResourceDepot.hpp>
+#include <RED4ext/ResourceLoader.hpp>
 #include <RED4ext/ResourcePath.hpp>
 #include <RED4ext/RTTISystem.hpp>
 #include <RED4ext/RTTITypes.hpp>
