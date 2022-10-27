@@ -68,5 +68,5 @@ bool App::ScriptReporter::OnLoadScripts(Red::CBaseEngine& aEngine, Red::CString&
         return false;
     }
 
-    return false;
+    return success;
 }
