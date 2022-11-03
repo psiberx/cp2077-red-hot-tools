@@ -1,7 +1,7 @@
 set_xmakever("2.5.9")
 
 set_project("RedHotTools")
-set_version("0.4.0")
+set_version("0.4.1")
 
 set_arch("x64")
 set_languages("cxx20", "cxx2a")

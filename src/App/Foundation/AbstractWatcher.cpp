@@ -69,43 +69,52 @@ void App::AbstractWatcher::Schedule()
     }
 
     std::ignore = std::async(std::launch::async, [this] {
-        while (true)
+        try
         {
-            const auto now = std::chrono::steady_clock::now();
-            const auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(m_processingTime - now);
-
-            if (diff <= std::chrono::steady_clock::duration::zero())
-                break;
-
-            std::this_thread::sleep_for(diff);
-        }
-
-        std::unique_lock lock(m_processingLock);
-
-        if (m_processingScheduled)
-        {
-            if (m_retryCount == 0)
+            while (true)
             {
-                Process();
+                const auto now = std::chrono::steady_clock::now();
+                const auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(m_processingTime - now);
+
+                if (diff <= std::chrono::steady_clock::duration::zero())
+                    break;
+
+                std::this_thread::sleep_for(diff);
             }
-            else
+
+            std::unique_lock lock(m_processingLock);
+
+            if (m_processingScheduled)
             {
-                auto tryCounter = m_retryCount;
-                while (true)
+                if (m_retryCount == 0)
                 {
-                    if (Process())
-                        break;
-
-                    if (--tryCounter <= 0)
-                        break;
-
-                    std::this_thread::sleep_for(m_retryDelay);
+                    Process();
                 }
-            }
-            m_processingScheduled = false;
-        }
+                else
+                {
+                    auto tryCounter = m_retryCount;
+                    while (true)
+                    {
+                        if (Process())
+                            break;
 
-        m_threadStarted = false;
+                        if (--tryCounter <= 0)
+                            break;
+
+                        std::this_thread::sleep_for(m_retryDelay);
+                    }
+                }
+                m_processingScheduled = false;
+            }
+
+            m_threadStarted = false;
+        }
+        catch (const std::exception& ex)
+        {
+            std::unique_lock lock(m_processingLock);
+            m_processingScheduled = false;
+            m_threadStarted = false;
+        }
     });
 }
 

@@ -4,7 +4,7 @@
 
 App::ArchiveWatcher::ArchiveWatcher(std::filesystem::path aHotDir)
     : m_archiveHotDir(std::move(aHotDir))
-    , m_reloadDelay(250)
+    , m_reloadDelay(500)
     , m_reloadQueued(false)
     , m_threadStarted(false)
 {
@@ -34,11 +34,11 @@ void App::ArchiveWatcher::OnFilesystemUpdate(const std::filesystem::path& aPath,
 {
     switch (aEvent)
     {
-    case FileEvent::added:
+    // case FileEvent::added:
     case FileEvent::modified:
     case FileEvent::renamed_new:
     {
-        if (std::filesystem::exists(m_archiveHotDir / aPath))
+        if (std::filesystem::exists(m_archiveHotDir / aPath) && aPath.extension() == L".archive")
         {
             ScheduleReload();
         }
@@ -67,26 +67,35 @@ void App::ArchiveWatcher::ScheduleReload()
     }
 
     std::ignore = std::async(std::launch::async, [this] {
-        while (true)
+        try
         {
-            const auto now = std::chrono::steady_clock::now();
-            const auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(m_reloadTime - now);
+            while (true)
+            {
+                const auto now = std::chrono::steady_clock::now();
+                const auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(m_reloadTime - now);
 
-            if (diff <= std::chrono::steady_clock::duration::zero())
-                break;
+                if (diff <= std::chrono::steady_clock::duration::zero())
+                    break;
 
-            std::this_thread::sleep_for(diff);
+                std::this_thread::sleep_for(diff);
+            }
+
+            std::unique_lock lock(m_reloadLock);
+
+            if (m_reloadQueued)
+            {
+                Core::Resolve<ArchiveLoader>()->SwapArchives(m_archiveHotDir);
+                m_reloadQueued = false;
+            }
+
+            m_threadStarted = false;
         }
-
-        std::unique_lock lock(m_reloadLock);
-
-        if (m_reloadQueued)
+        catch (const std::exception& ex)
         {
-            Core::Resolve<ArchiveLoader>()->SwapArchives(m_archiveHotDir);
+            std::unique_lock lock(m_reloadLock);
+            m_threadStarted = false;
             m_reloadQueued = false;
         }
-
-        m_threadStarted = false;
     });
 }
 
