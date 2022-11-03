@@ -26,7 +26,7 @@ App::ArchiveWatcher::ArchiveWatcher(std::filesystem::path aHotDir)
 
 bool App::ArchiveWatcher::Filter(const std::filesystem::path& aPath)
 {
-    return aPath.extension() == L".archive";
+    return aPath.extension() == L".archive" || aPath.extension() == L".xl";
 }
 
 bool App::ArchiveWatcher::Process()
