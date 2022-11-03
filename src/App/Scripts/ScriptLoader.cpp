@@ -28,7 +28,7 @@ void App::ScriptLoader::ReloadScripts()
 {
     if (CanReloadScripts())
     {
-        LogInfo("Scripts reload requested.");
+        LogInfo("[ScriptLoader] Scripts reload requested.");
 
         HookOnceAfter<Raw::CBaseEngine::MainLoopTick>([this]() {
             Red::ScriptBundle bundle;
@@ -55,10 +55,10 @@ void App::ScriptLoader::ReloadScripts()
 
             if (report.HasErrors())
             {
-                LogWarning(report.ToString().c_str());
+                LogWarning("[ScriptLoader] {}", report.ToString().c_str());
             }
 
-            LogInfo("Scripts reload completed.");
+            LogInfo("[ScriptLoader] Scripts reload completed.");
         });
     }
 }
@@ -75,19 +75,19 @@ bool App::ScriptLoader::CompileScripts(Red::ScriptBundle& aBundle)
         blobPath = engine->scriptsBlobPath;
     }
 
-    LogInfo("Compiling scripts from [{}] as [{}]...", sourceDir.c_str(), blobPath.c_str());
+    LogInfo("[ScriptLoader] Compiling scripts from [{}] as [{}]...", sourceDir.c_str(), blobPath.c_str());
 
     if (!Red::ScriptCompiler::Compile(sourceDir, blobPath, engine->scriptsCompilationErrors))
     {
-        LogError("Scripts compilation failed.");
+        LogError("[ScriptLoader] Scripts compilation failed.");
         return false;
     }
 
-    LogInfo("Reading script blob from [{}]...", blobPath.c_str());
+    LogInfo("[ScriptLoader] Reading script blob from [{}]...", blobPath.c_str());
 
     if (!aBundle.Read(blobPath))
     {
-        LogError("Script blob has invalid format.");
+        LogError("[ScriptLoader] Script blob has invalid format.");
         return false;
     }
 
@@ -97,7 +97,7 @@ bool App::ScriptLoader::CompileScripts(Red::ScriptBundle& aBundle)
 
 bool App::ScriptLoader::ValidateScripts(Red::ScriptBundle& aBundle, Red::ScriptReport& aReport)
 {
-    LogInfo("Validating scripts...");
+    LogInfo("[ScriptLoader] Validating scripts...");
 
     if (!Red::ScriptValidator::Validate(aBundle, aReport))
     {
@@ -110,7 +110,7 @@ bool App::ScriptLoader::ValidateScripts(Red::ScriptBundle& aBundle, Red::ScriptR
 
 bool App::ScriptLoader::BindScripts(Red::ScriptBundle& aBundle, Red::ScriptReport& aReport)
 {
-    LogInfo("Binding scripts...");
+    LogInfo("[ScriptLoader] Binding scripts...");
 
     auto rtti = Red::CRTTISystem::Get();
     auto fileResolver = +[](uint32_t) { return nullptr; };
@@ -270,11 +270,11 @@ bool App::ScriptLoader::BindScripts(Red::ScriptBundle& aBundle, Red::ScriptRepor
 
     rtti->SetStringTable(aBundle.strings);
 
-    LogInfo("Translating bytecode...");
+    LogInfo("[ScriptLoader] Translating bytecode...");
 
     binder.TranslateBytecode(scriptFuncs);
 
-    LogInfo("Initializing runtime...");
+    LogInfo("[ScriptLoader] Initializing runtime...");
 
     for (auto& scriptClass : aBundle.classes)
     {
@@ -323,14 +323,14 @@ void App::ScriptLoader::ClearScriptedProperties(Red::CClass* aClass)
 
 void App::ScriptLoader::CaptureScriptableData()
 {
-    LogInfo("Capturing scriptable data...");
+    LogInfo("[ScriptLoader] Capturing scriptable data...");
 
     Core::Resolve<ObjectRegistry>()->CreateSnapshot();
 }
 
 void App::ScriptLoader::RestoreScriptableData()
 {
-    LogInfo("Restoring scriptable data...");
+    LogInfo("[ScriptLoader] Restoring scriptable data...");
 
     Core::Resolve<ObjectRegistry>()->RestoreSnapshot();
 }

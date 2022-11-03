@@ -7,7 +7,7 @@ App::ArchiveLoader::ArchiveLoader(std::filesystem::path aArchiveModDir)
 {
 }
 
-void App::ArchiveLoader::SwapArchives(const std::filesystem::path& aArchiveHotDir)
+bool App::ArchiveLoader::SwapArchives(const std::filesystem::path& aArchiveHotDir)
 {
     std::unique_lock updateLock(m_updateLock);
     DepotLock depotLock;
@@ -15,24 +15,31 @@ void App::ArchiveLoader::SwapArchives(const std::filesystem::path& aArchiveHotDi
     Red::DynArray<Red::ArchiveGroup*> archiveGroups;
     Red::DynArray<Red::CString> archiveHotPaths;
     Red::DynArray<Red::CString> archiveModPaths;
+
+    if (!CollectArchiveGroups(archiveGroups))
+        return false;
+
+    if (!ResolveArchivePaths(archiveGroups, aArchiveHotDir, m_archiveModDir, archiveHotPaths, archiveModPaths))
+        return false;
+
     Red::DynArray<Red::ResourcePath> hotResources;
 
-    CollectArchiveGroups(archiveGroups);
-    ResolveArchivePaths(archiveGroups, aArchiveHotDir, m_archiveModDir, archiveHotPaths, archiveModPaths);
     UnloadModArchives(archiveGroups, archiveModPaths);
     MoveArchiveFiles(archiveHotPaths, archiveModPaths);
     LoadModArchives(archiveGroups, archiveModPaths, hotResources);
     InvalidateResources(hotResources);
     MoveExtensionFiles(aArchiveHotDir, m_archiveModDir);
     ReloadExtensions();
+
+    return true;
 }
 
-void App::ArchiveLoader::CollectArchiveGroups(Red::DynArray<Red::ArchiveGroup*>& aGroups)
+bool App::ArchiveLoader::CollectArchiveGroups(Red::DynArray<Red::ArchiveGroup*>& aGroups)
 {
     auto depot = Red::ResourceDepot::Get();
 
     if (!depot)
-        return;
+        return false;
 
     for (auto& group : depot->groups)
     {
@@ -41,9 +48,11 @@ void App::ArchiveLoader::CollectArchiveGroups(Red::DynArray<Red::ArchiveGroup*>&
             aGroups.PushBack(&group);
         }
     }
+
+    return aGroups.size > 0;
 }
 
-void App::ArchiveLoader::ResolveArchivePaths(const Red::DynArray<Red::ArchiveGroup*>& aGroups,
+bool App::ArchiveLoader::ResolveArchivePaths(const Red::DynArray<Red::ArchiveGroup*>& aGroups,
                                              const std::filesystem::path& aArchiveHotDir,
                                              const std::filesystem::path& aArchiveModDir,
                                              Red::DynArray<Red::CString>& aArchiveHotPaths,
@@ -53,7 +62,7 @@ void App::ArchiveLoader::ResolveArchivePaths(const Red::DynArray<Red::ArchiveGro
     auto iterator = std::filesystem::recursive_directory_iterator(aArchiveHotDir, error);
 
     if (error)
-        return;
+        return false;
 
     for (const auto& entry : iterator)
     {
@@ -61,6 +70,9 @@ void App::ArchiveLoader::ResolveArchivePaths(const Red::DynArray<Red::ArchiveGro
         {
             const auto& archiveName = entry.path().filename();
             const auto& archiveHotPath = entry.path();
+
+            if (!std::ifstream(archiveHotPath).good())
+                return false;
 
             bool archiveFound = false;
 
@@ -93,6 +105,8 @@ void App::ArchiveLoader::ResolveArchivePaths(const Red::DynArray<Red::ArchiveGro
             }
         }
     }
+
+    return true;
 }
 
 void App::ArchiveLoader::MoveArchiveFiles(Red::DynArray<Red::CString>& aHotPaths,

@@ -15,11 +15,11 @@ class ArchiveLoader
 public:
     ArchiveLoader(std::filesystem::path aArchiveModDir);
 
-    void SwapArchives(const std::filesystem::path& aArchiveHotDir);
+    bool SwapArchives(const std::filesystem::path& aArchiveHotDir);
 
 private:
-    static void CollectArchiveGroups(Red::DynArray<Red::ArchiveGroup*>& aGroups);
-    static void ResolveArchivePaths(const Red::DynArray<Red::ArchiveGroup*>& aGroups,
+    static bool CollectArchiveGroups(Red::DynArray<Red::ArchiveGroup*>& aGroups);
+    static bool ResolveArchivePaths(const Red::DynArray<Red::ArchiveGroup*>& aGroups,
                                     const std::filesystem::path& aArchiveHotDir,
                                     const std::filesystem::path& aArchiveModDir,
                                     Red::DynArray<Red::CString>& aArchiveHotPaths,

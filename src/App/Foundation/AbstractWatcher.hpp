@@ -11,7 +11,7 @@ class AbstractWatcher
 {
 public:
     static constexpr auto DefaulProcessingDelay = std::chrono::milliseconds(250);
-    static constexpr auto DefaulRetryDelay = std::chrono::milliseconds(20);
+    static constexpr auto DefaulRetryDelay = std::chrono::milliseconds(100);
     static constexpr auto DefaulRetryCount = 50;
 
     AbstractWatcher(std::chrono::milliseconds aProcessingDelay = DefaulProcessingDelay,
@@ -26,11 +26,12 @@ protected:
     using FileWatch = filewatch::FileWatch<std::filesystem::path>;
     using FileEvent = filewatch::Event;
 
-    void Watch(const std::filesystem::path& aTargetPath);
+    void Watch(const std::filesystem::path& aTarget);
     void Track(const std::filesystem::path& aTarget, const std::filesystem::path& aPath, FileEvent aEvent);
     void Schedule();
     void Cancel();
 
+    virtual bool Filter(const std::filesystem::path& aPath);
     virtual bool Process() = 0;
 
     std::chrono::milliseconds m_processingDelay;
@@ -40,6 +41,7 @@ protected:
     std::chrono::time_point<std::chrono::steady_clock> m_processingTime;
     std::mutex m_processingLock;
     bool m_processingScheduled;
+    std::future<void> m_future;
     bool m_threadStarted;
 };
 }

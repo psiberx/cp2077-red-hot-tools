@@ -20,15 +20,15 @@ App::AbstractWatcher::AbstractWatcher(const std::filesystem::path& aTarget,
     Watch(aTarget);
 }
 
-void App::AbstractWatcher::Watch(const std::filesystem::path& aTargetPath)
+void App::AbstractWatcher::Watch(const std::filesystem::path& aTarget)
 {
     std::error_code error;
-    auto targetDir = std::filesystem::is_directory(aTargetPath) ? aTargetPath : aTargetPath.parent_path();
+    auto targetDir = std::filesystem::is_directory(aTarget) ? aTarget : aTarget.parent_path();
     auto callback = [this, targetDir](const std::filesystem::path& aPath, const FileEvent aEvent) {
         Track(targetDir, aPath, aEvent);
     };
 
-    m_watches.emplace_back(std::make_unique<FileWatch>(aTargetPath, callback));
+    m_watches.emplace_back(std::make_unique<FileWatch>(aTarget, callback));
 }
 
 void App::AbstractWatcher::Track(const std::filesystem::path& aTarget, const std::filesystem::path& aPath,
@@ -40,7 +40,7 @@ void App::AbstractWatcher::Track(const std::filesystem::path& aTarget, const std
     case FileEvent::modified:
     case FileEvent::renamed_new:
     {
-        if (std::filesystem::exists(aTarget / aPath))
+        if (std::filesystem::exists(aTarget / aPath) && Filter(aPath))
         {
             Schedule();
         }
@@ -68,7 +68,7 @@ void App::AbstractWatcher::Schedule()
         m_threadStarted = true;
     }
 
-    std::ignore = std::async(std::launch::async, [this] {
+    m_future = std::async(std::launch::async, [this] {
         try
         {
             while (true)
@@ -121,4 +121,9 @@ void App::AbstractWatcher::Schedule()
 void App::AbstractWatcher::Cancel()
 {
     m_processingScheduled = false;
+}
+
+bool App::AbstractWatcher::Filter(const std::filesystem::path& aPath)
+{
+    return true;
 }
