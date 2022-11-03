@@ -2,11 +2,6 @@
 #include "Red/ResourceBank.hpp"
 #include "Red/ResourceDepot.hpp"
 
-App::ArchiveLoader::ArchiveLoader(std::filesystem::path aArchiveModDir)
-    : m_archiveModDir(std::move(aArchiveModDir))
-{
-}
-
 bool App::ArchiveLoader::SwapArchives(const std::filesystem::path& aArchiveHotDir)
 {
     std::unique_lock updateLock(m_updateLock);
@@ -19,7 +14,7 @@ bool App::ArchiveLoader::SwapArchives(const std::filesystem::path& aArchiveHotDi
     if (!CollectArchiveGroups(archiveGroups))
         return false;
 
-    if (!ResolveArchivePaths(archiveGroups, aArchiveHotDir, m_archiveModDir, archiveHotPaths, archiveModPaths))
+    if (!ResolveArchivePaths(archiveGroups, aArchiveHotDir, archiveHotPaths, archiveModPaths))
         return false;
 
     Red::DynArray<Red::ResourcePath> hotResources;
@@ -28,7 +23,7 @@ bool App::ArchiveLoader::SwapArchives(const std::filesystem::path& aArchiveHotDi
     MoveArchiveFiles(archiveHotPaths, archiveModPaths);
     LoadModArchives(archiveGroups, archiveModPaths, hotResources);
     InvalidateResources(hotResources);
-    MoveExtensionFiles(aArchiveHotDir, m_archiveModDir);
+    MoveExtensionFiles(archiveGroups, aArchiveHotDir);
     ReloadExtensions();
 
     return true;
@@ -54,7 +49,6 @@ bool App::ArchiveLoader::CollectArchiveGroups(Red::DynArray<Red::ArchiveGroup*>&
 
 bool App::ArchiveLoader::ResolveArchivePaths(const Red::DynArray<Red::ArchiveGroup*>& aGroups,
                                              const std::filesystem::path& aArchiveHotDir,
-                                             const std::filesystem::path& aArchiveModDir,
                                              Red::DynArray<Red::CString>& aArchiveHotPaths,
                                              Red::DynArray<Red::CString>& aArchiveModPaths)
 {
@@ -63,6 +57,8 @@ bool App::ArchiveLoader::ResolveArchivePaths(const Red::DynArray<Red::ArchiveGro
 
     if (error)
         return false;
+
+    const std::filesystem::path defaultModDir = aGroups[0]->basePath.c_str();
 
     for (const auto& entry : iterator)
     {
@@ -98,7 +94,7 @@ bool App::ArchiveLoader::ResolveArchivePaths(const Red::DynArray<Red::ArchiveGro
 
             if (!archiveFound)
             {
-                const auto& archiveModPath = aArchiveModDir / archiveName;
+                const auto& archiveModPath = defaultModDir / archiveName;
 
                 aArchiveHotPaths.EmplaceBack(archiveHotPath.string().c_str());
                 aArchiveModPaths.EmplaceBack(archiveModPath.string().c_str());
@@ -228,12 +224,8 @@ void App::ArchiveLoader::InvalidateResources(const Red::DynArray<Red::ResourcePa
     }
 }
 
-void App::ArchiveLoader::ReloadExtensions()
-{
-    Red::ExecuteFunction("ArchiveXL", "Reload", nullptr);
-}
-
-void App::ArchiveLoader::MoveExtensionFiles(const std::filesystem::path& aHotDir, const std::filesystem::path& aModDir)
+void App::ArchiveLoader::MoveExtensionFiles(const Red::DynArray<Red::ArchiveGroup*>& aGroups,
+                                            const std::filesystem::path& aHotDir)
 {
     std::error_code error;
     auto iterator = std::filesystem::recursive_directory_iterator(aHotDir, error);
@@ -241,7 +233,7 @@ void App::ArchiveLoader::MoveExtensionFiles(const std::filesystem::path& aHotDir
     if (error)
         return;
 
-    // TODO: Search in groups, or use first group
+    const std::filesystem::path defaultModDir = aGroups[0]->basePath.c_str();
 
     for (const auto& entry : iterator)
     {
@@ -249,21 +241,43 @@ void App::ArchiveLoader::MoveExtensionFiles(const std::filesystem::path& aHotDir
         {
             const auto& extension = entry.path().extension();
 
-            if (extension == L".xl" || extension == L".yaml")
+            if (extension == L".xl" || extension == L".yaml" || extension == L".yml")
             {
-                const auto& hotPath = entry.path();
-                const auto& modPath = aModDir / std::filesystem::relative(entry.path(), aHotDir);
+                std::filesystem::path configModPath;
+                bool configFound = false;
 
-                if (std::filesystem::exists(modPath))
+                for (const auto& group : aGroups)
                 {
-                    if (!std::filesystem::remove(modPath, error))
+                    configModPath = group->basePath.c_str();
+                    configModPath /= entry.path().filename();
+
+                    if (std::filesystem::exists(configModPath))
+                    {
+                        configFound = true;
+                        break;
+                    }
+                }
+
+                if (!configFound)
+                {
+                    configModPath = defaultModDir / entry.path().filename();
+                }
+
+                if (std::filesystem::exists(configModPath))
+                {
+                    if (!std::filesystem::remove(configModPath, error))
                         continue;
                 }
 
-                std::filesystem::rename(hotPath, modPath);
+                std::filesystem::rename(entry.path(), configModPath);
             }
         }
     }
+}
+
+void App::ArchiveLoader::ReloadExtensions()
+{
+    Red::ExecuteFunction("ArchiveXL", "Reload", nullptr);
 }
 
 App::ArchiveLoader::DepotLock::DepotLock()

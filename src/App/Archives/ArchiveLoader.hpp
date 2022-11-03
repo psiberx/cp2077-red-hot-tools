@@ -13,15 +13,12 @@ class ArchiveLoader
     , public Core::HookingAgent
 {
 public:
-    ArchiveLoader(std::filesystem::path aArchiveModDir);
-
     bool SwapArchives(const std::filesystem::path& aArchiveHotDir);
 
 private:
     static bool CollectArchiveGroups(Red::DynArray<Red::ArchiveGroup*>& aGroups);
     static bool ResolveArchivePaths(const Red::DynArray<Red::ArchiveGroup*>& aGroups,
                                     const std::filesystem::path& aArchiveHotDir,
-                                    const std::filesystem::path& aArchiveModDir,
                                     Red::DynArray<Red::CString>& aArchiveHotPaths,
                                     Red::DynArray<Red::CString>& aArchiveModPaths);
     static void MoveArchiveFiles(Red::DynArray<Red::CString>& aHotPaths, Red::DynArray<Red::CString>& aModPaths);
@@ -32,7 +29,8 @@ private:
                                 Red::DynArray<Red::ResourcePath>& aLoadedResources);
     static Red::Archive* FindArchivePosition(Red::DynArray<Red::Archive>& aArchives, const Red::CString& aArchivePath);
     static void InvalidateResources(const Red::DynArray<Red::ResourcePath>& aPaths);
-    static void MoveExtensionFiles(const std::filesystem::path& aHotDir, const std::filesystem::path& aModDir);
+    static void MoveExtensionFiles(const Red::DynArray<Red::ArchiveGroup*>& aGroups,
+                                   const std::filesystem::path& aHotDir);
     static void ReloadExtensions();
 
     struct DepotLock
@@ -44,7 +42,6 @@ private:
         inline static std::shared_mutex s_depotLock;
     };
 
-    std::filesystem::path m_archiveModDir;
     std::mutex m_updateLock;
 };
 }
