@@ -32,5 +32,4 @@ You must use the latest CET from GitHub or Discord if you wanna use CET and scri
 
 ### Limitations
 
-- Functions are never removed (functions removed in the script source still exist in scripting runtime)
 - Struct fields are not reinitialized (if you change the fields of a struct and an instance of that struct exists during hot reload, this can lead to issues)

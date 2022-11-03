@@ -268,6 +268,22 @@ bool App::ScriptLoader::BindScripts(Red::ScriptBundle& aBundle, Red::ScriptRepor
         }
     }
 
+    {
+        Red::DynArray<Red::CBaseFunction*> rttiFuncs;
+        rtti->GetClassFunctions(rttiFuncs);
+
+        for (auto rttiFunc : rttiFuncs)
+        {
+            if (!rttiFunc->flags.isNative && !resolvedFuncs.contains(rttiFunc))
+            {
+                // TODO: Find a way to properly destroy the buffer.
+                auto& codeBuffer = rttiFunc->bytecode.bytecode.buffer;
+                codeBuffer.data = nullptr;
+                codeBuffer.size = 0;
+            }
+        }
+    }
+
     rtti->SetStringTable(aBundle.strings);
 
     LogInfo("[ScriptLoader] Translating bytecode...");
