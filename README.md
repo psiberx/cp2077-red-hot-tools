@@ -16,17 +16,12 @@ For greater convenience it integrates with other tools:
 
 ### Prerequisites
 
-- [RED4ext](https://docs.red4ext.com/getting-started/installing-red4ext) 1.8.0+
+- [RED4ext](https://docs.red4ext.com/getting-started/installing-red4ext) 1.9.0+
 
 ### Installation
 
 1. Download [the latest release](https://github.com/psiberx/cp2077-red-hot-tools/releases) archive
 2. Extract the archive into the Cyberpunk 2077 installation directory
-
-### Compatibility
-
-The current CET 1.20 is not compatible with scripts hot reloading. 
-You must use the latest CET from GitHub or Discord if you wanna use CET and scripts hot reloading at the same time.
 
 ## Documentation
 
