@@ -11,20 +11,44 @@ bool App::ArchiveLoader::SwapArchives(const std::filesystem::path& aArchiveHotDi
     Red::DynArray<Red::CString> archiveHotPaths;
     Red::DynArray<Red::CString> archiveModPaths;
 
+    LogInfo("[ArchiveLoader] Archives reload requested.");
+
     if (!CollectArchiveGroups(archiveGroups))
+    {
+        LogError("[ArchiveLoader] The game resource depot is not initialized. Aborting.");
         return false;
+    }
 
     if (!ResolveArchivePaths(archiveGroups, aArchiveHotDir, archiveHotPaths, archiveModPaths))
+    {
+        LogWarning("[ArchiveLoader] No archives found in [{}].", aArchiveHotDir.string());
         return false;
+    }
 
     Red::DynArray<Red::ResourcePath> hotResources;
 
+    LogInfo("[ArchiveLoader] Unloading game archives...");
+
     UnloadModArchives(archiveGroups, archiveModPaths);
+
+    LogInfo("[ArchiveLoader] Moving updated archives...");
+
     MoveArchiveFiles(archiveHotPaths, archiveModPaths);
+
+    LogInfo("[ArchiveLoader] Loading updated archives...");
+
     LoadModArchives(archiveGroups, archiveModPaths, hotResources);
+
+    LogInfo("[ArchiveLoader] Resetting resource cache...");
+
     InvalidateResources(hotResources);
+
+    LogInfo("[ArchiveLoader] Reloading archive extensions...");
+
     MoveExtensionFiles(archiveGroups, aArchiveHotDir);
     ReloadExtensions();
+
+    LogInfo("[ArchiveLoader] Archives reload completed.");
 
     return true;
 }
