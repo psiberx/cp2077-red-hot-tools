@@ -13,14 +13,6 @@ local viewStyle = {
 registerForEvent('onInit', function()
     viewState.isHotToolsFound = type(RedHotTools) == 'userdata'
     viewState.isTweakXLFound = type(TweakXL) == 'userdata'
-
-    viewStyle.fontSize = ImGui.GetFontSize()
-    viewStyle.viewScale = viewStyle.fontSize / 13
-    viewStyle.windowWidth = 400 * viewStyle.viewScale
-    viewStyle.windowHeight = 0
-    viewStyle.windowPaddingX = 8 * viewStyle.viewScale
-    viewStyle.windowPaddingY = 8 * viewStyle.viewScale
-    viewStyle.buttonHeight = 24 * viewStyle.viewScale
 end)
 
 registerForEvent('onOverlayOpen', function()
@@ -34,6 +26,16 @@ end)
 registerForEvent('onDraw', function()
     if not viewState.isConsoleOpen or not viewState.isHotToolsFound then
         return
+    end
+
+    if not viewStyle.fontSize then
+        viewStyle.fontSize = ImGui.GetFontSize()
+        viewStyle.viewScale = viewStyle.fontSize / 13
+        viewStyle.windowWidth = 400 * viewStyle.viewScale
+        viewStyle.windowHeight = 0
+        viewStyle.windowPaddingX = 8 * viewStyle.viewScale
+        viewStyle.windowPaddingY = 8 * viewStyle.viewScale
+        viewStyle.buttonHeight = 24 * viewStyle.viewScale
     end
 
     ImGui.SetNextWindowPos(viewStyle.windowX, viewStyle.windowY, ImGuiCond.FirstUseEver)
