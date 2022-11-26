@@ -10,34 +10,30 @@ void App::TweakLoader::ReloadTweaks()
     Red::ExecuteFunction("TweakXL", "Reload", nullptr);
 }
 
-void App::TweakLoader::ReloadTweaks(const std::vector<std::filesystem::path>& aPaths)
+void App::TweakLoader::ReloadTweaks(const Core::Vector<Red::CString>& aTargets)
 {
-    Red::ExecuteFunction("TweakXL", "Reload", nullptr);
+    ReloadTweaks();
 
-    // if (aPaths.empty())
+    // if (aTargets.empty())
     // {
     //     ReloadTweaks();
     //     return;
     // }
     //
+    // Core::Vector<Red::CString> importables;
+    // Core::Vector<Red::CString> scriptables;
+    //
     // std::error_code error;
     //
-    // for (const auto& path : aPaths)
+    // for (const auto& target : aTargets)
     // {
-    //     const auto tweakPath = m_tweaksDir / path;
-    //
-    //     if (std::filesystem::exists(tweakPath, error))
+    //     if (std::filesystem::exists(m_tweaksDir / target.c_str(), error))
     //     {
-    //         auto tweakPathStr = Red::CString(tweakPath.string().c_str());
-    //
-    //         if (std::filesystem::is_directory(tweakPath, error))
-    //         {
-    //             Red::ExecuteFunction("TweakXL", "ImportDir", nullptr, tweakPathStr);
-    //         }
-    //         else
-    //         {
-    //             Red::ExecuteFunction("TweakXL", "Import", nullptr, tweakPathStr);
-    //         }
+    //         importables.emplace_back(target);
+    //     }
+    //     else
+    //     {
+    //         scriptables.emplace_back(target);
     //     }
     // }
 }

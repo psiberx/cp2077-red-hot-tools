@@ -15,7 +15,7 @@ public:
     TweakLoader(std::filesystem::path aTweaksDir);
 
     void ReloadTweaks();
-    void ReloadTweaks(const std::vector<std::filesystem::path>& aPaths);
+    void ReloadTweaks(const Core::Vector<Red::CString>& aTargets);
 
 private:
 

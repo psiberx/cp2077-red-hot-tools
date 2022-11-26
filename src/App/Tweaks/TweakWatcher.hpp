@@ -11,7 +11,7 @@ public:
 
 protected:
     bool Process() override;
-    bool Read(std::vector<std::filesystem::path>& aPaths);
+    bool Read(Core::Vector<Red::CString>& aTargets);
     bool CleanUp();
 
     std::filesystem::path m_requestPath;

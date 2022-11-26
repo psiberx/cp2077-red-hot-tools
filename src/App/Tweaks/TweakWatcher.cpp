@@ -11,19 +11,19 @@ App::TweakWatcher::TweakWatcher(std::filesystem::path aRequestPath)
 
 bool App::TweakWatcher::Process()
 {
-    std::vector<std::filesystem::path> paths;
+    Core::Vector<Red::CString> targets;
 
-    if (!Read(paths))
+    if (!Read(targets))
         return false;
 
     if (!CleanUp())
         return false;
 
-    Core::Resolve<TweakLoader>()->ReloadTweaks(paths);
+    Core::Resolve<TweakLoader>()->ReloadTweaks(targets);
     return true;
 }
 
-bool App::TweakWatcher::Read(std::vector<std::filesystem::path>& aPaths)
+bool App::TweakWatcher::Read(Core::Vector<Red::CString>& aTargets)
 {
     try
     {
@@ -33,7 +33,7 @@ bool App::TweakWatcher::Read(std::vector<std::filesystem::path>& aPaths)
         {
             if (!line.empty())
             {
-                aPaths.emplace_back(line);
+                aTargets.emplace_back(line.c_str());
             }
         }
         return true;
