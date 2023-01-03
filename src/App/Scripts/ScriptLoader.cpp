@@ -34,7 +34,7 @@ void App::ScriptLoader::ReloadScripts()
             Red::ScriptBundle bundle;
             Red::ScriptReport report;
 
-            if (!CompileScripts(bundle))
+            if (!CompileScripts(bundle, true))
                 return;
 
             if (!ValidateScripts(bundle, report))
@@ -63,7 +63,7 @@ void App::ScriptLoader::ReloadScripts()
     }
 }
 
-bool App::ScriptLoader::CompileScripts(Red::ScriptBundle& aBundle)
+bool App::ScriptLoader::CompileScripts(Red::ScriptBundle& aBundle, bool aInjectCustomCacheArg)
 {
     auto engine = Red::CGameEngine::Get();
 
@@ -76,6 +76,13 @@ bool App::ScriptLoader::CompileScripts(Red::ScriptBundle& aBundle)
     }
 
     LogInfo("[ScriptLoader] Compiling scripts from [{}] as [{}]...", sourceDir.c_str(), blobPath.c_str());
+
+    if (engine->scriptsBlobPath.Length() > 0 && aInjectCustomCacheArg)
+    {
+        auto argInjection = std::format("{}\" -customCacheDir \"{}", sourceDir.c_str(),
+                                        std::filesystem::path(blobPath.c_str()).parent_path().string());
+        sourceDir = argInjection.c_str();
+    }
 
     if (!Red::ScriptCompiler::Compile(sourceDir, blobPath, engine->scriptsCompilationErrors))
     {

@@ -21,7 +21,7 @@ public:
     void ReloadScripts();
 
 protected:
-    bool CompileScripts(Red::ScriptBundle& aBundle);
+    bool CompileScripts(Red::ScriptBundle& aBundle, bool aInjectCustomCacheArg = false);
     bool ValidateScripts(Red::ScriptBundle& aBundle, Red::ScriptReport& aReport);
     bool BindScripts(Red::ScriptBundle& aBundle, Red::ScriptReport& aReport);
     void CaptureScriptableData();

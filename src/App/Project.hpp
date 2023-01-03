@@ -12,5 +12,5 @@ constexpr auto Author = "psiberx";
 constexpr auto NameW = L"RedHotTools";
 constexpr auto AuthorW = L"psiberx";
 
-constexpr auto Version = semver::from_string_noexcept("0.4.4").value();
+constexpr auto Version = semver::from_string_noexcept("0.4.5").value();
 }
