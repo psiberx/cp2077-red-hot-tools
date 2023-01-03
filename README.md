@@ -23,8 +23,13 @@ For greater convenience it integrates with other tools:
 1. Download [the latest release](https://github.com/psiberx/cp2077-red-hot-tools/releases) archive
 2. Extract the archive into the Cyberpunk 2077 installation directory
 
+## Visual Studio Code
+
+The extension can be installed by dragging the `.vsix` file onto your VS Code extension bar.
+
 ## Documentation
 
 ### Limitations
 
 - Struct fields are not reinitialized (if you change the fields of a struct and an instance of that struct exists during hot reload, this can lead to issues)
+- Handlers for scriptable systems requests aren't registered on scripts load, if you add a new handler you have to reload the game session 
