@@ -1,4 +1,5 @@
 #include "TweakLoader.hpp"
+#include "Red/GameEngine.hpp"
 
 App::TweakLoader::TweakLoader(std::filesystem::path aTweaksDir)
     : m_tweaksDir(std::move(aTweaksDir))
@@ -7,7 +8,9 @@ App::TweakLoader::TweakLoader(std::filesystem::path aTweaksDir)
 
 void App::TweakLoader::ReloadTweaks()
 {
-    Red::ExecuteFunction("TweakXL", "Reload", nullptr);
+    HookOnceAfter<Raw::CBaseEngine::MainLoopTick>(+[]() {
+        Red::ExecuteFunction("TweakXL", "Reload", nullptr);
+    });
 }
 
 void App::TweakLoader::ReloadTweaks(const Core::Vector<Red::CString>& aTargets)

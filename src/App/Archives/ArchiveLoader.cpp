@@ -1,4 +1,5 @@
 #include "ArchiveLoader.hpp"
+#include "Red/GameEngine.hpp"
 #include "Red/ResourceBank.hpp"
 #include "Red/ResourceDepot.hpp"
 
@@ -231,19 +232,24 @@ void App::ArchiveLoader::InvalidateResources(const Red::DynArray<Red::ResourcePa
     for (const auto& path : aPaths)
     {
         {
-            auto tokenWeak = loader->tokens.Get(path);
-            if (tokenWeak && !tokenWeak->Expired())
-            {
-                auto token = tokenWeak->Lock();
-                if (token->IsFinished())
-                {
-                    loader->tokens.Remove(path);
-                }
-            }
-        }
-        {
             Red::Handle<Red::CResource> resource;
             Raw::ResourceBank::ForgetResource(loader->unk48, resource, path);
+        }
+        {
+            auto* tokenWeak = loader->tokens.Get(path);
+            if (tokenWeak && tokenWeak->instance)
+            {
+                tokenWeak->refCount = nullptr;
+                tokenWeak->instance = nullptr;
+
+                loader->tokens.Remove(path);
+
+                // auto token = tokenWeak->Lock();
+                // if (token->IsFinished())
+                // {
+                //    loader->tokens.Remove(path);
+                // }
+            }
         }
     }
 }
@@ -301,7 +307,9 @@ void App::ArchiveLoader::MoveExtensionFiles(const Red::DynArray<Red::ArchiveGrou
 
 void App::ArchiveLoader::ReloadExtensions()
 {
-    Red::ExecuteFunction("ArchiveXL", "Reload", nullptr);
+    HookOnceAfter<Raw::CBaseEngine::MainLoopTick>(+[]() {
+        Red::ExecuteFunction("ArchiveXL", "Reload", nullptr);
+    });
 }
 
 App::ArchiveLoader::DepotLock::DepotLock()
