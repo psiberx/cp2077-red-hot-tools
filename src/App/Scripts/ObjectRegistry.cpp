@@ -1,12 +1,11 @@
 #include "ObjectRegistry.hpp"
 #include "Red/ISerializable.hpp"
-#include "Red/Rtti/Locator.hpp"
 
 namespace
 {
 constexpr auto MaxNumObjects = 0x300000;
 
-Red::Rtti::TypeLocator<"IScriptable"> s_IScriptableType;
+Red::ClassLocator<Red::IScriptable> s_IScriptableType;
 }
 
 void App::ObjectRegistry::OnBootstrap()

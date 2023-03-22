@@ -9,6 +9,7 @@
 #include <future>
 #include <map>
 #include <memory>
+#include <source_location>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -45,6 +46,9 @@
 #include <RED4ext/Scripting/IScriptable.hpp>
 #include <RED4ext/Scripting/Stack.hpp>
 
+#include <nameof.hpp>
+#include <semver.hpp>
+
 #include <FileWatch.hpp>
 
 #include "Core/Raw.hpp"
@@ -52,6 +56,8 @@
 
 #include "Red/Alias.hpp"
 #include "Red/Stl.hpp"
+#include "Red/Rtti/Definition.hpp"
+#include "Red/Rtti/Resolving.hpp"
 
 #ifdef VERBOSE
 #include "Red/Log.hpp"
