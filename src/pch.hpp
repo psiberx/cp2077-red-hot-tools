@@ -45,6 +45,8 @@
 #include <RED4ext/Scripting/Functions.hpp>
 #include <RED4ext/Scripting/IScriptable.hpp>
 #include <RED4ext/Scripting/Stack.hpp>
+#include <RED4ext/Scripting/Natives/ScriptGameInstance.hpp>
+#include <RED4ext/Scripting/Natives/Generated/game/IGameSystem.hpp>
 
 #include <nameof.hpp>
 #include <semver.hpp>
@@ -55,10 +57,8 @@
 #include "Core/Stl.hpp"
 
 #include "Red/Alias.hpp"
-#include "Red/Stl.hpp"
-#include "Red/Rtti/Definition.hpp"
-#include "Red/Rtti/Resolving.hpp"
-
-#ifdef VERBOSE
-#include "Red/Log.hpp"
-#endif
+#include "Red/Framework.hpp"
+#include "Red/LogChannel.hpp"
+#include "Red/TypeInfo.hpp"
+#include "Red/Specializations.hpp"
+#include "Red/Utils.hpp"
