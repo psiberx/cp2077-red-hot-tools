@@ -6,7 +6,7 @@
 bool App::ArchiveLoader::SwapArchives(const std::filesystem::path& aArchiveHotDir)
 {
     std::unique_lock updateLock(m_updateLock);
-    DepotLock depotLock;
+    DepotLocker depotLocker;
 
     Red::DynArray<Red::ArchiveGroup*> archiveGroups;
     Red::DynArray<Red::CString> archiveHotPaths;
@@ -42,7 +42,7 @@ bool App::ArchiveLoader::SwapArchives(const std::filesystem::path& aArchiveHotDi
 
     LogInfo("[ArchiveLoader] Resetting resource cache...");
 
-    InvalidateResources(hotResources);
+    InvalidateResources(hotResources, depotLocker);
 
     LogInfo("[ArchiveLoader] Reloading archive extensions...");
 
@@ -143,10 +143,18 @@ void App::ArchiveLoader::MoveArchiveFiles(Red::DynArray<Red::CString>& aHotPaths
         if (std::filesystem::exists(modPath))
         {
             if (!std::filesystem::remove(modPath, error))
+            {
+                LogError("{}: {}", modPath.string(), error.message());
                 continue;
+            }
         }
 
-        std::filesystem::rename(hotPath, modPath);
+        std::filesystem::rename(hotPath, modPath, error);
+
+        if (error)
+        {
+            LogError("{}: {}", hotPath.string(), error.message());
+        }
     }
 }
 
@@ -220,7 +228,7 @@ Red::Archive* App::ArchiveLoader::FindArchivePosition(Red::DynArray<Red::Archive
                             });
 }
 
-void App::ArchiveLoader::InvalidateResources(const Red::DynArray<Red::ResourcePath>& aPaths)
+void App::ArchiveLoader::InvalidateResources(const Red::DynArray<Red::ResourcePath>& aPaths, DepotLocker& aDepotLocker)
 {
     if (aPaths.size == 0)
         return;
@@ -312,15 +320,25 @@ void App::ArchiveLoader::ReloadExtensions()
     });
 }
 
-App::ArchiveLoader::DepotLock::DepotLock()
-    : m_guard(s_depotLock)
+App::ArchiveLoader::DepotLocker::DepotLocker()
+    : m_guard(s_mutex)
 {
-    HookBefore<Raw::ResourceDepot::RequestResource>(+[]() {
-        std::shared_lock lock(s_depotLock);
+    HookBefore<Raw::ResourceDepot::RequestResource>(+[](Red::ResourceDepot& aDepot, uintptr_t,
+                                                        Red::ResourcePath aPath, uintptr_t) {
+        if (!s_bypass.contains(aPath))
+        {
+            std::shared_lock lock(s_mutex);
+        }
     });
 }
 
-App::ArchiveLoader::DepotLock::~DepotLock()
+App::ArchiveLoader::DepotLocker::~DepotLocker()
 {
     Unhook<Raw::ResourceDepot::RequestResource>();
+    s_bypass.clear();
+}
+
+void App::ArchiveLoader::DepotLocker::Bypass(Red::ResourcePath aPath)
+{
+    s_bypass.emplace(aPath, true);
 }
