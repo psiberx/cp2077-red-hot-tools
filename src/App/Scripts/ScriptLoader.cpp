@@ -283,12 +283,10 @@ bool App::ScriptLoader::BindScripts(Red::ScriptBundle& aBundle, Red::ScriptRepor
         {
             if (!rttiFunc->flags.isNative && !resolvedFuncs.contains(rttiFunc))
             {
-                using FlagsIntType = uint32_t;
-                constexpr auto CustomFlag = 1 << (sizeof(FlagsIntType) - 1);
-                static_assert(sizeof(Red::CBaseFunction::Flags) == sizeof(FlagsIntType));
-
-                if (*reinterpret_cast<FlagsIntType*>(&rttiFunc->flags) & CustomFlag)
+                if (Red::IsSpecial(rttiFunc))
+                {
                     continue;
+                }
 
                 // TODO: Find a way to properly destroy the buffer.
                 auto& codeBuffer = rttiFunc->bytecode.bytecode.buffer;
