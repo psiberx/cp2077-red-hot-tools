@@ -172,8 +172,8 @@ bool App::ScriptLoader::BindScripts(Red::ScriptBundle& aBundle, Red::ScriptRepor
 
                 if (!resolved)
                 {
-                    scriptEnum->rttiEnum->hashList.PushBack(scriptConstant->name);
-                    scriptEnum->rttiEnum->valueList.PushBack(scriptConstant->value);
+                    // scriptEnum->rttiEnum->hashList.PushBack(scriptConstant->name);
+                    // scriptEnum->rttiEnum->valueList.PushBack(scriptConstant->value);
                 }
             }
         }
