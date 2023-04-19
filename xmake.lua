@@ -1,24 +1,26 @@
 set_xmakever("2.5.9")
 
 set_project("RedHotTools")
-set_version("0.4.8", {build = "%y%m%d%H%M"})
+set_version("0.4.9", {build = "%y%m%d%H%M"})
 
 set_arch("x64")
 set_languages("cxx20", "cxx2a")
-set_optimize("none")
 add_cxxflags("/MP /GR- /EHsc")
 
 if is_mode("debug") then
     set_symbols("debug")
+    set_optimize("none")
     add_cxxflags("/Od /Ob0 /Zi /RTC1")
 elseif is_mode("release") then
     set_symbols("hidden")
     set_strip("all")
-    add_cxxflags("/O2 /Ob2 /fp:fast")
+    set_optimize("fastest")
+    add_cxxflags("/Ob2")
 elseif is_mode("releasedbg") then
     set_symbols("debug")
     set_strip("all")
-    add_cxxflags("/O2 /Ob1 /fp:fast /Zi")
+    set_optimize("fastest")
+    add_cxxflags("/Ob1 /Zi")
 end
 
 if is_mode("debug") then
@@ -28,8 +30,6 @@ else
 end
 
 add_requires("fmt", "hopscotch-map", "minhook", "spdlog", "tiltedcore")
-
-add_defines("RED4EXT_STATIC_LIB")
 
 target("RedHotTools")
     set_default(true)
@@ -53,7 +53,6 @@ target("RED4ext.SDK")
     set_default(false)
     set_kind("static")
     set_group("vendor")
-    add_files("vendor/RED4ext.SDK/src/**.cpp")
     add_headerfiles("vendor/RED4ext.SDK/include/**.hpp")
     add_includedirs("vendor/RED4ext.SDK/include/", { public = true })
 
