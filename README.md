@@ -16,7 +16,7 @@ For greater convenience it integrates with other tools:
 
 ### Prerequisites
 
-- [RED4ext](https://docs.red4ext.com/getting-started/installing-red4ext) 1.9.0+
+- [RED4ext](https://docs.red4ext.com/getting-started/installing-red4ext) 1.12.0+
 
 ### Installation
 
