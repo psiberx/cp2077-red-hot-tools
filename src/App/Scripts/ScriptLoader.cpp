@@ -75,7 +75,7 @@ bool App::ScriptLoader::CompileScripts(Red::ScriptBundle& aBundle, bool aInjectC
         blobPath = engine->scriptsBlobPath;
     }
 
-    LogInfo("[ScriptLoader] Compiling scripts from [{}] as [{}]...", sourceDir.c_str(), blobPath.c_str());
+    LogInfo("[ScriptLoader] Compiling scripts from \"{}\" as \"{}\"...", sourceDir.c_str(), blobPath.c_str());
 
     if (engine->scriptsBlobPath.Length() > 0 && aInjectCustomCacheArg)
     {
@@ -90,7 +90,7 @@ bool App::ScriptLoader::CompileScripts(Red::ScriptBundle& aBundle, bool aInjectC
         return false;
     }
 
-    LogInfo("[ScriptLoader] Reading script blob from [{}]...", blobPath.c_str());
+    LogInfo("[ScriptLoader] Reading script blob from \"{}\"...", blobPath.c_str());
 
     if (!aBundle.Read(blobPath))
     {

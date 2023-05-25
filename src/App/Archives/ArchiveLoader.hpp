@@ -19,6 +19,7 @@ private:
     struct DepotLocker
     {
         DepotLocker();
+        DepotLocker(DepotLocker&&) = default;
         ~DepotLocker();
 
         void Bypass(Red::ResourcePath aPath);
@@ -40,7 +41,8 @@ private:
                                 const Red::DynArray<Red::CString>& aArchivePaths,
                                 Red::DynArray<Red::ResourcePath>& aLoadedResources);
     static Red::Archive* FindArchivePosition(Red::DynArray<Red::Archive>& aArchives, const Red::CString& aArchivePath);
-    static void InvalidateResources(const Red::DynArray<Red::ResourcePath>& aPaths, DepotLocker& aDepotLocker);
+    static bool InvalidateResources(const Red::DynArray<Red::ResourcePath>& aPaths,
+                                    Core::UniquePtr<DepotLocker>& aDepotLocker);
     static void MoveExtensionFiles(const Red::DynArray<Red::ArchiveGroup*>& aGroups,
                                    const std::filesystem::path& aHotDir);
     static void ReloadExtensions();

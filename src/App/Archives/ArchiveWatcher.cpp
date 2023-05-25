@@ -20,12 +20,12 @@ App::ArchiveWatcher::ArchiveWatcher(std::filesystem::path aHotDir)
 
     if (canWatch)
     {
-        LogInfo("[ArchiveWatcher] Watching [{}] for changes...", m_archiveHotDir.string());
+        LogInfo("[ArchiveWatcher] Watching \"{}\" for changes...", m_archiveHotDir.string());
         Watch(m_archiveHotDir);
     }
     else
     {
-        LogError("[ArchiveWatcher] Can't watch [{}] for changes, no access.", m_archiveHotDir.string());
+        LogError("[ArchiveWatcher] Can't watch \"{}\" for changes, no access.", m_archiveHotDir.string());
     }
 }
 

@@ -26,6 +26,10 @@ def patterns():
                      expected=24,
                      index=1),
             ]),
+            Group(name="JobHandle", functions=[
+                Item(name="Wait",
+                     pattern="40 53 48 83 EC 30 48 8B D9 33 D2 48 8B 0D ? ? ? ? E8"),
+            ]),
             Group(name="ResourceBank", functions=[
                 Item(name="ForgetResource",
                      pattern="48 89 5C 24 10 48 89 6C 24 20 56 57 41 54 41 56 41 57 48 83 EC 30 4C 8B F1 49 8B F8"),

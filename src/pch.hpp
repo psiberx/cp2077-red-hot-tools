@@ -26,6 +26,7 @@
 #include <RED4ext/Scripting/Natives/Generated/ent/ComponentsStorage.hpp>
 #include <RED4ext/Scripting/Natives/Generated/game/IGameSystem.hpp>
 #include <RED4ext/Scripting/Natives/Generated/game/ScriptableSystem.hpp>
+#include <RED4ext/Scripting/Natives/Generated/ink/WidgetLibraryResource.hpp>
 
 #include <nameof.hpp>
 #include <semver.hpp>

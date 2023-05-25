@@ -18,6 +18,8 @@ constexpr uintptr_t CBaseEngine_MainLoopTick = 0x140A84610 - ImageBase; // 40 56
 
 constexpr uintptr_t ISerializable_SetReference = 0x1401BA100 - ImageBase; // 40 53 48 83 EC 30 48 8B 02 48 8B D9 48 89 44 24 20 48 8D 4C 24 20 48 8B 42 08 48 89 44 24 28 E8, expected: 24, index: 1
 
+constexpr uintptr_t JobHandle_Wait = 0x142C4A050 - ImageBase; // 40 53 48 83 EC 30 48 8B D9 33 D2 48 8B 0D ? ? ? ? E8, expected: 1, index: 0
+
 constexpr uintptr_t ResourceBank_ForgetResource = 0x140266FC0 - ImageBase; // 48 89 5C 24 10 48 89 6C 24 20 56 57 41 54 41 56 41 57 48 83 EC 30 4C 8B F1 49 8B F8, expected: 1, index: 0
 
 constexpr uintptr_t ResourceDepot_LoadArchives = 0x1430499C0 - ImageBase; // 48 8B C4 4C 89 48 20 55 53 56 41 55 48 8D 68 B1 48 81 EC C8 00 00 00 49 8B 18 4C 8B EA, expected: 1, index: 0

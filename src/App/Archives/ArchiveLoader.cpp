@@ -1,18 +1,19 @@
 #include "ArchiveLoader.hpp"
 #include "Red/GameEngine.hpp"
+#include "Red/JobHandle.hpp"
 #include "Red/ResourceBank.hpp"
 #include "Red/ResourceDepot.hpp"
 
 bool App::ArchiveLoader::SwapArchives(const std::filesystem::path& aArchiveHotDir)
 {
     std::unique_lock updateLock(m_updateLock);
-    DepotLocker depotLocker;
+    auto depotLocker = Core::MakeUnique<DepotLocker>();
 
     Red::DynArray<Red::ArchiveGroup*> archiveGroups;
     Red::DynArray<Red::CString> archiveHotPaths;
     Red::DynArray<Red::CString> archiveModPaths;
 
-    LogInfo("[ArchiveLoader] Archives reload requested.");
+    LogInfo("[ArchiveLoader] Archives reload requested...");
 
     if (!CollectArchiveGroups(archiveGroups))
     {
@@ -22,8 +23,14 @@ bool App::ArchiveLoader::SwapArchives(const std::filesystem::path& aArchiveHotDi
 
     if (!ResolveArchivePaths(archiveGroups, aArchiveHotDir, archiveHotPaths, archiveModPaths))
     {
-        LogWarning("[ArchiveLoader] No archives found in [{}].", aArchiveHotDir.string());
+        LogWarning("[ArchiveLoader] No archives found in \"{}\".", aArchiveHotDir.string());
         return false;
+    }
+
+    LogInfo("[ArchiveLoader] Found archives:");
+    for (const auto& archivePath : archiveHotPaths)
+    {
+        LogInfo("[ArchiveLoader] - {}", std::filesystem::relative(archivePath.c_str(), aArchiveHotDir).string());
     }
 
     Red::DynArray<Red::ResourcePath> hotResources;
@@ -42,12 +49,15 @@ bool App::ArchiveLoader::SwapArchives(const std::filesystem::path& aArchiveHotDi
 
     LogInfo("[ArchiveLoader] Resetting resource cache...");
 
-    InvalidateResources(hotResources, depotLocker);
+    auto invalidated = InvalidateResources(hotResources, depotLocker);
 
     LogInfo("[ArchiveLoader] Reloading archive extensions...");
 
     MoveExtensionFiles(archiveGroups, aArchiveHotDir);
-    ReloadExtensions();
+    if (invalidated)
+    {
+        ReloadExtensions();
+    }
 
     LogInfo("[ArchiveLoader] Archives reload completed.");
 
@@ -228,38 +238,90 @@ Red::Archive* App::ArchiveLoader::FindArchivePosition(Red::DynArray<Red::Archive
                             });
 }
 
-void App::ArchiveLoader::InvalidateResources(const Red::DynArray<Red::ResourcePath>& aPaths, DepotLocker& aDepotLocker)
+bool App::ArchiveLoader::InvalidateResources(const Red::DynArray<Red::ResourcePath>& aPaths,
+                                             Core::UniquePtr<DepotLocker>& aDepotLocker)
 {
     if (aPaths.size == 0)
-        return;
+        return true;
+
+    // Force reload existing tokens:
+    // 1. Copy existing token
+    // 2. Reset token in the loader
+    // 3. Request resource, i.e. create a new token in the loader
+    // 4. Wait until new token is finished loading
+    // 5. Merge the new token with the old token (resource, unk38, unk40)
+    // 6. Put the old token back to loader (if we won't keep the old token, we'll loose existing references forever)
 
     auto loader = Red::ResourceLoader::Get();
+    Core::Vector<Red::SharedPtr<Red::ResourceToken<>>> oldTokens;
 
-    std::unique_lock lock(loader->tokenLock);
-
-    for (const auto& path : aPaths)
     {
+        std::unique_lock lock(loader->tokenLock);
+
+        for (const auto& path : aPaths)
         {
-            Red::Handle<Red::CResource> resource;
-            Raw::ResourceBank::ForgetResource(loader->unk48, resource, path);
-        }
-        {
-            auto* tokenWeak = loader->tokens.Get(path);
-            if (tokenWeak && tokenWeak->instance)
             {
-                tokenWeak->refCount = nullptr;
-                tokenWeak->instance = nullptr;
+                Red::Handle<Red::CResource> resource;
+                Raw::ResourceBank::ForgetResource(loader->unk48, resource, path);
+            }
+            {
+                auto* tokenWeak = loader->tokens.Get(path);
+                if (tokenWeak && tokenWeak->instance)
+                {
+                    static const auto s_inkWidgetResourceType = Red::GetClass<Red::inkWidgetLibraryResource>();
 
-                loader->tokens.Remove(path);
+                    if (!tokenWeak->Expired() && tokenWeak->instance->IsLoaded()
+                        && tokenWeak->instance->resource->GetType()->IsA(s_inkWidgetResourceType))
+                    {
+                        oldTokens.push_back(tokenWeak->Lock());
+                    }
+                    else
+                    {
+                        tokenWeak->refCount = nullptr;
+                        tokenWeak->instance = nullptr;
+                    }
 
-                // auto token = tokenWeak->Lock();
-                // if (token->IsFinished())
-                // {
-                //    loader->tokens.Remove(path);
-                // }
+                    loader->tokens.Remove(path);
+                }
             }
         }
     }
+
+    if (!oldTokens.empty())
+    {
+        HookOnceAfter<Raw::CBaseEngine::MainLoopTick>([oldTokens, locker = std::move(aDepotLocker)]() {
+            auto loader = Red::ResourceLoader::Get();
+
+            Red::JobHandle allJobs{Red::JobParamSet()};
+
+            for (auto& oldToken : oldTokens)
+            {
+                locker->Bypass(oldToken->path);
+
+                auto newToken = loader->LoadAsync(oldToken->path);
+                newToken->OnLoaded([&loader, &oldToken, &newToken](Red::Handle<Red::CResource>& aResource) {
+                    std::unique_lock lock(loader->tokenLock);
+
+                    oldToken->resource = newToken->resource;
+                    oldToken->unk38 = newToken->unk38;
+                    oldToken->unk40 = newToken->unk40;
+
+                    loader->tokens.Remove(oldToken->path);
+                    loader->tokens.Emplace(oldToken->path, oldToken);
+                });
+
+                allJobs.Join(newToken->job);
+            }
+
+            Raw::JobHandle::Wait(allJobs);
+
+            ReloadExtensions();
+        });
+
+        return false;
+    }
+
+    return true;
 }
 
 void App::ArchiveLoader::MoveExtensionFiles(const Red::DynArray<Red::ArchiveGroup*>& aGroups,
@@ -315,9 +377,11 @@ void App::ArchiveLoader::MoveExtensionFiles(const Red::DynArray<Red::ArchiveGrou
 
 void App::ArchiveLoader::ReloadExtensions()
 {
-    HookOnceAfter<Raw::CBaseEngine::MainLoopTick>(+[]() {
-        Red::ExecuteFunction("ArchiveXL", "Reload", nullptr);
-    });
+    Red::ExecuteFunction("ArchiveXL", "Reload", nullptr);
+
+    // HookOnceAfter<Raw::CBaseEngine::MainLoopTick>(+[]() {
+    //     Red::ExecuteFunction("ArchiveXL", "Reload", nullptr);
+    // });
 }
 
 App::ArchiveLoader::DepotLocker::DepotLocker()
