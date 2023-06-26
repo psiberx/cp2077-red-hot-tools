@@ -18,6 +18,11 @@ For greater convenience it integrates with other tools:
 
 - [RED4ext](https://docs.red4ext.com/getting-started/installing-red4ext) 1.14.0+
 
+### Compatibility
+
+- Cyberpunk 2077 1.63 Hotfix 1
+- [Cyber Engine Tweaks](https://github.com/yamashi/CyberEngineTweaks) 1.25.0+
+
 ### Installation
 
 1. Download [the latest release](https://github.com/psiberx/cp2077-red-hot-tools/releases) archive
