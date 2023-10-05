@@ -9,11 +9,11 @@ namespace Red::Addresses
 {
 constexpr uintptr_t ImageBase = 0x140000000;
 
-constexpr uintptr_t Main = 0x1401A0550 - ImageBase; // 40 53 48 81 EC ? ? ? ? FF 15 ? ? ? ? E8 ? ? ? ? E8 ? ? ? ?, expected: 1, index: 0
+constexpr uintptr_t Main = 0x14080E01C - ImageBase;
 constexpr uintptr_t InvokeSCC = 0x140A99640 - ImageBase; // 48 89 5C 24 08 48 89 74 24 10 48 89 7C 24 18 4C 89 74 24 20 55 48 8D AC 24 30 B0 FF FF B8 D0 50 00 00, expected: 1, index: 0
-constexpr uintptr_t LogChannel = 0x1401F7E80 - ImageBase; // 4C 8B DC 49 89 5B 08 49 89 73 18 57 48 83 EC 70 48 8B 02 ? ? ? ? ? ? ? FE 42 62 4D 8D 43 10 33 FF 45 33 C9 49 89 7B 10 48 8B DA 48 89 7A, expected: 1, index: 0
+constexpr uintptr_t LogChannel = 0x140CFD440 - ImageBase;
 
-constexpr uintptr_t CBaseEngine_LoadScripts = 0x140A85550 - ImageBase; // 48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 48 89 7C 24 20 41 56 48 83 EC 20 49 8B F9 41 C6 81 A0 02 00 00 01, expected: 1, index: 0
+constexpr uintptr_t CBaseEngine_LoadScripts = 0x140710168 - ImageBase;
 constexpr uintptr_t CBaseEngine_MainLoopTick = 0x140A85C60 - ImageBase; // 40 56 41 56 48 83 EC 78 48 8B F1 0F 29 7C 24 50 48 8D 4C 24 38 0F 28 F9 E8 ? ? ? ? 48 8D 8C 24 A0 00 00 00, expected: 1, index: 0
 
 constexpr uintptr_t ISerializable_SetReference = 0x1401BA320 - ImageBase; // 40 53 48 83 EC 30 48 8B 02 48 8B D9 48 89 44 24 20 48 8D 4C 24 20 48 8B 42 08 48 89 44 24 28 E8, expected: 24, index: 1

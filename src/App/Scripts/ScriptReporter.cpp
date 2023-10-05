@@ -1,10 +1,11 @@
 #include "ScriptReporter.hpp"
 #include "Red/GameEngine.hpp"
+#include "Red/Logger.hpp"
 
 void App::ScriptReporter::ShowErrorBox(const char* aCaption, const char* aMessage)
 {
     auto engine = Red::CGameEngine::Get();
-    auto hWnd = engine->unkC0 ? reinterpret_cast<HWND>(engine->unkC0->hWnd) : nullptr;
+    auto hWnd = engine->unkD0 ? reinterpret_cast<HWND>(engine->unkD0->hWnd) : nullptr;
 
     MessageBoxA(hWnd, aMessage, aCaption, MB_SYSTEMMODAL | MB_ICONERROR);
 }

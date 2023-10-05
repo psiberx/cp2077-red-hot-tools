@@ -45,6 +45,7 @@ local function forgetEntity(entity)
     local key = tostring(entity:GetEntityID().hash)
 
     watchedEntities[key] = nil
+    collectgarbage()
 end
 
 registerForEvent('onInit', function()

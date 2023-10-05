@@ -22,14 +22,14 @@ App::Application::Application(HMODULE aHandle, const RED4ext::Sdk* aSdk)
     Register<Support::SpdlogProvider>();
     Register<Support::RedLibProvider>();
 
-    Register<App::ArchiveLoader>();
-    Register<App::ScriptLoader>(Env::ScriptSourceDir(), Env::ScriptBlobPath());
+    // Register<App::ArchiveLoader>();
+    // Register<App::ScriptLoader>(Env::ScriptSourceDir(), Env::ScriptBlobPath());
     Register<App::ScriptLogger>();
     Register<App::ScriptReporter>();
-    Register<App::ObjectRegistry>();
-    Register<App::TweakLoader>(Env::TweakSourceDir());
+    // Register<App::ObjectRegistry>();
+    // Register<App::TweakLoader>(Env::TweakSourceDir());
 
-    Register<App::ArchiveWatcher>(Env::ArchiveHotDir());
-    Register<App::ScriptWatcher>(Env::ScriptHotFile());
-    Register<App::TweakWatcher>(Env::TweakHotFile());
+    // Register<App::ArchiveWatcher>(Env::ArchiveHotDir());
+    // Register<App::ScriptWatcher>(Env::ScriptHotFile());
+    // Register<App::TweakWatcher>(Env::TweakHotFile());
 }

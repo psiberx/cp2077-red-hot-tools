@@ -8,11 +8,12 @@ def patterns():
         Output(filename="src/Red/Addresses.hpp", namespace="Red::Addresses", groups=[
             Group(functions=[
                 Item(name="Main",
-                     pattern="40 53 48 81 EC ? ? ? ? FF 15 ? ? ? ? E8 ? ? ? ? E8 ? ? ? ?"),
+                     pattern="40 55 53 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? FF 15 ? ? ? ? E8"),
                 Item(name="InvokeSCC",
                      pattern="48 89 5C 24 08 48 89 74 24 10 48 89 7C 24 18 4C 89 74 24 20 55 48 8D AC 24 30 B0 FF FF B8 D0 50 00 00"),
                 Item(name='LogChannel',
-                     pattern='4C 8B DC 49 89 5B 08 49 89 73 18 57 48 83 EC 70 48 8B 02 ? ? ? ? ? ? ? FE 42 62 4D 8D 43 10 33 FF 45 33 C9 49 89 7B 10 48 8B DA 48 89 7A'),
+                     pattern='48 89 5C 24 08 48 89 74 24 18 55 48 8B EC 48 83 EC 70 48 8B 02 48 8D 35 ? ? ? ? 48 83 65 18 00 4C 8D 45 18 48 83 62 30 00 45 33 C9 48 83 62 38 00',
+                     expected=2),
             ]),
             Group(name="CBaseEngine", functions=[
                 Item(name="LoadScripts",
@@ -65,7 +66,7 @@ def patterns():
                 Item(name="CreateFunction",
                      pattern="4C 89 44 24 18 48 89 4C 24 08 55 53 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 E1 48 81 EC 98 00 00 00 44 0F B6 9A 98 00 00 00"),
                 Item(name="TranslateBytecode",
-                     pattern="4C 8B DC 55 53 57 41 55 49 8D 6B A1 48 81 EC 98 00 00 00 48 8B 1A 4C 8B E9 8B 42 0C 48 8D 3C C3"),
+                     pattern="40 53 55 56 57 41 54 41 56 41 57 48 83 EC 60 48 8B 1A 48 8B E9 8B 42 0C 4C 8D 24 C3"),
             ]),
             Group(name="ScriptBundle", functions=[
                 Item(name="ctor",
