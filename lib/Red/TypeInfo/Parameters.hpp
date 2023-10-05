@@ -12,6 +12,13 @@ template<typename T, auto ADefault>
 requires (!std::is_void_v<T>)
 struct Optional<T, ADefault>
 {
+    Optional() = default;
+    
+    Optional(T&& aValue)
+        : value(aValue)
+    {
+    }
+
     template<typename U, typename = std::enable_if_t<!std::is_same_v<U, T>>>
     [[nodiscard]] inline explicit operator U()
     {
@@ -181,6 +188,6 @@ template<typename T, typename U = std::remove_cvref_t<T>>
 concept IsScriptRef = Detail::Specialization<U>::value
     && std::is_same_v<U, ScriptRef<typename Detail::Specialization<U>::argument_type>>;
 
-RTTI_TYPE_PROXY(Optional);
-RTTI_TYPE_PREFIX(ScriptRef, "script_ref:");
+RTTI_MAP_TYPE_PROXY(Optional);
+RTTI_MAP_TYPE_PREFIX(ScriptRef, "script_ref:");
 }

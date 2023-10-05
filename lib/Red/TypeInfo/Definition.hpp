@@ -273,7 +273,7 @@ inline ScriptingFunction_t<void*> MakeNativeGetter()
 template<typename T>
 inline void DescribeParameter(CBaseFunction* aFunc)
 {
-    using U = std::remove_cvref_t<T>;
+    using U = std::remove_cvref_t<std::remove_pointer_t<T>>;
 
     if constexpr (!std::is_same_v<U, CStackFrame*>)
     {
@@ -284,7 +284,7 @@ inline void DescribeParameter(CBaseFunction* aFunc)
 template<typename T>
 inline void DescribeReturnValue(CBaseFunction* aFunc)
 {
-    using U = std::remove_cvref_t<T>;
+    using U = std::remove_cvref_t<std::remove_pointer_t<T>>;
 
     if constexpr (!std::is_void_v<U>)
     {
@@ -754,6 +754,33 @@ public:
     {
     }
 
+    bool HasOption(int64_t aValue)
+    {
+        for (uint32_t i = 0; i != valueList.size; ++i)
+        {
+            if (aValue == valueList.entries[i])
+                return true;
+        }
+
+        return false;
+    }
+
+    bool HasOption(CName aName)
+    {
+        for (uint32_t i = 0; i != valueList.size; ++i)
+        {
+            if (aName == hashList.entries[i])
+                return true;
+        }
+
+        return false;
+    }
+
+    bool HasOption(const char* aName)
+    {
+        return HasOption(CName(aName));
+    }
+
     void AddOption(int64_t aValue, const char* aName)
     {
         if (aValue < Limits::min())
@@ -875,6 +902,93 @@ public:
     }
 };
 
+template<typename TSystem>
+struct SystemBuilder
+{
+    static inline void ScriptGetter(Red::IScriptable* aContext, Red::CStackFrame* aFrame,
+                                    Red::Handle<Red::IScriptable>* aRet, int64_t)
+    {
+        ++aFrame->code;
+
+        if (aRet)
+        {
+            if constexpr (Detail::HasSystemGetter<TSystem>)
+            {
+                *aRet = TSystem::Get();
+            }
+            else
+            {
+                const auto framework = CGameEngine::Get()->framework;
+                if (framework && framework->gameInstance)
+                {
+                    static const auto systemType = GetType<TSystem>();
+                    const auto systemInstance = framework->gameInstance->systemMap.Get(systemType);
+                    if (systemInstance)
+                    {
+                        *aRet = *systemInstance;
+                    }
+                }
+            }
+        }
+    }
+
+    static inline void RegisterGetter()
+    {
+        constexpr auto systemRefStr = GetTypeNameStr<Handle<TSystem>>();
+        constexpr auto systemTypeStr = GetTypeNameStr<TSystem>();
+        constexpr auto systemNameStr = Red::Detail::UpFirstConstStr<systemTypeStr.size()>(systemTypeStr.data());
+        constexpr auto getterNameStr = Detail::ConcatConstStr<3, systemNameStr.size() - 1>("Get", systemNameStr.data());
+
+        auto gameType = GetClass<ScriptGameInstance>();
+        auto getterFunc = CClassStaticFunction::Create(gameType, getterNameStr.data(), getterNameStr.data(), &ScriptGetter);
+        getterFunc->SetReturnType(CNamePool::Add(systemRefStr.data()));
+
+        gameType->staticFuncs.PushBack(getterFunc);
+    }
+
+    static inline void RegisterSystem()
+    {
+        auto engine = CGameEngine::Get();
+
+        if (!engine || !engine->framework)
+        {
+            TypeInfoRegistrar::AddDescribeCallback(&RegisterSystem);
+            return;
+        }
+
+        auto gameInstance = engine->framework->gameInstance;
+        auto systemType = GetClass<TSystem>();
+
+        if (gameInstance->systemMap.Get(systemType))
+            return;
+
+        auto systemInstance = BuildSystem();
+
+        if (!systemInstance)
+            return;
+
+        JobHandle job{};
+        systemInstance->gameInstance = gameInstance;
+        systemInstance->OnInitialize(job);
+
+        gameInstance->systemMap.Insert(systemType, systemInstance);
+        gameInstance->systemImplementations.Insert(systemType, systemType);
+        gameInstance->systemInstances.EmplaceBack(systemInstance);
+    }
+
+    static inline Handle<TSystem> BuildSystem()
+    {
+        if constexpr (Detail::HasSystemGetter<TSystem>)
+        {
+            return TSystem::Get();
+        }
+        else
+        {
+            return MakeHandle<TSystem>();
+        }
+    }
+};
+
 template<typename TClass>
 requires std::is_class_v<TClass>
 struct ClassDefinition
@@ -951,92 +1065,6 @@ struct ClassDefinition
     constexpr operator Scope() const noexcept
     {
         return Scope::For<TClass>();
-    }
-};
-
-template<typename TSystem>
-struct SystemBuilder
-{
-    static inline void ScriptGetter(Red::IScriptable* aContext, Red::CStackFrame* aFrame,
-                                    Red::Handle<Red::IScriptable>* aRet, int64_t)
-    {
-        ++aFrame->code;
-
-        if (aRet)
-        {
-            if constexpr (Detail::HasSystemGetter<TSystem>)
-            {
-                *aRet = TSystem::Get();
-            }
-            else
-            {
-                const auto framework = CGameEngine::Get()->framework;
-                if (framework && framework->gameInstance)
-                {
-                    static const auto systemType = GetType<TSystem>();
-                    const auto systemInstance = framework->gameInstance->systemMap.Get(systemType);
-                    if (systemInstance)
-                    {
-                        *aRet = *systemInstance;
-                    }
-                }
-            }
-        }
-    }
-
-    static inline void RegisterGetter()
-    {
-        constexpr auto systemRefStr = GetTypeNameStr<Handle<TSystem>>();
-        constexpr auto systemTypeStr = GetTypeNameStr<TSystem>();
-        constexpr auto systemNameStr = Red::Detail::UpFirstConstStr<systemTypeStr.size()>(systemTypeStr.data());
-        constexpr auto getterNameStr = Detail::ConcatConstStr<3, systemNameStr.size() - 1>("Get", systemNameStr.data());
-
-        auto gameType = GetClass<ScriptGameInstance>();
-        auto getterFunc = CClassStaticFunction::Create(gameType, getterNameStr.data(), getterNameStr.data(), &ScriptGetter);
-        getterFunc->SetReturnType(CNamePool::Add(systemRefStr.data()));
-
-        gameType->staticFuncs.PushBack(getterFunc);
-    }
-
-    static inline void RegisterSystem()
-    {
-        auto engine = CGameEngine::Get();
-
-        if (!engine || !engine->framework)
-        {
-            TypeInfoRegistrar::AddDescribeCallback(&RegisterSystem);
-            return;
-        }
-
-        auto gameInstance = engine->framework->gameInstance;
-        auto systemType = GetClass<TSystem>();
-
-        if (gameInstance->systemMap.Get(systemType))
-            return;
-
-        auto systemInstance = BuildSystem();
-
-        if (!systemInstance)
-            return;
-
-        JobHandle job{};
-        systemInstance->gameInstance = gameInstance;
-        systemInstance->OnInitialize(job);
-
-        gameInstance->systemInstances.PushBack(systemInstance);
-        gameInstance->systemMap.Insert(systemType, systemInstance);
-    }
-
-    static inline Handle<TSystem> BuildSystem()
-    {
-        if constexpr (Detail::HasSystemGetter<TSystem>)
-        {
-            return TSystem::Get();
-        }
-        else
-        {
-            return MakeHandle<TSystem>();
-        }
     }
 };
 
@@ -1182,4 +1210,23 @@ struct GlobalDefinition
         return AScope;
     }
 };
+
+template<typename T>
+inline auto GetDescriptor()
+{
+    auto rtti = CRTTISystem::Get();
+
+    if constexpr (std::is_class_v<T>)
+    {
+        return reinterpret_cast<ClassDescriptor<T>*>(rtti->GetClass(GetTypeName<T>()));
+    }
+    else if constexpr (std::is_enum_v<T>)
+    {
+        return reinterpret_cast<EnumDescriptor<T>*>(rtti->GetEnum(GetTypeName<T>()));
+    }
+    else
+    {
+        return rtti->GetType(GetTypeName<T>());
+    }
+}
 }
