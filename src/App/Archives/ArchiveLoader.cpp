@@ -294,7 +294,7 @@ bool App::ArchiveLoader::InvalidateResources(const Red::DynArray<Red::ResourcePa
 
             Red::JobHandle allJobs{Red::JobParamSet()};
 
-            for (auto& oldToken : oldTokens)
+            for (const auto& oldToken : oldTokens)
             {
                 locker->Bypass(oldToken->path);
 
