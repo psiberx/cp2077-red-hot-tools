@@ -7,12 +7,12 @@ Red::ScriptBinder::ScriptBinder(CRTTISystem* aRtti, const FileResolver& aFileRes
 {
 }
 
-bool Red::ScriptBinder::Bind(ScriptBundle& aData, ScriptReport& aReport)
-{
-    using func_t = bool (*)(ScriptBinder*, ScriptBundle&, ScriptReport&, bool);
-    RelocFunc<func_t> func(Addresses::ScriptBinder_Bind);
-    return func(this, aData, aReport, false);
-}
+// bool Red::ScriptBinder::Bind(ScriptBundle& aData, ScriptReport& aReport)
+// {
+//     using func_t = bool (*)(ScriptBinder*, ScriptBundle&, ScriptReport&, bool);
+//     RelocFunc<func_t> func(Addresses::ScriptBinder_Bind);
+//     return func(this, aData, aReport, false);
+// }
 
 bool Red::ScriptBinder::ResolveNatives(DynArray<ScriptDefinition*>& aDefinitions, ScriptReport& aReport)
 {

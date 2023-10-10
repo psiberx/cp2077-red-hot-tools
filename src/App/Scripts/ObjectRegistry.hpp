@@ -20,6 +20,7 @@ public:
 protected:
     void OnBootstrap() override;
 
+    static void* OnCreateHandle(Red::Handle<Red::ISerializable>& aHandle, Red::ISerializable* aObject);
     static void Shrink();
 
     template<typename T>

@@ -3,7 +3,7 @@
 
 namespace
 {
-constexpr auto MaxNumObjects = 0x300000;
+constexpr auto MaxNumObjects = 0x350000;
 
 Red::ClassLocator<Red::IScriptable> s_IScriptableType;
 }
@@ -12,16 +12,27 @@ void App::ObjectRegistry::OnBootstrap()
 {
     s_objects.reserve(MaxNumObjects);
 
-    HookAfter<Raw::ISerializable::SetReference>(+[](Red::ISerializable& aObject, Red::Handle<Red::ISerializable>&) {
-        std::unique_lock lock(s_registryLock);
+    Hook<Raw::ISerializable::CreateHandle>(&OnCreateHandle);
+}
 
-        s_objects.push_back(aObject.ref);
+void* App::ObjectRegistry::OnCreateHandle(Red::Handle<Red::ISerializable>& aHandle, Red::ISerializable* aObject)
+{
+    auto isNewHandle = aObject && !aObject->ref.refCount;
+
+    Raw::ISerializable::CreateHandle(aHandle, aObject);
+
+    if (isNewHandle)
+    {
+        std::unique_lock lock(s_registryLock);
+        s_objects.emplace_back(aHandle);
 
         if (s_objects.size() >= MaxNumObjects - 1)
         {
             Shrink();
         }
-    });
+    }
+
+    return &aHandle;
 }
 
 void App::ObjectRegistry::CollectSerializables(Red::DynArray<Red::WeakHandle<Red::ISerializable>>& aOut)

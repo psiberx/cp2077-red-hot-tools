@@ -4,7 +4,7 @@
 
 namespace Raw::ISerializable
 {
-constexpr auto SetReference = Core::RawFunc<
-    /* addr = */ Red::Addresses::ISerializable_SetReference,
-    /* type = */ void (*)(Red::ISerializable& aObject, Red::Handle<Red::ISerializable>& aHandle)>();
+constexpr auto CreateHandle = Core::RawFunc<
+    /* addr = */ RED4ext::Addresses::Handle_ctor,
+    /* type = */ void* (*)(Red::Handle<Red::ISerializable>& aHandle, Red::ISerializable* aObject)>();
 }

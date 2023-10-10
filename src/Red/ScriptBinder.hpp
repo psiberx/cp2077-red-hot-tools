@@ -22,7 +22,7 @@ struct ScriptBinder
 {
     ScriptBinder(CRTTISystem* aRtti, const FileResolver& aFileResolver);
 
-    bool Bind(ScriptBundle& aData, ScriptReport& aReport);
+    // bool Bind(ScriptBundle& aData, ScriptReport& aReport);
     bool ResolveNatives(DynArray<ScriptDefinition*>& aDefinitions, ScriptReport& aReport);
     void ResolveTypes(DynArray<ScriptDefinition*>& aDefinitions);
     bool CreateClass(ScriptClass* aClass, ScriptReport& aReport);

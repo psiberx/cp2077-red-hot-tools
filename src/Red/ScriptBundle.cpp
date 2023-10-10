@@ -1,5 +1,6 @@
 #include "ScriptBundle.hpp"
-#include "Addresses.hpp"
+#include "Red/Addresses.hpp"
+#include "Red/FileSystem.hpp"
 
 Red::ScriptBundle::ScriptBundle()
 {
@@ -17,9 +18,17 @@ Red::ScriptBundle::~ScriptBundle()
 
 bool Red::ScriptBundle::Read(const CString& aPath)
 {
-    using func_t = bool (*)(ScriptBundle*, const CString&);
-    RelocFunc<func_t> func(Addresses::ScriptBundle_Read);
-    return func(this, aPath);
+    auto file = FileSystem::Get()->Open(aPath, 1);
+    if (file)
+    {
+        using func_t = bool (*)(ScriptBundle*, uint64_t);
+        RelocFunc<func_t> func(Addresses::ScriptBundle_Read);
+        return func(this, file.ptr);
+    }
+    else
+    {
+        return false;
+    }
 }
 
 Red::DynArray<Red::ScriptDefinition*> Red::ScriptBundle::Collect(bool aDeep) const
