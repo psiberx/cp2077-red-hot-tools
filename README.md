@@ -16,12 +16,12 @@ For greater convenience it integrates with other tools:
 
 ### Prerequisites
 
-- [RED4ext](https://docs.red4ext.com/getting-started/installing-red4ext) 1.15.0+
+- [RED4ext](https://docs.red4ext.com/getting-started/installing-red4ext) 1.17.0+
 
 ### Compatibility
 
-- Cyberpunk 2077 1.63 Hotfix 1
-- [Cyber Engine Tweaks](https://github.com/yamashi/CyberEngineTweaks) 1.25.0+
+- Cyberpunk 2077 2.01
+- [Cyber Engine Tweaks](https://github.com/yamashi/CyberEngineTweaks) 1.27.1+
 
 ### Installation
 
