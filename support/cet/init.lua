@@ -42,10 +42,12 @@ end
 
 ---@param entity entEntity
 local function forgetEntity(entity)
-    local key = tostring(entity:GetEntityID().hash)
+    if entity then
+        local key = tostring(entity:GetEntityID().hash)
 
-    watchedEntities[key] = nil
-    collectgarbage()
+        watchedEntities[key] = nil
+        collectgarbage()
+    end
 end
 
 registerForEvent('onInit', function()
