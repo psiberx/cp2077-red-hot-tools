@@ -26,7 +26,7 @@ def patterns():
                      pattern='48 89 05 ? ? ? ? 48 83 C4 ? 5F C3',
                      offset=3,
                      expected=6,
-                     index=2),
+                     index=4),
             ], functions=[
                 Item(name="Close",
                      pattern="48 89 5C 24 ? 57 48 83 EC ? 48 8B 39 48 85 FF 74 ? 48 8B 07 48 8B CF FF 10 4C 8B  07 33 D2 48 8B CF 48 8B D8 41 FF 50 08"),

@@ -18,5 +18,5 @@ constexpr auto RequestResource = Core::RawFunc<
 
 constexpr auto DestructArchives = Core::RawFunc<
     /* addr = */ Red::Addresses::ResourceDepot_DestructArchives,
-    /* type = */ void (*)(Red::Archive aArchives[], uint32_t aCount)>{};
+    /* type = */ int64_t (*)(Red::Archive aArchives[], uint32_t aCount)>{};
 }
