@@ -21,7 +21,7 @@ Red::CString App::InspectionSystem::ResolveResourcePath(uint64_t aResourceHash)
     return m_registry->ResolveResorcePath(aResourceHash);
 }
 
-Red::CString App::InspectionSystem::ResolveSectorPathFromNodeHash(uint64_t aNodeID)
+App::StreamingSectorLocation App::InspectionSystem::ResolveSectorFromNodeHash(uint64_t aNodeID)
 {
     {
         static const Red::GlobalNodeRef context{Red::FNV1a64("$")};
@@ -36,12 +36,13 @@ Red::CString App::InspectionSystem::ResolveSectorPathFromNodeHash(uint64_t aNode
         }
     }
 
-    return m_registry->ResolveSectorPath(aNodeID);
+    return m_registry->ResolveSectorLocation(aNodeID);
 }
 
-Red::CString App::InspectionSystem::ResolveSectorPathFromNode(const Red::WeakHandle<Red::ISerializable>& aNode)
+App::StreamingSectorLocation App::InspectionSystem::ResolveSectorFromNode(
+    const Red::WeakHandle<Red::ISerializable>& aNode)
 {
-    return m_registry->ResolveSectorPath(aNode.instance);
+    return m_registry->ResolveSectorLocation(aNode.instance);
 }
 
 Red::CString App::InspectionSystem::ResolveNodeRefFromNodeHash(uint64_t aNodeID)
@@ -80,11 +81,38 @@ Red::CString App::InspectionSystem::ResolveNodeRefFromNodeHash(uint64_t aNodeID)
 
 uint64_t App::InspectionSystem::ResolveNodeRefHash(const Red::CString& aNodeRef)
 {
-    Red::NodeRef nodeRef{};
-    Red::StringView nodeRefStr{aNodeRef.c_str(), aNodeRef.Length()};
-    Raw::NodeRef::Create(nodeRef, nodeRefStr);
+    constexpr uint64_t prime = 0x100000001b3;
+    constexpr uint64_t seed = 0xCBF29CE484222325;
 
-    return nodeRef.hash;
+    uint64_t hash = seed;
+    const char* aText = aNodeRef.c_str();
+
+    while (aText && *aText)
+    {
+        if (*aText == '#')
+        {
+            ++aText;
+            continue;
+        }
+
+        if (*aText == ';')
+        {
+            ++aText;
+
+            while (*aText && *aText != '/')
+                ++aText;
+
+            if (!*aText)
+                break;
+        }
+
+        hash ^= *aText;
+        hash *= prime;
+
+        ++aText;
+    }
+
+    return hash == seed ? 0 : hash;
 }
 
 Red::EntityID App::InspectionSystem::ResolveCommunityIDFromEntityID(Red::EntityID aEntityID)

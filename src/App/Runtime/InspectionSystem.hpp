@@ -19,8 +19,8 @@ class InspectionSystem : public Red::IGameSystem
 {
 public:
     Red::CString ResolveResourcePath(uint64_t aResourceHash);
-    Red::CString ResolveSectorPathFromNodeHash(uint64_t aNodeID);
-    Red::CString ResolveSectorPathFromNode(const Red::WeakHandle<Red::ISerializable>& aNode);
+    StreamingSectorLocation ResolveSectorFromNodeHash(uint64_t aNodeID);
+    StreamingSectorLocation ResolveSectorFromNode(const Red::WeakHandle<Red::ISerializable>& aNode);
     Red::CString ResolveNodeRefFromNodeHash(uint64_t aNodeID);
     uint64_t ResolveNodeRefHash(const Red::CString& aNodeRef);
     Red::EntityID ResolveCommunityIDFromEntityID(Red::EntityID aEntityID);
@@ -39,6 +39,11 @@ private:
 };
 }
 
+RTTI_DEFINE_CLASS(App::StreamingSectorLocation, {
+    RTTI_PROPERTY(sectorHash);
+    RTTI_PROPERTY(nodeIndex);
+});
+
 RTTI_DEFINE_CLASS(App::PhysicsObjectResult, {
     RTTI_PROPERTY(object);
     RTTI_PROPERTY(type);
@@ -50,8 +55,8 @@ RTTI_DEFINE_CLASS(App::PhysicsObjectResult, {
 
 RTTI_DEFINE_CLASS(App::InspectionSystem, {
     RTTI_METHOD(ResolveResourcePath);
-    RTTI_METHOD(ResolveSectorPathFromNodeHash);
-    RTTI_METHOD(ResolveSectorPathFromNode);
+    RTTI_METHOD(ResolveSectorFromNodeHash);
+    RTTI_METHOD(ResolveSectorFromNode);
     RTTI_METHOD(ResolveNodeRefFromNodeHash);
     RTTI_METHOD(ResolveNodeRefHash);
     RTTI_METHOD(ResolveCommunityIDFromEntityID);

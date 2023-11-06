@@ -9,8 +9,10 @@ local envState = {
 local viewState = {
     isConsoleOpen = false,
     isInspectorOpen = false,
+    isLookupOpen = false,
+    isAlwaysOnScreen = false,
     lookupInput = '',
-    maxInputLen = 100,
+    maxInputLen = 256,
 }
 
 local viewStyle = {
@@ -35,8 +37,8 @@ local inspectionSystem
 
 local collisionGroups = {
     { name = 'Static', threshold = 0.0, tolerance = 0.2 },
-    --{ name = 'Cloth', threshold = 1.0, tolerance = 0.0 },
-    --{ name = 'Player', threshold = 0.0, tolerance = 0.0 },
+    --{ name = 'Cloth', threshold = 0.2, tolerance = 0.0 },
+    --{ name = 'Player', threshold = 0.2, tolerance = 0.0 },
     { name = 'AI', threshold = 0.0, tolerance = 0.0 },
     { name = 'Dynamic', threshold = 0.0, tolerance = 0.0 },
     { name = 'Vehicle', threshold = 0.0, tolerance = 0.0 },
@@ -56,7 +58,7 @@ local collisionGroups = {
     { name = 'Visibility', threshold = 0.0, tolerance = 0.0 },
     --{ name = 'Audible', threshold = 0.0, tolerance = 0.0 },
     { name = 'Interaction', threshold = 0.0, tolerance = 0.0 },
-    --{ name = 'Shooting', threshold = 0.0, tolerance = 0.0 },
+    --{ name = 'Shooting', threshold = 0.2, tolerance = 0.0 },
     { name = 'Water', threshold = 0.0, tolerance = 0.0 },
     { name = 'NetworkDevice', threshold = 0.0, tolerance = 0.0 },
     --{ name = 'NPCTraceObstacle', threshold = 0.0, tolerance = 0.0 },
@@ -83,9 +85,11 @@ local inspectorObjectSchema = {
     --{ name = 'communityRef', label = 'Community Ref:', wrap = true },
     { name = 'nodeID', label = 'World Node ID:', format = '%u' },
     { name = 'nodeRef', label = 'World Node Ref:', wrap = true },
+    { name = 'nodeIndex', label = 'World Node Index:', format = '%d', validate = function(data)
+        return data and data.nodeIndex > 0
+    end },
     { name = 'sectorPath', label = 'World Sector:', wrap = true },
-    --{ name = 'targetDistance', label = 'Distance:', format = '%.2f' },
-    --{ name = 'collisionGroup', label = 'Collision Group:' },
+    { name = 'resourcePath', label = 'Resource:', wrap = true },
 }
 
 local inspectorComponentSchema = {
@@ -94,13 +98,6 @@ local inspectorComponentSchema = {
     { name = 'meshPath', label = 'Mesh Resource:', wrap = true },
     { name = 'morphPath', label = 'Morph Target Resource:', wrap = true },
     { name = 'meshAppearance', label = 'Mesh Appearance:' },
-}
-
-local lookupResultSchema = {
-    { name = 'nodeID', label = 'Node ID:', format = '%u' },
-    { name = 'nodeRef', label = 'Node Ref:', wrap = true },
-    { name = 'sectorPath', label = 'Sector Path:', wrap = true },
-    { name = 'resourcePath', label = 'Resource Path:', wrap = true },
 }
 
 local function isEmpty(value)
@@ -232,14 +229,19 @@ local function inspectTarget(target, collisionGroup, targetDistance)
 
             if data.entityID > 0xffffff then
                 data.nodeID = data.entityID
-                data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.nodeID)
-                data.sectorPath = inspectionSystem:ResolveSectorPathFromNodeHash(data.nodeID)
             else
                 local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(object:GetEntityID())
                 if communityID.hash > 0xffffff then
                     data.nodeID = communityID.hash
-                    data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.nodeID)
-                    data.sectorPath = inspectionSystem:ResolveSectorPathFromNodeHash(data.nodeID)
+                end
+            end
+
+            if isNotEmpty(data.nodeID) then
+                data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.nodeID)
+                local sectorLocation = inspectionSystem:ResolveSectorFromNodeHash(data.nodeID)
+                if sectorLocation.sectorHash ~= 0 then
+                    data.sectorPath = inspectionSystem:ResolveResourcePath(sectorLocation.sectorHash)
+                    data.nodeIndex = sectorLocation.nodeIndex
                 end
             end
 
@@ -254,7 +256,11 @@ local function inspectTarget(target, collisionGroup, targetDistance)
             data.hasComponents = (#data.components > 0)
         end
     else
-        data.sectorPath = inspectionSystem:ResolveSectorPathFromNode(object)
+        local sectorLocation = inspectionSystem:ResolveSectorFromNode(object)
+        if sectorLocation.sectorHash ~= 0 then
+            data.sectorPath = inspectionSystem:ResolveResourcePath(sectorLocation.sectorHash)
+            data.nodeIndex = sectorLocation.nodeIndex
+        end
 
         if target:IsA('worldMeshNode') or target:IsA('worldInstancedMeshNode') then
             data.meshPath = inspectionSystem:ResolveResourcePath(object.mesh.hash)
@@ -304,15 +310,24 @@ local function lookupTarget(lookupInput)
         local hash = loadstring('return ' .. lookupHash .. 'ULL', '')()
         data.resourcePath = inspectionSystem:ResolveResourcePath(hash)
         data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(hash)
-        data.sectorPath = inspectionSystem:ResolveSectorPathFromNodeHash(hash)
+        if isNotEmpty(data.nodeRef) then
+            data.nodeID = hash
+        end
     else
         local hash = inspectionSystem:ResolveNodeRefHash(lookupInput)
         if isNotEmpty(hash) then
             data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(hash)
-            data.sectorPath = inspectionSystem:ResolveSectorPathFromNodeHash(hash)
             if isNotEmpty(data.nodeRef) then
                 data.nodeID = hash
             end
+        end
+    end
+
+    if isNotEmpty(data.nodeID) then
+        local sectorLocation = inspectionSystem:ResolveSectorFromNodeHash(data.nodeID)
+        if sectorLocation.sectorHash ~= 0 then
+            data.sectorPath = inspectionSystem:ResolveResourcePath(sectorLocation.sectorHash)
+            data.nodeIndex = sectorLocation.nodeIndex
         end
     end
 
@@ -404,8 +419,10 @@ local function initializeInspector()
     end
 
     Cron.Every(0.2, function()
-        if viewState.isConsoleOpen or viewState.isInspectorOpen then
+        if viewState.isInspectorOpen or viewState.isAlwaysOnScreen then
             inspectTarget(getLookAtTarget())
+        end
+        if viewState.isLookupOpen then
             lookupTarget(viewState.lookupInput)
         end
     end)
@@ -432,32 +449,40 @@ local function initializeViewStyle()
 end
 
 local function drawField(field, data)
-    if isNotEmpty(data[field.name]) then
-        ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.label)
-        ImGui.Text(field.label)
-        ImGui.PopStyleColor()
-        ImGui.SameLine()
+    if type(field.validate) == 'function' then
+        if not field.validate(data, field) then
+            return
+        end
+    else
+        if isEmpty(data[field.name]) then
+            return
+        end
+    end
 
-        local value = data[field.name]
-        if field.format then
-            if type(field.format) == 'function' then
-                value = field.format(data, field)
-            else
-                value = (field.format):format(value)
-            end
+    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.label)
+    ImGui.Text(field.label)
+    ImGui.PopStyleColor()
+    ImGui.SameLine()
+
+    local value = data[field.name]
+    if field.format then
+        if type(field.format) == 'function' then
+            value = field.format(data, field)
         else
-            value = tostring(value)
+            value = (field.format):format(value)
         end
+    else
+        value = tostring(value)
+    end
 
-        if field.wrap then
-            ImGui.TextWrapped(value)
-        else
-            ImGui.Text(value)
-        end
+    if field.wrap then
+        ImGui.TextWrapped(value)
+    else
+        ImGui.Text(value)
+    end
 
-        if ImGui.IsItemClicked(ImGuiMouseButton.Middle) then
-            ImGui.SetClipboardText(value)
-        end
+    if ImGui.IsItemClicked(ImGuiMouseButton.Middle) then
+        ImGui.SetClipboardText(value)
     end
 end
 
@@ -594,20 +619,23 @@ local function drawMainWindow()
         end
 
         if ImGui.BeginTabItem(' Inspect ') then
+            viewState.isInspectorOpen = true
             ImGui.Spacing()
             drawInspector()
             ImGui.EndTabItem()
+        else
+            viewState.isInspectorOpen = false
         end
 
-        --[[
         if ImGui.BeginTabItem(' Lookup ') then
+            viewState.isLookupOpen = true
             ImGui.Spacing()
             ImGui.Text('Enter reference string or hash:')
             ImGui.SetNextItemWidth(viewStyle.windowWidth)
             viewState.lookupInput = ImGui.InputText('##Lookup', viewState.lookupInput, viewState.maxInputLen)
             if lookupResult.ready and not lookupResult.empty then
                 ImGui.Spacing()
-                for _, field in ipairs(lookupResultSchema) do
+                for _, field in ipairs(inspectorObjectSchema) do
                     drawField(field, lookupResult)
                 end
             else
@@ -618,14 +646,11 @@ local function drawMainWindow()
                     ImGui.PopStyleColor()
                 end
                 ImGui.Spacing()
-                ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.muted)
-                ImGui.TextWrapped('- Resource hash to resource path\n- Node ID to node reference\n- Node to streaming sector')
-                ImGui.PopStyleColor()
-
             end
             ImGui.EndTabItem()
+        else
+            viewState.isLookupOpen = false
         end
-        ]]--
     end
     ImGui.End()
 end
@@ -652,7 +677,7 @@ registerForEvent('onDraw', function()
         return
     end
 
-    if not viewState.isConsoleOpen and not viewState.isInspectorOpen then
+    if not viewState.isConsoleOpen and not viewState.isAlwaysOnScreen then
         return
     end
 
@@ -664,7 +689,7 @@ registerForEvent('onDraw', function()
 
     if viewState.isConsoleOpen then
         drawMainWindow()
-    elseif viewState.isInspectorOpen then
+    elseif viewState.isAlwaysOnScreen then
         drawInspectorWindow()
     end
 
@@ -677,6 +702,6 @@ end)
 
 registerHotkey('ToggleInspector', 'Toggle inspector window', function()
     if not viewState.isConsoleOpen then
-        viewState.isInspectorOpen = not viewState.isInspectorOpen
+        viewState.isAlwaysOnScreen = not viewState.isAlwaysOnScreen
     end
 end)

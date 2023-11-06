@@ -44,20 +44,32 @@ void App::ResourceRegistry::OnStreamingSectorPrepare(Red::worldStreamingSector* 
     std::unique_lock _(s_nodeSectorLock);
     auto& buffer = Raw::StreamingSector::NodeBuffer::Ref(aSector);
 
-    for (const auto& node : buffer.nodes)
+    for (auto& nodeRef : buffer.nodeRefs)
     {
-        s_nodePtrToSectorMap[reinterpret_cast<uintptr_t>(node.instance)] = aSector->path;
+        s_nodeRefToSectorMap[nodeRef.hash] = {aSector->path, -1};
+    }
+
+    for (auto& nodeSetup : buffer.nodeSetups)
+    {
+        __nop();
+
+        if (nodeSetup.globalNodeID)
+        {
+            s_nodeRefToSectorMap[nodeSetup.globalNodeID] = {aSector->path, nodeSetup.nodeIndex};
+        }
+    }
+
+    for (int32_t index = 0; index < buffer.nodes.size; ++index)
+    {
+        const auto& node = buffer.nodes[index];
+
+        s_nodePtrToSectorMap[reinterpret_cast<uintptr_t>(node.instance)] = {aSector->path, index};
 
         if (node->GetType()->IsA(Red::GetType<Red::worldCompiledCommunityAreaNode>()))
         {
             auto& nodeID = node.GetPtr<Red::worldCompiledCommunityAreaNode>()->sourceObjectId.hash;
-            s_nodeRefToSectorMap[nodeID] = aSector->path;
+            s_nodeRefToSectorMap[nodeID] = {aSector->path, index};
         }
-    }
-
-    for (auto& nodeRef : buffer.nodeRefs)
-    {
-        s_nodeRefToSectorMap[nodeRef.hash] = aSector->path;
     }
 }
 
@@ -91,7 +103,7 @@ std::string_view App::ResourceRegistry::ResolveResorcePath(Red::ResourcePath aPa
     return it.value();
 }
 
-std::string_view App::ResourceRegistry::ResolveSectorPath(uint64_t aHash)
+App::StreamingSectorLocation App::ResourceRegistry::ResolveSectorLocation(uint64_t aHash)
 {
     if (!aHash)
         return {};
@@ -102,10 +114,10 @@ std::string_view App::ResourceRegistry::ResolveSectorPath(uint64_t aHash)
     if (it == s_nodeRefToSectorMap.end())
         return {};
 
-    return ResolveResorcePath(it.value());
+    return it.value();
 }
 
-std::string_view App::ResourceRegistry::ResolveSectorPath(void* aPtr)
+App::StreamingSectorLocation App::ResourceRegistry::ResolveSectorLocation(void* aPtr)
 {
     if (!aPtr)
         return {};
@@ -116,7 +128,7 @@ std::string_view App::ResourceRegistry::ResolveSectorPath(void* aPtr)
     if (it == s_nodePtrToSectorMap.end())
         return {};
 
-    return ResolveResorcePath(it.value());
+    return it.value();
 }
 
 void App::ResourceRegistry::ClearRuntimeData()

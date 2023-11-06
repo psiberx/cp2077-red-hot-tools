@@ -9,6 +9,12 @@
 
 namespace App
 {
+struct StreamingSectorLocation
+{
+    uint64_t sectorHash{0};
+    int32_t nodeIndex{-1};
+};
+
 class ResourceRegistry
     : public Core::Feature
     , public Core::LoggingAgent
@@ -18,8 +24,8 @@ public:
     ResourceRegistry(const std::filesystem::path& aMetadataDir);
 
     std::string_view ResolveResorcePath(Red::ResourcePath aPath);
-    std::string_view ResolveSectorPath(uint64_t aHash);
-    std::string_view ResolveSectorPath(void* aPtr);
+    StreamingSectorLocation ResolveSectorLocation(uint64_t aHash);
+    StreamingSectorLocation ResolveSectorLocation(void* aPtr);
     void ClearRuntimeData();
 
 protected:
@@ -33,7 +39,7 @@ protected:
     inline static Core::Map<Red::ResourcePath, std::string> s_resourcePathMap;
 
     inline static std::shared_mutex s_nodeSectorLock;
-    inline static Core::Map<uint64_t, Red::ResourcePath> s_nodeRefToSectorMap;
-    inline static Core::Map<uintptr_t, Red::ResourcePath> s_nodePtrToSectorMap;
+    inline static Core::Map<uint64_t, StreamingSectorLocation> s_nodeRefToSectorMap;
+    inline static Core::Map<uintptr_t, StreamingSectorLocation> s_nodePtrToSectorMap;
 };
 }
