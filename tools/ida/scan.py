@@ -21,6 +21,10 @@ def patterns():
                 Item(name="MainLoopTick",
                      pattern="48 8B C4 55 53 56 57 41 54 41 56 41 57 48 8D 68 ? 48 81 EC ? ? ? ? 0F 29 70 ? 48 8B F9 0F 29 78 ? 48 8D 4D"),
             ]),
+            Group(name="EntityID", functions=[
+                Item(name="ToStringDEBUG",
+                     pattern="40 53 48 83 EC ? 4C 8B 01 48 8B DA 49 F7 C0 ? ? ? ? 75 ? 48 8D 15 ? ? ? ? 48 8B CB E8 ? ? ? ? 48 8B C3 48 83 C4 ? 5B"),
+            ]),
             Group(name='FileSystem', pointers=[
                 Item(name="Instance",
                      pattern='48 89 05 ? ? ? ? 48 83 C4 ? 5F C3',
@@ -39,6 +43,10 @@ def patterns():
                 Item(name="Wait",
                      pattern="48 8B 11 41 83 C9 FF 48 8B 0D ? ? ? ? 45 33 C0 E9"),
             ]),
+            Group(name="PhysicsTraceResult", functions=[
+                Item(name="GetHitObject",
+                     pattern="48 89 5C 24 ? 57 48 83 EC ? 41 8B F8 48 8B D9 48 8B 0D B5 8B 21 03 44 8B C2 48 8D 54 24 ? E8 ? ? ? ? 4C 8B 4C 24 ? 4D 85 C9"),
+            ]),
             Group(name="ResourceBank", functions=[
                 Item(name="ForgetResource",
                      pattern="48 8B C4 48 89 58 ? 48 89 70 ? 4C 89 40 ? 55 57 41 56 48 8D 68 ? 48 81 EC ? ? ? ? 48 8D 99 ? ? ? ? 4C 8B F1"),
@@ -52,6 +60,10 @@ def patterns():
                      index=2),
                 Item(name="RequestResource",
                      pattern="4C 89 4C 24 ? 48 89 54 24 ? 55 53 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 ? 48 81 EC ? ? ? ? 48 8D B1"),
+            ]),
+            Group(name="ResourcePath", functions=[
+                Item(name="Create",
+                     pattern="40 53 48 81 EC ? ? ? ? 83 7A 08 00 48 8B D9 74 ? F2 0F 10 02 48 8D 4C 24 ? 8B 42 08 48 8D 54 24 ? F2 0F 11 44 24"),
             ]),
             Group(name="ScriptBinder", functions=[
                 Item(name="ResolveNatives",
@@ -85,6 +97,10 @@ def patterns():
             Group(name="ScriptValidator", functions=[
                 Item(name="Validate",
                      pattern="48 89 5C 24 ? 48 89 4C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 ? 48 81 EC ? ? ? ? 48 8B C2"),
+            ]),
+            Group(name="StreamingSector", functions=[
+                Item(name="OnReady",
+                     pattern="48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 48 83 EC ? 48 8B 91 ? ? ? ? 33 FF 48 8B D9"),
             ]),
         ]),
     ]

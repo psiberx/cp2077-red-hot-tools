@@ -7,11 +7,11 @@ namespace App
 class Facade : public Red::IScriptable
 {
 public:
-    static void ReloadArchives();
-    static void ReloadScripts();
     static Red::CString GetVersion();
 
-    static Red::DynArray<Red::Handle<Red::IComponent>> GetComponents(const Red::WeakHandle<Red::Entity>& aEntity);
+    static void ReloadArchives();
+    static void ReloadScripts();
+    static void ReloadTweaks();
 
     RTTI_IMPL_TYPEINFO(Facade);
 };
@@ -19,8 +19,8 @@ public:
 
 RTTI_DEFINE_CLASS(App::Facade, App::Project::Name, {
     RTTI_ABSTRACT();
+    RTTI_METHOD(GetVersion, "Version");
     RTTI_METHOD(ReloadArchives);
     RTTI_METHOD(ReloadScripts);
-    RTTI_METHOD(GetVersion, "Version");
-    RTTI_METHOD(GetComponents);
+    RTTI_METHOD(ReloadTweaks);
 })

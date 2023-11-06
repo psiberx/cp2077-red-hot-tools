@@ -4,7 +4,8 @@ This plugin aims to help in the Cyberpunk 2077 mods development, offering the fo
 
 - Hot reload archives, scripts and tweaks
 - See scripts validation and binding errors 
-- Prevent game from starting if scripts compilation fails 
+- Prevent game from starting if scripts compilation fails
+- Inspect entities and world nodes
 
 For greater convenience it integrates with other tools:
 
@@ -16,12 +17,12 @@ For greater convenience it integrates with other tools:
 
 ### Prerequisites
 
-- [RED4ext](https://docs.red4ext.com/getting-started/installing-red4ext) 1.17.0+
+- [RED4ext](https://docs.red4ext.com/getting-started/installing-red4ext) 1.18.0+
 
 ### Compatibility
 
-- Cyberpunk 2077 2.01
-- [Cyber Engine Tweaks](https://github.com/yamashi/CyberEngineTweaks) 1.27.1+
+- Cyberpunk 2077 2.02
+- [Cyber Engine Tweaks](https://github.com/yamashi/CyberEngineTweaks) 1.28.1+
 
 ### Installation
 

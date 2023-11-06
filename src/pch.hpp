@@ -20,13 +20,20 @@
 
 #include <RED4ext/ResourceDepot.hpp>
 #include <RED4ext/ResourceLoader.hpp>
-#include <RED4ext/Scripting/Natives/ScriptGameInstance.hpp>
-#include <RED4ext/Scripting/Natives/Generated/ent/Entity.hpp>
-#include <RED4ext/Scripting/Natives/Generated/ent/IComponent.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ent/ComponentsStorage.hpp>
+#include <RED4ext/Scripting/Natives/Generated/ent/Entity.hpp>
+#include <RED4ext/Scripting/Natives/Generated/ent/EntityID.hpp>
+#include <RED4ext/Scripting/Natives/Generated/ent/IComponent.hpp>
 #include <RED4ext/Scripting/Natives/Generated/game/IGameSystem.hpp>
 #include <RED4ext/Scripting/Natives/Generated/game/ScriptableSystem.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ink/WidgetLibraryResource.hpp>
+#include <RED4ext/Scripting/Natives/Generated/physics/TraceResult.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/GlobalNodeID.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/GlobalNodeRef.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/INodeInstance.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/Node.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/StreamingSector.hpp>
+#include <RED4ext/Scripting/Natives/ScriptGameInstance.hpp>
 
 #include <nameof.hpp>
 #include <semver.hpp>
