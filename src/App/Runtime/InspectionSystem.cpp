@@ -64,6 +64,17 @@ Red::CString App::InspectionSystem::ResolveNodeRefFromNodeID(uint64_t aNodeID)
     return {};
 }
 
+Red::EntityID App::InspectionSystem::ResolveCommunityRefFromEntityID(Red::EntityID aEntityID)
+{
+    auto entityStubSystem = Red::GetGameSystem<Red::IEntityStubSystem>();
+    auto entityStub = entityStubSystem->FindStub(aEntityID);
+
+    if (!entityStub)
+        return {};
+
+    return entityStub->stubState->spawnerId.entityId;
+}
+
 Red::DynArray<Red::Handle<Red::IComponent>> App::InspectionSystem::GetComponents(const Red::WeakHandle<Red::Entity>& aEntity)
 {
     if (aEntity.Expired())

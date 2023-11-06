@@ -30,9 +30,9 @@ local spatialQuerySystem
 local inspectionSystem
 
 local collisionGroups = {
+    'Static',
     --'Player',
     'AI',
-    'Static',
     'Dynamic',
     'Vehicle',
     --'Tank',
@@ -51,8 +51,14 @@ local collisionGroups = {
     'NPCBlocker',
 }
 
+local staticCollisionThreshold = 0.2
+
 local inspectorObjectSchema = {
-    { name = 'objectType', label = 'Type:' },
+    { name = 'objectType', label = 'Target Type:' },
+    { name = 'collisionGroup', label = 'Target Collision:', format = function(data)
+        return ('%s (%.2f)'):format(data.collisionGroup, data.targetDistance)
+    end },
+    { name = 'recordID', label = 'Record ID:' },
     { name = 'entityID', label = 'Entity ID:', format = '%u' },
     { name = 'deviceClass', label = 'Device Class:' },
     { name = 'templatePath', label = 'Entity Template:', wrap = true },
@@ -60,13 +66,11 @@ local inspectorObjectSchema = {
     { name = 'meshPath', label = 'Mesh Resource:', wrap = true },
     { name = 'meshAppearance', label = 'Mesh Appearance:' },
     { name = 'materialPath', label = 'Material Resource:', wrap = true },
+    --{ name = 'communityRef', label = 'Community:', wrap = true },
     { name = 'nodeRef', label = 'World Node:', wrap = true },
     { name = 'sectorPath', label = 'World Sector:', wrap = true },
     --{ name = 'targetDistance', label = 'Distance:', format = '%.2f' },
     --{ name = 'collisionGroup', label = 'Collision Group:' },
-    { name = 'collisionGroup', label = 'Collision:', format = function(data)
-        return ('%s (%.2f)'):format(data.collisionGroup, data.targetDistance)
-    end },
 }
 
 local inspectorComponentSchema = {
@@ -77,16 +81,25 @@ local inspectorComponentSchema = {
     { name = 'meshAppearance', label = 'Mesh Appearance:' },
 }
 
+local function isEmpty(value)
+    return value == nil or value == '' or value == 0
+end
+
 local function isNotEmpty(value)
     return value ~= nil and value ~= '' and value ~= 0
 end
 
 local function getLookAtTarget(maxDistance)
+	local player = GetPlayer()
+
+	if not IsDefined(player) then
+        return nil
+	end
+
 	if not maxDistance then
 		maxDistance = 100
 	end
 
-	local player = GetPlayer()
 	local from, forward = targetingSystem:GetCrosshairData(player)
 	local to = Vector4.new(
 		from.x + forward.x * maxDistance,
@@ -123,7 +136,9 @@ local function getLookAtTarget(maxDistance)
 
 	for i = 2, #results do
 		if results[i].distance < nearest.distance then
-			nearest = results[i]
+		    if results[i].group ~= collisionGroups[1] or nearest.distance - results[i].distance > staticCollisionThreshold then
+    			nearest = results[i]
+            end
 		end
 	end
 
@@ -145,11 +160,19 @@ local function collectComponents(entity)
         if component:IsA('entMeshComponent') or component:IsA('entSkinnedMeshComponent') then
             componentData.meshPath = inspectionSystem:ResolveResourcePath(component.mesh.hash)
             componentData.meshAppearance = component.meshAppearance.value
+
+            if isEmpty(componentData.meshPath) then
+                componentData.meshPath = ('%u'):format(component.mesh.hash)
+            end
         end
 
         if component:IsA('entMorphTargetSkinnedMeshComponent') then
             componentData.morphPath = inspectionSystem:ResolveResourcePath(component.morphResource.hash)
             componentData.meshAppearance = component.meshAppearance.value
+
+            if isEmpty(componentData.morphPath) then
+                componentData.morphPath = ('%u'):format(component.morphResource.hash)
+            end
         end
 
         table.insert(componentList, componentData)
@@ -165,9 +188,11 @@ local function inspectEntity(target, collisionGroup, targetDistance)
         return
     end
 
-    if inspectorTarget and inspectorTarget.hash == target.hash then
-        inspectorData.targetDistance = targetDistance
-        return
+    if inspectorTarget then
+        if inspectorTarget.hash == target.hash then
+            inspectorData.targetDistance = targetDistance
+            return
+        end
     end
 
     local data = {}
@@ -176,12 +201,35 @@ local function inspectEntity(target, collisionGroup, targetDistance)
     if target.scriptable then
         if target:IsA('entEntity') then
             data.entityID = object:GetEntityID().hash
-            data.templatePath = inspectionSystem:ResolveResourcePath(object:GetTemplatePath().resource.hash)
-            data.appearanceName = object:GetCurrentAppearanceName().value
             data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeID(data.entityID)
             data.sectorPath = inspectionSystem:ResolveSectorPathFromNodeID(data.entityID)
+
+            data.appearanceName = object:GetCurrentAppearanceName().value
             data.components = collectComponents(object)
             data.hasComponents = (#data.components > 0)
+
+            local templatePath = object:GetTemplatePath().resource
+            data.templatePath = inspectionSystem:ResolveResourcePath(templatePath.hash)
+            if isEmpty(data.templatePath) and isNotEmpty(templatePath.hash) then
+                data.templatePath = ('%u'):format(templatePath.hash)
+            end
+            
+            if isEmpty(data.nodeRef) then
+                local communityID = inspectionSystem:ResolveCommunityRefFromEntityID(object:GetEntityID())
+                if communityID.hash ~= 0 then
+                    data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeID(communityID.hash)
+                    if isEmpty(data.sectorPath) then
+                        data.sectorPath = inspectionSystem:ResolveSectorPathFromNodeID(communityID.hash)
+                    end
+                end
+            end
+
+            if target:IsA('gameObject') then
+                local recordID = object:GetTDBID()
+                if TDBID.IsValid(recordID) then
+                    data.recordID = TDBID.ToStringDEBUG(recordID)
+                end
+            end
         end
     else
         data.sectorPath = inspectionSystem:ResolveSectorPathFromNode(object)
@@ -469,7 +517,7 @@ local function drawMainWindow()
                 ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0)
                 ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
                 ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
-                
+
                 for _, entry in pairs(watchedEntities) do
                     if ImGui.CollapsingHeader(entry.name) then
                         drawComponentsTree(entry.components, 10)
