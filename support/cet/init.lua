@@ -86,7 +86,7 @@ local inspectorObjectSchema = {
     { name = 'nodeID', label = 'World Node ID:', format = '%u' },
     { name = 'nodeRef', label = 'World Node Ref:', wrap = true },
     { name = 'nodeIndex', label = 'World Node Index:', format = '%d', validate = function(data)
-        return data and data.nodeIndex > 0
+        return type(data.nodeIndex) == 'number' and data.nodeIndex > 0
     end },
     { name = 'sectorPath', label = 'World Sector:', wrap = true },
     { name = 'resourcePath', label = 'Resource:', wrap = true },
@@ -199,25 +199,12 @@ local function collectComponents(entity)
     return componentList
 end
 
-local function inspectTarget(target, collisionGroup, targetDistance)
-    if not target or not target.resolved then
-        inspecting = false
-        inspectorTarget = nil
-        return
-    end
-
-    if inspectorTarget then
-        if inspectorTarget.hash == target.hash then
-            inspectorData.targetDistance = targetDistance
-            return
-        end
-    end
-
+local function collectTargetData(target)
     local data = {}
     local object = target.object
 
     if target.scriptable then
-        if target:IsA('entEntity') then
+        if object:IsA('entEntity') then
             data.entityID = object:GetEntityID().hash
 
             local templatePath = object:GetTemplatePath().resource
@@ -245,7 +232,7 @@ local function inspectTarget(target, collisionGroup, targetDistance)
                 end
             end
 
-            if target:IsA('gameObject') then
+            if object:IsA('gameObject') then
                 local recordID = object:GetTDBID()
                 if TDBID.IsValid(recordID) then
                     data.recordID = TDBID.ToStringDEBUG(recordID)
@@ -285,6 +272,24 @@ local function inspectTarget(target, collisionGroup, targetDistance)
         data.objectType = target.type.value
     end
 
+    return data
+end
+
+local function inspectTarget(target, collisionGroup, targetDistance)
+    if not target or not target.resolved then
+        inspecting = false
+        inspectorTarget = nil
+        return
+    end
+
+    if inspectorTarget then
+        if inspectorTarget.hash == target.hash then
+            inspectorData.targetDistance = targetDistance
+            return
+        end
+    end
+
+    local data = collectTargetData(target)
     data.collisionGroup = collisionGroup.value
     data.targetDistance = targetDistance
 
@@ -308,22 +313,47 @@ local function lookupTarget(lookupInput)
     local lookupHash = lookupInput:match('^(%d+)ULL$') or lookupInput:match('^(%d+)$')
     if lookupHash ~= nil then
         local hash = loadstring('return ' .. lookupHash .. 'ULL', '')()
-        data.resourcePath = inspectionSystem:ResolveResourcePath(hash)
-        data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(hash)
-        if isNotEmpty(data.nodeRef) then
-            data.nodeID = hash
+
+        local object = Game.FindEntityByID(EntityID.new({ hash = hash }))
+        if IsDefined(object) then
+            data = collectTargetData({
+                object = object,
+                type = object:GetClassName(),
+                scriptable = true,
+            })
+        else
+            if hash <= 0xffffff then
+                local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(EntityID.new({ hash = hash }))
+                if communityID.hash > 0xffffff then
+                    hash = communityID.hash
+                    data.nodeID = hash
+                end
+            end
+            data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(hash)
+            if isNotEmpty(data.nodeRef) then
+                data.nodeID = hash
+            elseif hash > 0xffffff then
+                local sectorLocation = inspectionSystem:ResolveSectorFromNodeHash(hash)
+                if sectorLocation.sectorHash ~= 0 then
+                    data.sectorPath = inspectionSystem:ResolveResourcePath(sectorLocation.sectorHash)
+                    data.nodeIndex = sectorLocation.nodeIndex
+                    data.nodeID = hash
+                end
+            end
         end
+
+        data.resourcePath = inspectionSystem:ResolveResourcePath(hash)
     else
         local hash = inspectionSystem:ResolveNodeRefHash(lookupInput)
         if isNotEmpty(hash) then
             data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(hash)
             if isNotEmpty(data.nodeRef) then
-                data.nodeID = hash
+                data.nodeID = inspectionSystem:ResolveNodeRefHash(data.nodeRef)
             end
         end
     end
 
-    if isNotEmpty(data.nodeID) then
+    if isEmpty(data.sectorPath) and isNotEmpty(data.nodeID) then
         local sectorLocation = inspectionSystem:ResolveSectorFromNodeHash(data.nodeID)
         if sectorLocation.sectorHash ~= 0 then
             data.sectorPath = inspectionSystem:ResolveResourcePath(sectorLocation.sectorHash)
@@ -332,7 +362,7 @@ local function lookupTarget(lookupInput)
     end
 
     data.input = lookupInput
-    data.empty = isEmpty(data.resourcePath) and isEmpty(data.nodeRef) and isEmpty(data.sectorPath)
+    data.empty = isEmpty(data.resourcePath) and isEmpty(data.entityID) and isEmpty(data.nodeID) and isEmpty(data.sectorPath)
     data.ready = true
 
     lookupResult = data
@@ -500,35 +530,39 @@ local function drawComponentsTree(components, maxComponents)
     ImGui.EndChildFrame()
 end
 
-local function drawInspector(withComponents)
+local function drawInspectorFieldset(targetData, withComponents)
     if withComponents == nil then
         withComponents = true
     end
 
+    ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0)
+    ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
+    ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
+
+    for _, field in ipairs(inspectorObjectSchema) do
+        drawField(field, targetData)
+    end
+
+    if targetData.hasComponents then
+        if withComponents then
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.label)
+            ImGui.Text('Components:')
+            ImGui.PopStyleColor()
+            drawComponentsTree(targetData.components, 10)
+        else
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.label)
+            ImGui.Text(('Components (%d)'):format(#targetData.components))
+            ImGui.PopStyleColor()
+        end
+    end
+
+    ImGui.PopStyleColor()
+    ImGui.PopStyleVar(2)
+end
+
+local function drawInspectorContent(withComponents)
     if inspecting then
-        ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0)
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
-        ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
-
-        for _, field in ipairs(inspectorObjectSchema) do
-            drawField(field, inspectorData)
-        end
-
-        if inspectorData.hasComponents then
-            if withComponents then
-                ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.label)
-                ImGui.Text('Components:')
-                ImGui.PopStyleColor()
-                drawComponentsTree(inspectorData.components, 10)
-            else
-                ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.label)
-                ImGui.Text(('Components (%d)'):format(#inspectorData.components))
-                ImGui.PopStyleColor()
-            end
-        end
-
-        ImGui.PopStyleColor()
-        ImGui.PopStyleVar(2)
+        drawInspectorFieldset(inspectorData, withComponents)
     else
         ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.muted)
         ImGui.TextWrapped('No target.')
@@ -536,9 +570,28 @@ local function drawInspector(withComponents)
     end
 end
 
+local function drawLookupContent()
+    ImGui.Text('Enter reference string or hash:')
+    ImGui.SetNextItemWidth(viewStyle.windowWidth)
+    viewState.lookupInput = ImGui.InputText('##Lookup', viewState.lookupInput, viewState.maxInputLen)
+
+    if lookupResult.ready and not lookupResult.empty then
+        ImGui.Spacing()
+        drawInspectorFieldset(lookupResult)
+    else
+        if lookupResult.ready then
+            ImGui.Spacing()
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.muted)
+            ImGui.TextWrapped('Nothing found.')
+            ImGui.PopStyleColor()
+        end
+        ImGui.Spacing()
+    end
+end
+
 local function drawInspectorWindow()
     ImGui.Begin('Red Hot Tools', viewStyle.overlayWindowFlags)
-    drawInspector(false)
+    drawInspectorContent(false)
     ImGui.End()
 end
 
@@ -621,7 +674,7 @@ local function drawMainWindow()
         if ImGui.BeginTabItem(' Inspect ') then
             viewState.isInspectorOpen = true
             ImGui.Spacing()
-            drawInspector()
+            drawInspectorContent(true)
             ImGui.EndTabItem()
         else
             viewState.isInspectorOpen = false
@@ -630,23 +683,7 @@ local function drawMainWindow()
         if ImGui.BeginTabItem(' Lookup ') then
             viewState.isLookupOpen = true
             ImGui.Spacing()
-            ImGui.Text('Enter reference string or hash:')
-            ImGui.SetNextItemWidth(viewStyle.windowWidth)
-            viewState.lookupInput = ImGui.InputText('##Lookup', viewState.lookupInput, viewState.maxInputLen)
-            if lookupResult.ready and not lookupResult.empty then
-                ImGui.Spacing()
-                for _, field in ipairs(inspectorObjectSchema) do
-                    drawField(field, lookupResult)
-                end
-            else
-                if lookupResult.ready then
-                    ImGui.Spacing()
-                    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.muted)
-                    ImGui.TextWrapped('Nothing found.')
-                    ImGui.PopStyleColor()
-                end
-                ImGui.Spacing()
-            end
+            drawLookupContent()
             ImGui.EndTabItem()
         else
             viewState.isLookupOpen = false
