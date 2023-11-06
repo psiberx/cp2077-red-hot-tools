@@ -9,6 +9,8 @@ local envState = {
 local viewState = {
     isConsoleOpen = false,
     isInspectorOpen = false,
+    lookupInput = '',
+    maxInputLen = 100,
 }
 
 local viewStyle = {
@@ -24,6 +26,8 @@ local watchedEntities = {}
 local inspecting = false
 local inspectorTarget
 local inspectorData = {}
+
+local lookupResult = {}
 
 local targetingSystem
 local spatialQuerySystem
@@ -92,6 +96,13 @@ local inspectorComponentSchema = {
     { name = 'meshAppearance', label = 'Mesh Appearance:' },
 }
 
+local lookupResultSchema = {
+    { name = 'nodeID', label = 'Node ID:', format = '%u' },
+    { name = 'nodeRef', label = 'Node Ref:', wrap = true },
+    { name = 'sectorPath', label = 'Sector Path:', wrap = true },
+    { name = 'resourcePath', label = 'Resource Path:', wrap = true },
+}
+
 local function isEmpty(value)
     return value == nil or value == '' or value == 0
 end
@@ -103,7 +114,7 @@ end
 local function getLookAtTarget(maxDistance)
 	local player = GetPlayer()
 
-	if not IsDefined(player) then
+	if not IsDefined(player) or IsDefined(GetMountedVehicle(player)) then
         return nil
 	end
 
@@ -191,7 +202,7 @@ local function collectComponents(entity)
     return componentList
 end
 
-local function inspectEntity(target, collisionGroup, targetDistance)
+local function inspectTarget(target, collisionGroup, targetDistance)
     if not target or not target.resolved then
         inspecting = false
         inspectorTarget = nil
@@ -221,14 +232,14 @@ local function inspectEntity(target, collisionGroup, targetDistance)
 
             if data.entityID > 0xffffff then
                 data.nodeID = data.entityID
-                data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeID(data.nodeID)
-                data.sectorPath = inspectionSystem:ResolveSectorPathFromNodeID(data.nodeID)
+                data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.nodeID)
+                data.sectorPath = inspectionSystem:ResolveSectorPathFromNodeHash(data.nodeID)
             else
                 local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(object:GetEntityID())
                 if communityID.hash > 0xffffff then
                     data.nodeID = communityID.hash
-                    data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeID(communityID.hash)
-                    data.sectorPath = inspectionSystem:ResolveSectorPathFromNodeID(communityID.hash)
+                    data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.nodeID)
+                    data.sectorPath = inspectionSystem:ResolveSectorPathFromNodeHash(data.nodeID)
                 end
             end
 
@@ -274,6 +285,42 @@ local function inspectEntity(target, collisionGroup, targetDistance)
     inspectorTarget = target
     inspectorData = data
     inspecting = true
+end
+
+local function lookupTarget(lookupInput)
+    if isEmpty(lookupInput) then
+        lookupResult = {}
+        return
+    end
+
+    if lookupResult.input == lookupInput then
+        return
+    end
+
+    local data = {}
+
+    local lookupHash = lookupInput:match('^(%d+)ULL$') or lookupInput:match('^(%d+)$')
+    if lookupHash ~= nil then
+        local hash = loadstring('return ' .. lookupHash .. 'ULL', '')()
+        data.resourcePath = inspectionSystem:ResolveResourcePath(hash)
+        data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(hash)
+        data.sectorPath = inspectionSystem:ResolveSectorPathFromNodeHash(hash)
+    else
+        local hash = inspectionSystem:ResolveNodeRefHash(lookupInput)
+        if isNotEmpty(hash) then
+            data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(hash)
+            data.sectorPath = inspectionSystem:ResolveSectorPathFromNodeHash(hash)
+            if isNotEmpty(data.nodeRef) then
+                data.nodeID = hash
+            end
+        end
+    end
+
+    data.input = lookupInput
+    data.empty = isEmpty(data.resourcePath) and isEmpty(data.nodeRef) and isEmpty(data.sectorPath)
+    data.ready = true
+
+    lookupResult = data
 end
 
 local function watchEntity(entity)
@@ -358,7 +405,8 @@ local function initializeInspector()
 
     Cron.Every(0.2, function()
         if viewState.isConsoleOpen or viewState.isInspectorOpen then
-            inspectEntity(getLookAtTarget())
+            inspectTarget(getLookAtTarget())
+            lookupTarget(viewState.lookupInput)
         end
     end)
 end
@@ -379,7 +427,7 @@ local function initializeViewStyle()
             + ImGuiWindowFlags.NoTitleBar + ImGuiWindowFlags.NoCollapse
             + ImGuiWindowFlags.NoInputs + ImGuiWindowFlags.NoNav
 
-        viewStyle.buttonHeight = 24 * viewStyle.viewScale
+        viewStyle.buttonHeight = 21 * viewStyle.viewScale
     end
 end
 
@@ -522,7 +570,7 @@ local function drawMainWindow()
 			ImGui.EndTabItem()
         end
 
-        if ImGui.BeginTabItem(' Player ') then
+        if ImGui.BeginTabItem(' Watch ') then
             ImGui.Spacing()
             if watching then
                 ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0)
@@ -545,19 +593,39 @@ local function drawMainWindow()
             ImGui.EndTabItem()
         end
 
-        if ImGui.BeginTabItem(' Lookup ') then
-            ImGui.Spacing()
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.muted)
-            ImGui.TextWrapped('Enter reference string or hash...')
-            ImGui.PopStyleColor()
-            ImGui.EndTabItem()
-        end
-
         if ImGui.BeginTabItem(' Inspect ') then
             ImGui.Spacing()
             drawInspector()
             ImGui.EndTabItem()
         end
+
+        --[[
+        if ImGui.BeginTabItem(' Lookup ') then
+            ImGui.Spacing()
+            ImGui.Text('Enter reference string or hash:')
+            ImGui.SetNextItemWidth(viewStyle.windowWidth)
+            viewState.lookupInput = ImGui.InputText('##Lookup', viewState.lookupInput, viewState.maxInputLen)
+            if lookupResult.ready and not lookupResult.empty then
+                ImGui.Spacing()
+                for _, field in ipairs(lookupResultSchema) do
+                    drawField(field, lookupResult)
+                end
+            else
+                if lookupResult.ready then
+                    ImGui.Spacing()
+                    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.muted)
+                    ImGui.TextWrapped('Nothing found.')
+                    ImGui.PopStyleColor()
+                end
+                ImGui.Spacing()
+                ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.muted)
+                ImGui.TextWrapped('- Resource hash to resource path\n- Node ID to node reference\n- Node to streaming sector')
+                ImGui.PopStyleColor()
+
+            end
+            ImGui.EndTabItem()
+        end
+        ]]--
     end
     ImGui.End()
 end

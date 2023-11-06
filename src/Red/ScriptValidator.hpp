@@ -4,8 +4,6 @@
 #include "ScriptBundle.hpp"
 #include "ScriptReport.hpp"
 
-#include <RED4ext/Relocation.hpp>
-
 namespace Red
 {
 struct ScriptValidator

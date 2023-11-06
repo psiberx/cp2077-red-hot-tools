@@ -5,6 +5,7 @@
 #include "Core/Logging/LoggingAgent.hpp"
 #include "Red/ResourcePath.hpp"
 #include "Red/StreamingSector.hpp"
+#include "Red/WorldNode.hpp"
 
 namespace App
 {
@@ -25,7 +26,8 @@ protected:
     void OnBootstrap() override;
 
     static void OnCreateResourcePath(Red::ResourcePath* aPath, const Red::StringView* aPathStr);
-    static void OnStreamingSectorReady(Red::worldStreamingSector* aSector, uint64_t);
+    static void OnStreamingSectorPrepare(Red::worldStreamingSector* aSector, uint64_t);
+    static void OnStreamingSectorDestruct(Red::worldStreamingSector* aSector);
 
     inline static std::shared_mutex s_resourcePathLock;
     inline static Core::Map<Red::ResourcePath, std::string> s_resourcePathMap;

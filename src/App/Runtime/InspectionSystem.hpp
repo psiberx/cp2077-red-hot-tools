@@ -19,9 +19,10 @@ class InspectionSystem : public Red::IGameSystem
 {
 public:
     Red::CString ResolveResourcePath(uint64_t aResourceHash);
-    Red::CString ResolveSectorPathFromNodeID(uint64_t aNodeID);
+    Red::CString ResolveSectorPathFromNodeHash(uint64_t aNodeID);
     Red::CString ResolveSectorPathFromNode(const Red::WeakHandle<Red::ISerializable>& aNode);
-    Red::CString ResolveNodeRefFromNodeID(uint64_t aNodeID);
+    Red::CString ResolveNodeRefFromNodeHash(uint64_t aNodeID);
+    uint64_t ResolveNodeRefHash(const Red::CString& aNodeRef);
     Red::EntityID ResolveCommunityIDFromEntityID(Red::EntityID aEntityID);
 
     Red::DynArray<Red::Handle<Red::IComponent>> GetComponents(const Red::WeakHandle<Red::Entity>& aEntity);
@@ -49,9 +50,10 @@ RTTI_DEFINE_CLASS(App::PhysicsObjectResult, {
 
 RTTI_DEFINE_CLASS(App::InspectionSystem, {
     RTTI_METHOD(ResolveResourcePath);
-    RTTI_METHOD(ResolveSectorPathFromNodeID);
+    RTTI_METHOD(ResolveSectorPathFromNodeHash);
     RTTI_METHOD(ResolveSectorPathFromNode);
-    RTTI_METHOD(ResolveNodeRefFromNodeID);
+    RTTI_METHOD(ResolveNodeRefFromNodeHash);
+    RTTI_METHOD(ResolveNodeRefHash);
     RTTI_METHOD(ResolveCommunityIDFromEntityID);
     RTTI_METHOD(GetComponents);
     RTTI_METHOD(GetPhysicsTraceObject);

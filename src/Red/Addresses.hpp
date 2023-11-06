@@ -25,6 +25,8 @@ constexpr uintptr_t ISerializable_SetReference = 0x140143690 - ImageBase; // 40 
 
 constexpr uintptr_t JobHandle_Wait = 0x140A4A374 - ImageBase; // 48 8B 11 41 83 C9 FF 48 8B 0D ? ? ? ? 45 33 C0 E9, expected: 1, index: 0
 
+constexpr uintptr_t NodeRef_Create = 0x1401580EC - ImageBase; // 48 89 5C 24 ? 44 88 44 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8B EC 48 83 EC ? 8B 72 08 4C 8B F1 85 F6, expected: 1, index: 0
+
 constexpr uintptr_t PhysicsTraceResult_GetHitObject = 0x140126B44 - ImageBase; // 48 89 5C 24 ? 57 48 83 EC ? 41 8B F8 48 8B D9 48 8B 0D B5 8B 21 03 44 8B C2 48 8D 54 24 ? E8 ? ? ? ? 4C 8B 4C 24 ? 4D 85 C9, expected: 1, index: 0
 
 constexpr uintptr_t ResourceBank_ForgetResource = 0x1408B3B80 - ImageBase; // 48 8B C4 48 89 58 ? 48 89 70 ? 4C 89 40 ? 55 57 41 56 48 8D 68 ? 48 81 EC ? ? ? ? 48 8D 99 ? ? ? ? 4C 8B F1, expected: 1, index: 0
@@ -51,5 +53,6 @@ constexpr uintptr_t ScriptBundle_Validate = 0x1404D1B68 - ImageBase; // 48 8B C4
 
 constexpr uintptr_t ScriptValidator_Validate = 0x140581C9C - ImageBase; // 48 89 5C 24 ? 48 89 4C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 ? 48 81 EC ? ? ? ? 48 8B C2, expected: 1, index: 0
 
+constexpr uintptr_t StreamingSector_dtor = 0x140BE08B8 - ImageBase; // 40 53 48 83 EC ? 48 8D 05 ? ? ? ? 48 8B D9 48 89 01 48 81 C1 C8 00 00 00 E8 ? ? ? ? 48  8D 8B B0 00 00 00 E8 ? ? ? ? 48 8D 8B A0 00 00 00 E8 ? ? ? ? 48 8D 4B 40 E8, expected: 1, index: 0
 constexpr uintptr_t StreamingSector_OnReady = 0x140773BE4 - ImageBase; // 48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 48 83 EC ? 48 8B 91 ? ? ? ? 33 FF 48 8B D9, expected: 1, index: 0
 }

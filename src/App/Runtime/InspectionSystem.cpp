@@ -2,6 +2,7 @@
 #include "Core/Facades/Container.hpp"
 #include "Red/Debug.hpp"
 #include "Red/Entity.hpp"
+#include "Red/NodeRef.hpp"
 #include "Red/Physics.hpp"
 #include "Red/WorldNode.hpp"
 
@@ -20,8 +21,21 @@ Red::CString App::InspectionSystem::ResolveResourcePath(uint64_t aResourceHash)
     return m_registry->ResolveResorcePath(aResourceHash);
 }
 
-Red::CString App::InspectionSystem::ResolveSectorPathFromNodeID(uint64_t aNodeID)
+Red::CString App::InspectionSystem::ResolveSectorPathFromNodeHash(uint64_t aNodeID)
 {
+    {
+        static const Red::GlobalNodeRef context{Red::FNV1a64("$")};
+
+        Red::NodeRef nodeRef{aNodeID};
+        Red::GlobalNodeRef resolvedRef{};
+        Red::CallGlobal("ResolveNodeRef", resolvedRef, nodeRef, context);
+
+        if (resolvedRef.hash != 0)
+        {
+            aNodeID = resolvedRef.hash;
+        }
+    }
+
     return m_registry->ResolveSectorPath(aNodeID);
 }
 
@@ -30,7 +44,7 @@ Red::CString App::InspectionSystem::ResolveSectorPathFromNode(const Red::WeakHan
     return m_registry->ResolveSectorPath(aNode.instance);
 }
 
-Red::CString App::InspectionSystem::ResolveNodeRefFromNodeID(uint64_t aNodeID)
+Red::CString App::InspectionSystem::ResolveNodeRefFromNodeHash(uint64_t aNodeID)
 {
     if (!aNodeID)
         return {};
@@ -62,6 +76,15 @@ Red::CString App::InspectionSystem::ResolveNodeRefFromNodeID(uint64_t aNodeID)
     }
 
     return {};
+}
+
+uint64_t App::InspectionSystem::ResolveNodeRefHash(const Red::CString& aNodeRef)
+{
+    Red::NodeRef nodeRef{};
+    Red::StringView nodeRefStr{aNodeRef.c_str(), aNodeRef.Length()};
+    Raw::NodeRef::Create(nodeRef, nodeRefStr);
+
+    return nodeRef.hash;
 }
 
 Red::EntityID App::InspectionSystem::ResolveCommunityIDFromEntityID(Red::EntityID aEntityID)

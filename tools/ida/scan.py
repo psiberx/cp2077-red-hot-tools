@@ -43,6 +43,10 @@ def patterns():
                 Item(name="Wait",
                      pattern="48 8B 11 41 83 C9 FF 48 8B 0D ? ? ? ? 45 33 C0 E9"),
             ]),
+            Group(name="NodeRef", functions=[
+                Item(name="Create",
+                     pattern="48 89 5C 24 ? 44 88 44 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8B EC 48 83 EC ? 8B 72 08 4C 8B F1 85 F6"),
+            ]),
             Group(name="PhysicsTraceResult", functions=[
                 Item(name="GetHitObject",
                      pattern="48 89 5C 24 ? 57 48 83 EC ? 41 8B F8 48 8B D9 48 8B 0D B5 8B 21 03 44 8B C2 48 8D 54 24 ? E8 ? ? ? ? 4C 8B 4C 24 ? 4D 85 C9"),
@@ -99,6 +103,8 @@ def patterns():
                      pattern="48 89 5C 24 ? 48 89 4C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 ? 48 81 EC ? ? ? ? 48 8B C2"),
             ]),
             Group(name="StreamingSector", functions=[
+                Item(name="dtor",
+                     pattern="40 53 48 83 EC ? 48 8D 05 ? ? ? ? 48 8B D9 48 89 01 48 81 C1 C8 00 00 00 E8 ? ? ? ? 48  8D 8B B0 00 00 00 E8 ? ? ? ? 48 8D 8B A0 00 00 00 E8 ? ? ? ? 48 8D 4B 40 E8"),
                 Item(name="OnReady",
                      pattern="48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 48 83 EC ? 48 8B 91 ? ? ? ? 33 FF 48 8B D9"),
             ]),

@@ -26,7 +26,8 @@ App::ResourceRegistry::ResourceRegistry(const std::filesystem::path& aMetadataDi
 void App::ResourceRegistry::OnBootstrap()
 {
     HookAfter<Raw::ResourcePath::Create>(&OnCreateResourcePath);
-    HookAfter<Raw::StreamingSector::OnReady>(&OnStreamingSectorReady);
+    HookAfter<Raw::StreamingSector::Prepare>(&OnStreamingSectorPrepare);
+    HookBefore<Raw::StreamingSector::Destruct>(&OnStreamingSectorDestruct);
 }
 
 void App::ResourceRegistry::OnCreateResourcePath(Red::ResourcePath* aPath, const Red::StringView* aPathStr)
@@ -38,7 +39,7 @@ void App::ResourceRegistry::OnCreateResourcePath(Red::ResourcePath* aPath, const
     }
 }
 
-void App::ResourceRegistry::OnStreamingSectorReady(Red::worldStreamingSector* aSector, uint64_t)
+void App::ResourceRegistry::OnStreamingSectorPrepare(Red::worldStreamingSector* aSector, uint64_t)
 {
     std::unique_lock _(s_nodeSectorLock);
     auto& buffer = Raw::StreamingSector::NodeBuffer::Ref(aSector);
@@ -58,6 +59,22 @@ void App::ResourceRegistry::OnStreamingSectorReady(Red::worldStreamingSector* aS
     {
         s_nodeRefToSectorMap[nodeRef.hash] = aSector->path;
     }
+}
+
+void App::ResourceRegistry::OnStreamingSectorDestruct(Red::worldStreamingSector* aSector)
+{
+    std::unique_lock _(s_nodeSectorLock);
+    auto& buffer = Raw::StreamingSector::NodeBuffer::Ref(aSector);
+
+    size_t erased = 0;
+    for (const auto& node : buffer.nodes)
+    {
+        erased += s_nodePtrToSectorMap.erase(reinterpret_cast<uintptr_t>(node.instance));
+    }
+
+#ifndef NDEBUG
+    LogInfo("ResourceRegistry: Cleaned up {} tracked nodes.", erased);
+#endif
 }
 
 std::string_view App::ResourceRegistry::ResolveResorcePath(Red::ResourcePath aPath)
@@ -105,6 +122,10 @@ std::string_view App::ResourceRegistry::ResolveSectorPath(void* aPtr)
 void App::ResourceRegistry::ClearRuntimeData()
 {
     std::unique_lock _(s_nodeSectorLock);
-    LogInfo("ResourceRegistry: Cleaning up {} tracked nodes.", s_nodePtrToSectorMap.size());
+
+#ifndef NDEBUG
+    LogInfo("ResourceRegistry: Cleaned up {} tracked nodes.", s_nodePtrToSectorMap.size());
+#endif
+
     s_nodePtrToSectorMap.clear();
 }
