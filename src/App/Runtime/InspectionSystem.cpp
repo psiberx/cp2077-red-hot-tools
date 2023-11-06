@@ -64,7 +64,7 @@ Red::CString App::InspectionSystem::ResolveNodeRefFromNodeID(uint64_t aNodeID)
     return {};
 }
 
-Red::EntityID App::InspectionSystem::ResolveCommunityRefFromEntityID(Red::EntityID aEntityID)
+Red::EntityID App::InspectionSystem::ResolveCommunityIDFromEntityID(Red::EntityID aEntityID)
 {
     auto entityStubSystem = Red::GetGameSystem<Red::IEntityStubSystem>();
     auto entityStub = entityStubSystem->FindStub(aEntityID);

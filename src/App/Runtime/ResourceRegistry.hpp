@@ -14,6 +14,8 @@ class ResourceRegistry
     , public Core::HookingAgent
 {
 public:
+    ResourceRegistry(const std::filesystem::path& aMetadataDir);
+
     std::string_view ResolveResorcePath(Red::ResourcePath aPath);
     std::string_view ResolveSectorPath(uint64_t aHash);
     std::string_view ResolveSectorPath(void* aPtr);

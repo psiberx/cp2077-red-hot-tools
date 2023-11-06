@@ -1,5 +1,28 @@
 #include "ResourceRegistry.hpp"
 
+App::ResourceRegistry::ResourceRegistry(const std::filesystem::path& aMetadataDir)
+{
+    auto resourceList = aMetadataDir / L"Resources.txt";
+    if (std::filesystem::exists(resourceList))
+    {
+        std::thread([resourceList]() {
+            LogInfo("ResourceRegistry: Loading metadata...");
+
+            std::ifstream f(resourceList);
+            {
+                std::unique_lock _(s_resourcePathLock);
+                std::string resourcePath;
+                while (std::getline(f, resourcePath))
+                {
+                    s_resourcePathMap[Red::ResourcePath::HashSanitized(resourcePath.data())] = std::move(resourcePath);
+                }
+            }
+
+            LogInfo("ResourceRegistry: Loaded {} predefined hashes.", s_resourcePathMap.size());
+        }).detach();
+    }
+}
+
 void App::ResourceRegistry::OnBootstrap()
 {
     HookAfter<Raw::ResourcePath::Create>(&OnCreateResourcePath);
@@ -20,9 +43,15 @@ void App::ResourceRegistry::OnStreamingSectorReady(Red::worldStreamingSector* aS
     std::unique_lock _(s_nodeSectorLock);
     auto& buffer = Raw::StreamingSector::NodeBuffer::Ref(aSector);
 
-    for (auto& node : buffer.nodes)
+    for (const auto& node : buffer.nodes)
     {
         s_nodePtrToSectorMap[reinterpret_cast<uintptr_t>(node.instance)] = aSector->path;
+
+        if (node->GetType()->IsA(Red::GetType<Red::worldCompiledCommunityAreaNode>()))
+        {
+            auto& nodeID = node.GetPtr<Red::worldCompiledCommunityAreaNode>()->sourceObjectId.hash;
+            s_nodeRefToSectorMap[nodeID] = aSector->path;
+        }
     }
 
     for (auto& nodeRef : buffer.nodeRefs)
@@ -76,5 +105,6 @@ std::string_view App::ResourceRegistry::ResolveSectorPath(void* aPtr)
 void App::ResourceRegistry::ClearRuntimeData()
 {
     std::unique_lock _(s_nodeSectorLock);
+    LogInfo("ResourceRegistry: Cleaning up {} tracked nodes.", s_nodePtrToSectorMap.size());
     s_nodePtrToSectorMap.clear();
 }

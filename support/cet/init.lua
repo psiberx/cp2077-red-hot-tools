@@ -30,28 +30,37 @@ local spatialQuerySystem
 local inspectionSystem
 
 local collisionGroups = {
-    'Static',
-    --'Player',
-    'AI',
-    'Dynamic',
-    'Vehicle',
-    --'Tank',
-    'Destructible',
-    'Terrain',
-    'Collider',
-    --'Particle',
-    --'Ragdoll',
-    --'Ragdoll Inner',
-    'Debris',
-    --'Cloth',
-    'PlayerBlocker',
-    'VehicleBlocker',
-    --'TankBlocker',
-    'DestructibleCluster',
-    'NPCBlocker',
+    { name = 'Static', threshold = 0.0, tolerance = 0.2 },
+    --{ name = 'Cloth', threshold = 1.0, tolerance = 0.0 },
+    --{ name = 'Player', threshold = 0.0, tolerance = 0.0 },
+    { name = 'AI', threshold = 0.0, tolerance = 0.0 },
+    { name = 'Dynamic', threshold = 0.0, tolerance = 0.0 },
+    { name = 'Vehicle', threshold = 0.0, tolerance = 0.0 },
+    --{ name = 'Tank', threshold = 0.0, tolerance = 0.0 },
+    { name = 'Destructible', threshold = 0.0, tolerance = 0.0 },
+    { name = 'Terrain', threshold = 0.0, tolerance = 0.0 },
+    --{ name = 'Collider', threshold = 0.0, tolerance = 0.0 },
+    --{ name = 'Particle', threshold = 0.0, tolerance = 0.0 },
+    --{ name = 'Ragdoll', threshold = 0.0, tolerance = 0.0 },
+    --{ name = 'Ragdoll Inner', threshold = 0.0, tolerance = 0.0 },
+    { name = 'Debris', threshold = 0.0, tolerance = 0.0 },
+    { name = 'PlayerBlocker', threshold = 0.0, tolerance = 0.0 },
+    { name = 'VehicleBlocker', threshold = 0.0, tolerance = 0.0 },
+    --{ name = 'TankBlocker', threshold = 0.0, tolerance = 0.0 },
+    { name = 'DestructibleCluster', threshold = 0.0, tolerance = 0.0 },
+    --{ name = 'NPCBlocker', threshold = 0.0, tolerance = 0.0 },
+    { name = 'Visibility', threshold = 0.0, tolerance = 0.0 },
+    --{ name = 'Audible', threshold = 0.0, tolerance = 0.0 },
+    { name = 'Interaction', threshold = 0.0, tolerance = 0.0 },
+    --{ name = 'Shooting', threshold = 0.0, tolerance = 0.0 },
+    { name = 'Water', threshold = 0.0, tolerance = 0.0 },
+    { name = 'NetworkDevice', threshold = 0.0, tolerance = 0.0 },
+    --{ name = 'NPCTraceObstacle', threshold = 0.0, tolerance = 0.0 },
+    --{ name = 'PhotoModeCamera', threshold = 0.0, tolerance = 0.0 },
+    { name = 'FoliageDestructible', threshold = 0.0, tolerance = 0.0 },
+    --{ name = 'NPCNameplate', threshold = 0.0, tolerance = 0.0 },
+    --{ name = 'NPCCollision', threshold = 0.0, tolerance = 0.0 },
 }
-
-local staticCollisionThreshold = 0.2
 
 local inspectorObjectSchema = {
     { name = 'objectType', label = 'Target Type:' },
@@ -66,8 +75,10 @@ local inspectorObjectSchema = {
     { name = 'meshPath', label = 'Mesh Resource:', wrap = true },
     { name = 'meshAppearance', label = 'Mesh Appearance:' },
     { name = 'materialPath', label = 'Material Resource:', wrap = true },
-    --{ name = 'communityRef', label = 'Community:', wrap = true },
-    { name = 'nodeRef', label = 'World Node:', wrap = true },
+    --{ name = 'communityID', label = 'Community ID:', format = '%u' },
+    --{ name = 'communityRef', label = 'Community Ref:', wrap = true },
+    { name = 'nodeID', label = 'World Node ID:', format = '%u' },
+    { name = 'nodeRef', label = 'World Node Ref:', wrap = true },
     { name = 'sectorPath', label = 'World Sector:', wrap = true },
     --{ name = 'targetDistance', label = 'Distance:', format = '%.2f' },
     --{ name = 'collisionGroup', label = 'Collision Group:' },
@@ -111,13 +122,13 @@ local function getLookAtTarget(maxDistance)
 	local results = {}
 
 	for _, group in ipairs(collisionGroups) do
-		local success, trace = spatialQuerySystem:SyncRaycastByCollisionGroup(from, to, group, false, false)
+		local success, trace = spatialQuerySystem:SyncRaycastByCollisionGroup(from, to, group.name, false, false)
 
 		if success then
 			local target = inspectionSystem:GetPhysicsTraceObject(trace)
 			if target.resolved then
 			    local distance = Vector4.Distance(from, ToVector4(trace.position))
-			    if distance > 0 then
+			    if distance > group.threshold then
                     table.insert(results, {
                         distance = distance,
                         target = target,
@@ -135,14 +146,13 @@ local function getLookAtTarget(maxDistance)
 	local nearest = results[1]
 
 	for i = 2, #results do
-		if results[i].distance < nearest.distance then
-		    if results[i].group ~= collisionGroups[1] or nearest.distance - results[i].distance > staticCollisionThreshold then
-    			nearest = results[i]
-            end
+	    local diff = nearest.distance - results[i].distance
+		if diff > results[i].group.tolerance then
+            nearest = results[i]
 		end
 	end
 
-	return nearest.target, nearest.group, nearest.distance
+	return nearest.target, nearest.group.name, nearest.distance
 end
 
 local function collectComponents(entity)
@@ -201,26 +211,24 @@ local function inspectEntity(target, collisionGroup, targetDistance)
     if target.scriptable then
         if target:IsA('entEntity') then
             data.entityID = object:GetEntityID().hash
-            data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeID(data.entityID)
-            data.sectorPath = inspectionSystem:ResolveSectorPathFromNodeID(data.entityID)
-
-            data.appearanceName = object:GetCurrentAppearanceName().value
-            data.components = collectComponents(object)
-            data.hasComponents = (#data.components > 0)
 
             local templatePath = object:GetTemplatePath().resource
             data.templatePath = inspectionSystem:ResolveResourcePath(templatePath.hash)
+            data.appearanceName = object:GetCurrentAppearanceName().value
             if isEmpty(data.templatePath) and isNotEmpty(templatePath.hash) then
                 data.templatePath = ('%u'):format(templatePath.hash)
             end
-            
-            if isEmpty(data.nodeRef) then
-                local communityID = inspectionSystem:ResolveCommunityRefFromEntityID(object:GetEntityID())
-                if communityID.hash ~= 0 then
+
+            if data.entityID > 0xffffff then
+                data.nodeID = data.entityID
+                data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeID(data.nodeID)
+                data.sectorPath = inspectionSystem:ResolveSectorPathFromNodeID(data.nodeID)
+            else
+                local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(object:GetEntityID())
+                if communityID.hash > 0xffffff then
+                    data.nodeID = communityID.hash
                     data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeID(communityID.hash)
-                    if isEmpty(data.sectorPath) then
-                        data.sectorPath = inspectionSystem:ResolveSectorPathFromNodeID(communityID.hash)
-                    end
+                    data.sectorPath = inspectionSystem:ResolveSectorPathFromNodeID(communityID.hash)
                 end
             end
 
@@ -230,6 +238,9 @@ local function inspectEntity(target, collisionGroup, targetDistance)
                     data.recordID = TDBID.ToStringDEBUG(recordID)
                 end
             end
+
+            data.components = collectComponents(object)
+            data.hasComponents = (#data.components > 0)
         end
     else
         data.sectorPath = inspectionSystem:ResolveSectorPathFromNode(object)
@@ -341,8 +352,8 @@ local function initializeInspector()
     spatialQuerySystem = Game.GetSpatialQueriesSystem()
     inspectionSystem = Game.GetInspectionSystem()
 
-    for i, collisionGroup in ipairs(collisionGroups) do
-        collisionGroups[i] = CName(collisionGroup)
+    for _, collisionGroup in ipairs(collisionGroups) do
+        collisionGroup.name = CName(collisionGroup.name)
     end
 
     Cron.Every(0.2, function()

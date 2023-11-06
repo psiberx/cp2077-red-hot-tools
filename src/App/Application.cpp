@@ -35,5 +35,5 @@ App::Application::Application(HMODULE aHandle, const RED4ext::Sdk* aSdk)
     Register<App::TweakLoader>(Env::TweakSourceDir());
     Register<App::TweakWatcher>(Env::TweakHotFile());
 
-    Register<App::ResourceRegistry>();
+    Register<App::ResourceRegistry>(Env::MetadataDir());
 }
