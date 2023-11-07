@@ -42,6 +42,7 @@ private:
 RTTI_DEFINE_CLASS(App::StreamingSectorLocation, {
     RTTI_PROPERTY(sectorHash);
     RTTI_PROPERTY(nodeIndex);
+    RTTI_PROPERTY(nodeCount);
 });
 
 RTTI_DEFINE_CLASS(App::PhysicsObjectResult, {

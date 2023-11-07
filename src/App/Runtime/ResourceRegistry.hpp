@@ -13,6 +13,7 @@ struct StreamingSectorLocation
 {
     uint64_t sectorHash{0};
     int32_t nodeIndex{-1};
+    uint32_t nodeCount{0};
 };
 
 class ResourceRegistry

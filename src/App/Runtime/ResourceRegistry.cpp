@@ -46,7 +46,7 @@ void App::ResourceRegistry::OnStreamingSectorPrepare(Red::worldStreamingSector* 
 
     for (auto& nodeRef : buffer.nodeRefs)
     {
-        s_nodeRefToSectorMap[nodeRef.hash] = {aSector->path, -1};
+        s_nodeRefToSectorMap[nodeRef.hash] = {aSector->path};
     }
 
     for (auto& nodeSetup : buffer.nodeSetups)
@@ -55,7 +55,7 @@ void App::ResourceRegistry::OnStreamingSectorPrepare(Red::worldStreamingSector* 
 
         if (nodeSetup.globalNodeID)
         {
-            s_nodeRefToSectorMap[nodeSetup.globalNodeID] = {aSector->path, nodeSetup.nodeIndex};
+            s_nodeRefToSectorMap[nodeSetup.globalNodeID] = {aSector->path, nodeSetup.nodeIndex, buffer.nodes.size};
         }
     }
 
@@ -63,12 +63,12 @@ void App::ResourceRegistry::OnStreamingSectorPrepare(Red::worldStreamingSector* 
     {
         const auto& node = buffer.nodes[index];
 
-        s_nodePtrToSectorMap[reinterpret_cast<uintptr_t>(node.instance)] = {aSector->path, index};
+        s_nodePtrToSectorMap[reinterpret_cast<uintptr_t>(node.instance)] = {aSector->path, index, buffer.nodes.size};
 
         if (node->GetType()->IsA(Red::GetType<Red::worldCompiledCommunityAreaNode>()))
         {
             auto& nodeID = node.GetPtr<Red::worldCompiledCommunityAreaNode>()->sourceObjectId.hash;
-            s_nodeRefToSectorMap[nodeID] = {aSector->path, index};
+            s_nodeRefToSectorMap[nodeID] = {aSector->path, index, buffer.nodes.size};
         }
     }
 }

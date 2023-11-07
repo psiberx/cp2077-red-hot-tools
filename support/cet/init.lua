@@ -70,9 +70,11 @@ local collisionGroups = {
 
 local inspectorObjectSchema = {
     { name = 'objectType', label = 'Target Type:' },
-    { name = 'collisionGroup', label = 'Target Collision:', format = function(data)
-        return ('%s (%.2f)'):format(data.collisionGroup, data.targetDistance)
-    end },
+    { name = 'collisionGroup', label = 'Target Collision:',
+        format = function(data)
+            return ('%s (%.2f)'):format(data.collisionGroup, data.targetDistance)
+        end
+    },
     { name = 'recordID', label = 'Record ID:' },
     { name = 'entityID', label = 'Entity ID:', format = '%u' },
     { name = 'deviceClass', label = 'Device Class:' },
@@ -85,9 +87,14 @@ local inspectorObjectSchema = {
     --{ name = 'communityRef', label = 'Community Ref:', wrap = true },
     { name = 'nodeID', label = 'World Node ID:', format = '%u' },
     { name = 'nodeRef', label = 'World Node Ref:', wrap = true },
-    { name = 'nodeIndex', label = 'World Node Index:', format = '%d', validate = function(data)
-        return type(data.nodeIndex) == 'number' and data.nodeIndex > 0
-    end },
+    { name = 'nodeIndex', label = 'World Node Index:', format = '%d',
+        validate = function(data)
+            return type(data.nodeIndex) == 'number' and data.nodeIndex > 0
+        end,
+        format = function(data)
+            return ('%d / %d'):format(data.nodeIndex, data.nodeCount)
+        end
+    },
     { name = 'sectorPath', label = 'World Sector:', wrap = true },
     { name = 'resourcePath', label = 'Resource:', wrap = true },
 }
@@ -229,6 +236,7 @@ local function collectTargetData(target)
                 if sectorLocation.sectorHash ~= 0 then
                     data.sectorPath = inspectionSystem:ResolveResourcePath(sectorLocation.sectorHash)
                     data.nodeIndex = sectorLocation.nodeIndex
+                    data.nodeCount = sectorLocation.nodeCount
                 end
             end
 
@@ -247,6 +255,7 @@ local function collectTargetData(target)
         if sectorLocation.sectorHash ~= 0 then
             data.sectorPath = inspectionSystem:ResolveResourcePath(sectorLocation.sectorHash)
             data.nodeIndex = sectorLocation.nodeIndex
+            data.nodeCount = sectorLocation.nodeCount
         end
 
         if target:IsA('worldMeshNode') or target:IsA('worldInstancedMeshNode') then
@@ -337,6 +346,7 @@ local function lookupTarget(lookupInput)
                 if sectorLocation.sectorHash ~= 0 then
                     data.sectorPath = inspectionSystem:ResolveResourcePath(sectorLocation.sectorHash)
                     data.nodeIndex = sectorLocation.nodeIndex
+                    data.nodeCount = sectorLocation.nodeCount
                     data.nodeID = hash
                 end
             end
@@ -358,6 +368,7 @@ local function lookupTarget(lookupInput)
         if sectorLocation.sectorHash ~= 0 then
             data.sectorPath = inspectionSystem:ResolveResourcePath(sectorLocation.sectorHash)
             data.nodeIndex = sectorLocation.nodeIndex
+            data.nodeCount = sectorLocation.nodeCount
         end
     end
 
