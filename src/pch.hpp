@@ -34,7 +34,9 @@
 #include <RED4ext/Scripting/Natives/Generated/world/GlobalNodeID.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/GlobalNodeRef.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/INodeInstance.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/IRuntimeSystem.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/Node.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/NodeInstanceRegistry.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/StreamingSector.hpp>
 #include <RED4ext/Scripting/Natives/ScriptGameInstance.hpp>
 
@@ -47,8 +49,7 @@
 #include "Core/Stl.hpp"
 
 #include "Red/Alias.hpp"
-#include "Red/Framework.hpp"
-#include "Red/LogChannel.hpp"
+#include "Red/Engine.hpp"
 #include "Red/TypeInfo.hpp"
 #include "Red/Specializations.hpp"
 #include "Red/Utils.hpp"

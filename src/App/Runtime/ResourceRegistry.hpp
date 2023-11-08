@@ -9,11 +9,13 @@
 
 namespace App
 {
-struct StreamingSectorLocation
+struct WorldNodeStaticData
 {
     uint64_t sectorHash{0};
     int32_t nodeIndex{-1};
     uint32_t nodeCount{0};
+    uint64_t nodeID{0};
+    Red::CName nodeType;
 };
 
 class ResourceRegistry
@@ -25,8 +27,8 @@ public:
     ResourceRegistry(const std::filesystem::path& aMetadataDir);
 
     std::string_view ResolveResorcePath(Red::ResourcePath aPath);
-    StreamingSectorLocation ResolveSectorLocation(uint64_t aHash);
-    StreamingSectorLocation ResolveSectorLocation(void* aPtr);
+    WorldNodeStaticData GetWorldNodeStaticData(uint64_t aHash);
+    WorldNodeStaticData GetWorldNodeStaticData(void* aPtr);
     void ClearRuntimeData();
 
 protected:
@@ -40,7 +42,7 @@ protected:
     inline static Core::Map<Red::ResourcePath, std::string> s_resourcePathMap;
 
     inline static std::shared_mutex s_nodeSectorLock;
-    inline static Core::Map<uint64_t, StreamingSectorLocation> s_nodeRefToSectorMap;
-    inline static Core::Map<uintptr_t, StreamingSectorLocation> s_nodePtrToSectorMap;
+    inline static Core::Map<uint64_t, WorldNodeStaticData> s_nodeRefToSectorMap;
+    inline static Core::Map<uintptr_t, WorldNodeStaticData> s_nodePtrToSectorMap;
 };
 }

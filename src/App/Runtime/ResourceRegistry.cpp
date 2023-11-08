@@ -43,32 +43,44 @@ void App::ResourceRegistry::OnStreamingSectorPrepare(Red::worldStreamingSector* 
 {
     std::unique_lock _(s_nodeSectorLock);
     auto& buffer = Raw::StreamingSector::NodeBuffer::Ref(aSector);
+    auto& nodeCount = buffer.nodes.size;
 
     for (auto& nodeRef : buffer.nodeRefs)
     {
-        s_nodeRefToSectorMap[nodeRef.hash] = {aSector->path};
+        auto& nodeRefData = s_nodeRefToSectorMap[nodeRef.hash];
+        nodeRefData.sectorHash = aSector->path;
     }
 
     for (auto& nodeSetup : buffer.nodeSetups)
     {
-        __nop();
+        auto& nodePtrData = s_nodePtrToSectorMap[reinterpret_cast<uintptr_t>(nodeSetup.node)];
+        nodePtrData.nodeID = nodeSetup.globalNodeID;
+        nodePtrData.nodeType = nodeSetup.node->GetType()->GetName();
+        nodePtrData.sectorHash = aSector->path;
+        nodePtrData.nodeIndex = nodeSetup.nodeIndex;
+        nodePtrData.nodeCount = nodeCount;
 
         if (nodeSetup.globalNodeID)
         {
-            s_nodeRefToSectorMap[nodeSetup.globalNodeID] = {aSector->path, nodeSetup.nodeIndex, buffer.nodes.size};
+            s_nodeRefToSectorMap[nodeSetup.globalNodeID] = nodePtrData;
         }
     }
 
-    for (int32_t index = 0; index < buffer.nodes.size; ++index)
+    for (int32_t nodeIndex = 0; nodeIndex < nodeCount; ++nodeIndex)
     {
-        const auto& node = buffer.nodes[index];
+        auto& node = buffer.nodes[nodeIndex];
 
-        s_nodePtrToSectorMap[reinterpret_cast<uintptr_t>(node.instance)] = {aSector->path, index, buffer.nodes.size};
+        auto& nodePtrData = s_nodePtrToSectorMap[reinterpret_cast<uintptr_t>(node.instance)];
+        nodePtrData.nodeType = node->GetType()->GetName();
+        nodePtrData.sectorHash = aSector->path;
+        nodePtrData.nodeIndex = nodeIndex;
+        nodePtrData.nodeCount = nodeCount;
 
         if (node->GetType()->IsA(Red::GetType<Red::worldCompiledCommunityAreaNode>()))
         {
             auto& nodeID = node.GetPtr<Red::worldCompiledCommunityAreaNode>()->sourceObjectId.hash;
-            s_nodeRefToSectorMap[nodeID] = {aSector->path, index, buffer.nodes.size};
+            nodePtrData.nodeID = nodeID;
+            s_nodeRefToSectorMap[nodeID] = nodePtrData;
         }
     }
 }
@@ -103,7 +115,7 @@ std::string_view App::ResourceRegistry::ResolveResorcePath(Red::ResourcePath aPa
     return it.value();
 }
 
-App::StreamingSectorLocation App::ResourceRegistry::ResolveSectorLocation(uint64_t aHash)
+App::WorldNodeStaticData App::ResourceRegistry::GetWorldNodeStaticData(uint64_t aHash)
 {
     if (!aHash)
         return {};
@@ -117,7 +129,7 @@ App::StreamingSectorLocation App::ResourceRegistry::ResolveSectorLocation(uint64
     return it.value();
 }
 
-App::StreamingSectorLocation App::ResourceRegistry::ResolveSectorLocation(void* aPtr)
+App::WorldNodeStaticData App::ResourceRegistry::GetWorldNodeStaticData(void* aPtr)
 {
     if (!aPtr)
         return {};

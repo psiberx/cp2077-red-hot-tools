@@ -69,34 +69,45 @@ local collisionGroups = {
 }
 
 local inspectorObjectSchema = {
-    { name = 'objectType', label = 'Target Type:' },
-    { name = 'collisionGroup', label = 'Target Collision:',
-        format = function(data)
-            return ('%s (%.2f)'):format(data.collisionGroup, data.targetDistance)
-        end
+    {
+        { name = 'targetDistance', label = 'Distance:',
+            format = function(data)
+                return ('%.2fm'):format(data.targetDistance)
+            end
+        },
+        { name = 'collisionGroup', label = 'Collision Group:' },
     },
-    { name = 'recordID', label = 'Record ID:' },
-    { name = 'entityID', label = 'Entity ID:', format = '%u' },
-    { name = 'deviceClass', label = 'Device Class:' },
-    { name = 'templatePath', label = 'Entity Template:', wrap = true },
-    { name = 'appearanceName', label = 'Entity Appearance:' },
-    { name = 'meshPath', label = 'Mesh Resource:', wrap = true },
-    { name = 'meshAppearance', label = 'Mesh Appearance:' },
-    { name = 'materialPath', label = 'Material Resource:', wrap = true },
-    --{ name = 'communityID', label = 'Community ID:', format = '%u' },
-    --{ name = 'communityRef', label = 'Community Ref:', wrap = true },
-    { name = 'nodeID', label = 'World Node ID:', format = '%u' },
-    { name = 'nodeRef', label = 'World Node Ref:', wrap = true },
-    { name = 'nodeIndex', label = 'World Node Index:', format = '%d',
-        validate = function(data)
-            return type(data.nodeIndex) == 'number' and data.nodeIndex > 0
-        end,
-        format = function(data)
-            return ('%d / %d'):format(data.nodeIndex, data.nodeCount)
-        end
+    {
+        { name = 'nodeType', label = 'Node Type:' },
+        { name = 'nodeID', label = 'Node ID:', format = '%u' },
+        { name = 'nodeRef', label = 'Node Ref:', wrap = true },
+        { name = 'nodeIndex', label = 'Node Index:', format = '%d',
+            validate = function(data)
+                return type(data.nodeIndex) == 'number' and data.nodeIndex > 0
+            end,
+    --         format = function(data)
+    --             return ('%d / %d'):format(data.nodeIndex, data.nodeCount)
+    --         end
+        },
+        { name = 'nodeCount', label = '/', format = '%d', inline = true },
+        { name = 'sectorPath', label = 'World Sector:', wrap = true },
     },
-    { name = 'sectorPath', label = 'World Sector:', wrap = true },
-    { name = 'resourcePath', label = 'Resource:', wrap = true },
+    {
+        { name = 'meshPath', label = 'Mesh Resource:', wrap = true },
+        { name = 'meshAppearance', label = 'Mesh Appearance:' },
+        { name = 'materialPath', label = 'Material Resource:', wrap = true },
+        { name = 'deviceClass', label = 'Device Class:' },
+    },
+    {
+        { name = 'entityType', label = 'Entity Type:' },
+        { name = 'entityID', label = 'Entity ID:', format = '%u' },
+        { name = 'recordID', label = 'Record ID:' },
+        { name = 'templatePath', label = 'Entity Template:', wrap = true },
+        { name = 'appearanceName', label = 'Entity Appearance:' },
+    },
+    {
+        { name = 'resourcePath', label = 'Resource:', wrap = true },
+    }
 }
 
 local inspectorComponentSchema = {
@@ -208,77 +219,87 @@ end
 
 local function collectTargetData(target)
     local data = {}
-    local object = target.object
 
-    if target.scriptable then
-        if object:IsA('entEntity') then
-            data.entityID = object:GetEntityID().hash
+    if IsDefined(target.entity) then
+        local entity = target.entity
+        data.entityID = entity:GetEntityID().hash
+        data.entityType = entity:GetClassName().value
 
-            local templatePath = object:GetTemplatePath().resource
-            data.templatePath = inspectionSystem:ResolveResourcePath(templatePath.hash)
-            data.appearanceName = object:GetCurrentAppearanceName().value
-            if isEmpty(data.templatePath) and isNotEmpty(templatePath.hash) then
-                data.templatePath = ('%u'):format(templatePath.hash)
+        local templatePath = entity:GetTemplatePath().resource
+        data.templatePath = inspectionSystem:ResolveResourcePath(templatePath.hash)
+        data.appearanceName = entity:GetCurrentAppearanceName().value
+        if isEmpty(data.templatePath) and isNotEmpty(templatePath.hash) then
+            data.templatePath = ('%u'):format(templatePath.hash)
+        end
+
+        if entity:IsA('gameObject') then
+            local recordID = entity:GetTDBID()
+            if TDBID.IsValid(recordID) then
+                data.recordID = TDBID.ToStringDEBUG(recordID)
             end
+        end
 
+        data.components = collectComponents(entity)
+        data.hasComponents = (#data.components > 0)
+
+        if not IsDefined(target.node) then
             if data.entityID > 0xffffff then
-                data.nodeID = data.entityID
+                target.nodeID = data.entityID
             else
-                local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(object:GetEntityID())
+                local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(data.entityID)
                 if communityID.hash > 0xffffff then
-                    data.nodeID = communityID.hash
+                    target.nodeID = communityID.hash
                 end
             end
 
-            if isNotEmpty(data.nodeID) then
-                data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.nodeID)
-                local sectorLocation = inspectionSystem:ResolveSectorFromNodeHash(data.nodeID)
-                if sectorLocation.sectorHash ~= 0 then
-                    data.sectorPath = inspectionSystem:ResolveResourcePath(sectorLocation.sectorHash)
-                    data.nodeIndex = sectorLocation.nodeIndex
-                    data.nodeCount = sectorLocation.nodeCount
-                end
+            if isNotEmpty(target.nodeID) then
+                target.node = inspectionSystem:FindWorldNode(data.nodeID)
             end
-
-            if object:IsA('gameObject') then
-                local recordID = object:GetTDBID()
-                if TDBID.IsValid(recordID) then
-                    data.recordID = TDBID.ToStringDEBUG(recordID)
-                end
-            end
-
-            data.components = collectComponents(object)
-            data.hasComponents = (#data.components > 0)
-        end
-    else
-        local sectorLocation = inspectionSystem:ResolveSectorFromNode(object)
-        if sectorLocation.sectorHash ~= 0 then
-            data.sectorPath = inspectionSystem:ResolveResourcePath(sectorLocation.sectorHash)
-            data.nodeIndex = sectorLocation.nodeIndex
-            data.nodeCount = sectorLocation.nodeCount
-        end
-
-        if target:IsA('worldMeshNode') or target:IsA('worldInstancedMeshNode') then
-            data.meshPath = inspectionSystem:ResolveResourcePath(object.mesh.hash)
-            data.meshAppearance = object.meshAppearance.value
-        end
-
-        if target:IsA('worldStaticDecalNode') then
-            data.materialPath = inspectionSystem:ResolveResourcePath(object.material.hash)
-        end
-
-        if target:IsA('worldEntityNode') then
-            data.templatePath = inspectionSystem:ResolveResourcePath(object.entityTemplate.hash)
-            data.appearanceName = object.appearanceName.value
-        end
-
-        if target:IsA('worldDeviceNode') then
-            data.deviceClass = object.deviceClassName.value
         end
     end
 
-    if not data.objectType then
-        data.objectType = target.type.value
+    if IsDefined(target.node) then
+        local node = target.node
+        data.nodeType = inspectionSystem:GetTypeName(node).value
+
+        local nodeData = inspectionSystem:ResolveNodeDataFromNode(node)
+        if nodeData.sectorHash ~= 0 then
+            data.sectorPath = inspectionSystem:ResolveResourcePath(nodeData.sectorHash)
+            data.nodeIndex = nodeData.nodeIndex
+            data.nodeCount = nodeData.nodeCount
+            data.nodeID = nodeData.nodeID
+        end
+
+        if inspectionSystem:IsInstanceOf(node, 'worldMeshNode') or inspectionSystem:IsInstanceOf(node, 'worldInstancedMeshNode') then
+            data.meshPath = inspectionSystem:ResolveResourcePath(node.mesh.hash)
+            data.meshAppearance = node.meshAppearance.value
+        end
+
+        if inspectionSystem:IsInstanceOf(node, 'worldStaticDecalNode') then
+            data.materialPath = inspectionSystem:ResolveResourcePath(node.material.hash)
+        end
+
+        if inspectionSystem:IsInstanceOf(node, 'worldEntityNode') then
+            data.templatePath = inspectionSystem:ResolveResourcePath(node.entityTemplate.hash)
+            data.appearanceName = node.appearanceName.value
+        end
+
+        if inspectionSystem:IsInstanceOf(node, 'worldDeviceNode') then
+            data.deviceClass = node.deviceClassName.value
+        end
+    elseif isNotEmpty(target.nodeID) then
+        local nodeData = inspectionSystem:ResolveNodeDataFromNodeID(target.nodeID)
+        if nodeData.sectorHash ~= 0 then
+            data.sectorPath = inspectionSystem:ResolveResourcePath(nodeData.sectorHash)
+            data.nodeIndex = nodeData.nodeIndex
+            data.nodeCount = nodeData.nodeCount
+            data.nodeID = nodeData.nodeID
+            data.nodeType = nodeData.nodeType.value
+        end
+    end
+
+    if isNotEmpty(data.nodeID) then
+        data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.nodeID)
     end
 
     return data
@@ -317,63 +338,51 @@ local function lookupTarget(lookupInput)
         return
     end
 
-    local data = {}
+    local target = {}
 
     local lookupHash = lookupInput:match('^(%d+)ULL$') or lookupInput:match('^(%d+)$')
     if lookupHash ~= nil then
         local hash = loadstring('return ' .. lookupHash .. 'ULL', '')()
+        target.resourceHash = hash
 
-        local object = Game.FindEntityByID(EntityID.new({ hash = hash }))
-        if IsDefined(object) then
-            data = collectTargetData({
-                object = object,
-                type = object:GetClassName(),
-                scriptable = true,
-            })
+        local entity = Game.FindEntityByID(EntityID.new({ hash = hash }))
+        if IsDefined(entity) then
+            target.entity = entity
         else
-            if hash <= 0xffffff then
-                local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(EntityID.new({ hash = hash }))
-                if communityID.hash > 0xffffff then
-                    hash = communityID.hash
-                    data.nodeID = hash
-                end
-            end
-            data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(hash)
-            if isNotEmpty(data.nodeRef) then
-                data.nodeID = hash
-            elseif hash > 0xffffff then
-                local sectorLocation = inspectionSystem:ResolveSectorFromNodeHash(hash)
-                if sectorLocation.sectorHash ~= 0 then
-                    data.sectorPath = inspectionSystem:ResolveResourcePath(sectorLocation.sectorHash)
-                    data.nodeIndex = sectorLocation.nodeIndex
-                    data.nodeCount = sectorLocation.nodeCount
-                    data.nodeID = hash
+            local node = inspectionSystem:FindWorldNode(hash)
+            if IsDefined(node) then
+                target.node = node
+            else
+                if hash <= 0xffffff then
+                    local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(hash)
+                    if communityID.hash > 0xffffff then
+                        hash = communityID.hash
+                        node = inspectionSystem:FindWorldNode(hash)
+                        if IsDefined(node) then
+                            --data = collectTargetData({ node = node })
+                            target.node = node
+                        else
+                            target.nodeID = hash
+                        end
+                    end
                 end
             end
         end
-
-        data.resourcePath = inspectionSystem:ResolveResourcePath(hash)
     else
-        local hash = inspectionSystem:ResolveNodeRefHash(lookupInput)
-        if isNotEmpty(hash) then
-            data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(hash)
-            if isNotEmpty(data.nodeRef) then
-                data.nodeID = inspectionSystem:ResolveNodeRefHash(data.nodeRef)
-            end
+        local resolvedRef = ResolveNodeRef(CreateEntityReference(lookupInput, {}).reference, GlobalNodeID.GetRoot())
+        if isNotEmpty(resolvedRef.hash) then
+            target.nodeID = resolvedRef.hash
         end
     end
 
-    if isEmpty(data.sectorPath) and isNotEmpty(data.nodeID) then
-        local sectorLocation = inspectionSystem:ResolveSectorFromNodeHash(data.nodeID)
-        if sectorLocation.sectorHash ~= 0 then
-            data.sectorPath = inspectionSystem:ResolveResourcePath(sectorLocation.sectorHash)
-            data.nodeIndex = sectorLocation.nodeIndex
-            data.nodeCount = sectorLocation.nodeCount
-        end
+    local data = collectTargetData(target)
+
+    if isNotEmpty(target.resourceHash) then
+        data.resourcePath = inspectionSystem:ResolveResourcePath(target.resourceHash)
     end
 
-    data.input = lookupInput
     data.empty = isEmpty(data.resourcePath) and isEmpty(data.entityID) and isEmpty(data.nodeID) and isEmpty(data.sectorPath)
+    data.input = lookupInput
     data.ready = true
 
     lookupResult = data
@@ -489,33 +498,40 @@ local function initializeViewStyle()
     end
 end
 
-local function drawField(field, data)
+local function canDrawField(field, data)
     if type(field.validate) == 'function' then
         if not field.validate(data, field) then
-            return
+            return false
         end
     else
         if isEmpty(data[field.name]) then
-            return
+            return false
         end
+    end
+    return true
+end
+
+local function drawField(field, data)
+    if field.inline then
+        ImGui.SameLine()
     end
 
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.label)
     ImGui.Text(field.label)
     ImGui.PopStyleColor()
-    ImGui.SameLine()
 
     local value = data[field.name]
     if field.format then
         if type(field.format) == 'function' then
             value = field.format(data, field)
-        else
+        elseif type(field.format) == 'string' then
             value = (field.format):format(value)
         end
     else
         value = tostring(value)
     end
 
+    ImGui.SameLine()
     if field.wrap then
         ImGui.TextWrapped(value)
     else
@@ -533,7 +549,9 @@ local function drawComponentsTree(components, maxComponents)
     for index, componentData in ipairs(components) do
         if ImGui.TreeNodeEx(('[%d] %s'):format(index, componentData.componentName), ImGuiTreeNodeFlags.SpanFullWidth) then
             for _, field in ipairs(inspectorComponentSchema) do
-                drawField(field, componentData)
+                if canDrawField(field, componentData) then
+                    drawField(field, componentData)
+                end
             end
             ImGui.TreePop()
         end
@@ -550,11 +568,26 @@ local function drawInspectorFieldset(targetData, withComponents)
     ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
     ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
 
-    for _, field in ipairs(inspectorObjectSchema) do
-        drawField(field, targetData)
+    local isFirstGroup = true
+    for _, groupSchema in ipairs(inspectorObjectSchema) do
+        local isFirstField = true
+        for _, field in ipairs(groupSchema) do
+            if canDrawField(field, targetData) then
+                if isFirstField then
+                    isFirstField = false
+                    if isFirstGroup then
+                        isFirstGroup = false
+                    else
+                        ImGui.Separator()
+                    end
+                end
+                drawField(field, targetData)
+            end
+        end
     end
 
     if targetData.hasComponents then
+--         ImGui.Separator()
         if withComponents then
             ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.label)
             ImGui.Text('Components:')
@@ -596,12 +629,12 @@ local function drawLookupContent()
             ImGui.TextWrapped('Nothing found.')
             ImGui.PopStyleColor()
         end
-        ImGui.Spacing()
     end
 end
 
 local function drawInspectorWindow()
     ImGui.Begin('Red Hot Tools', viewStyle.overlayWindowFlags)
+    ImGui.SetCursorPosY(ImGui.GetCursorPosY() - 2)
     drawInspectorContent(false)
     ImGui.End()
 end
@@ -718,6 +751,8 @@ end)
 
 registerForEvent('onOverlayClose', function()
     viewState.isConsoleOpen = false
+    viewState.isInspectorOpen = false
+    viewState.isLookupOpen = false
 end)
 
 registerForEvent('onDraw', function()

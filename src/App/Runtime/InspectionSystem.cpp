@@ -8,20 +8,21 @@
 
 void App::InspectionSystem::OnWorldAttached(Red::world::RuntimeScene*)
 {
-    m_registry = Core::Resolve<ResourceRegistry>();
+    m_resourceRegistry = Core::Resolve<ResourceRegistry>();
+    m_worldNodeRegistry = Red::GetRuntimeSystem<Red::worldNodeInstanceRegistry>();
 }
 
 void App::InspectionSystem::OnAfterWorldDetach()
 {
-    m_registry->ClearRuntimeData();
+    m_resourceRegistry->ClearRuntimeData();
 }
 
 Red::CString App::InspectionSystem::ResolveResourcePath(uint64_t aResourceHash)
 {
-    return m_registry->ResolveResorcePath(aResourceHash);
+    return m_resourceRegistry->ResolveResorcePath(aResourceHash);
 }
 
-App::StreamingSectorLocation App::InspectionSystem::ResolveSectorFromNodeHash(uint64_t aNodeID)
+App::WorldNodeStaticData App::InspectionSystem::ResolveNodeDataFromNodeID(uint64_t aNodeID)
 {
     {
         static const Red::GlobalNodeRef context{Red::FNV1a64("$")};
@@ -36,13 +37,13 @@ App::StreamingSectorLocation App::InspectionSystem::ResolveSectorFromNodeHash(ui
         }
     }
 
-    return m_registry->ResolveSectorLocation(aNodeID);
+    return m_resourceRegistry->GetWorldNodeStaticData(aNodeID);
 }
 
-App::StreamingSectorLocation App::InspectionSystem::ResolveSectorFromNode(
+App::WorldNodeStaticData App::InspectionSystem::ResolveNodeDataFromNode(
     const Red::WeakHandle<Red::ISerializable>& aNode)
 {
-    return m_registry->ResolveSectorLocation(aNode.instance);
+    return m_resourceRegistry->GetWorldNodeStaticData(aNode.instance);
 }
 
 Red::CString App::InspectionSystem::ResolveNodeRefFromNodeHash(uint64_t aNodeID)
@@ -79,7 +80,7 @@ Red::CString App::InspectionSystem::ResolveNodeRefFromNodeHash(uint64_t aNodeID)
     return {};
 }
 
-uint64_t App::InspectionSystem::ResolveNodeRefHash(const Red::CString& aNodeRef)
+uint64_t App::InspectionSystem::ComputeNodeRefHash(const Red::CString& aNodeRef)
 {
     constexpr uint64_t prime = 0x100000001b3;
     constexpr uint64_t seed = 0xCBF29CE484222325;
@@ -115,7 +116,7 @@ uint64_t App::InspectionSystem::ResolveNodeRefHash(const Red::CString& aNodeRef)
     return hash == seed ? 0 : hash;
 }
 
-Red::EntityID App::InspectionSystem::ResolveCommunityIDFromEntityID(Red::EntityID aEntityID)
+Red::EntityID App::InspectionSystem::ResolveCommunityIDFromEntityID(uint64_t aEntityID)
 {
     auto entityStubSystem = Red::GetGameSystem<Red::IEntityStubSystem>();
     auto entityStub = entityStubSystem->FindStub(aEntityID);
@@ -150,27 +151,59 @@ App::PhysicsObjectResult App::InspectionSystem::GetPhysicsTraceObject(Red::Scrip
 
         if (object)
         {
-            auto objectType = object->GetType();
-
-            if (objectType->IsA(Red::GetType<Red::worldINodeInstance>()))
+            if (object->GetType()->IsA(Red::GetType<Red::worldINodeInstance>()))
             {
-                object = Raw::WorldNodeInstance::Node::Ref(object);
-                objectType = object->GetType();
+                result.node = Raw::WorldNodeInstance::Node::Ref(object);
+            }
+            else
+            {
+                result.entity = Red::Cast<Red::entEntity>(object);
             }
 
-            result.object = object;
-            result.type = objectType->GetName();
             result.hash = reinterpret_cast<uint64_t>(object.instance);
-            result.scriptable = objectType->IsA(Red::GetType<IScriptable>());
             result.resolved = true;
             break;
+        }
+    }
+
+    if (result.entity)
+    {
+        const auto& entityID = Raw::Entity::EntityID::Ref(result.entity.instance);
+        if (entityID.IsStatic())
+        {
+            Red::Handle<Red::worldINodeInstance> nodeInstance;
+            Raw::WorldNodeRegistry::FindNode(m_worldNodeRegistry, nodeInstance, entityID.hash);
+
+            if (nodeInstance)
+            {
+                result.node = Raw::WorldNodeInstance::Node::Ref(nodeInstance);
+            }
         }
     }
 
     return result;
 }
 
-bool App::PhysicsObjectResult::IsA(Red::CName aType)
+Red::WeakHandle<Red::worldNode> App::InspectionSystem::FindWorldNode(uint64_t aNodeID)
 {
-    return resolved && object.instance->GetType()->IsA(Red::GetType(aType));
+    Red::Handle<Red::worldINodeInstance> nodeInstance;
+    Raw::WorldNodeRegistry::FindNode(m_worldNodeRegistry, nodeInstance, aNodeID);
+
+    if (!nodeInstance)
+        return {};
+
+    return Raw::WorldNodeInstance::Node::Ref(nodeInstance);
+}
+
+Red::CName App::InspectionSystem::GetTypeName(const Red::WeakHandle<Red::ISerializable>& aInstace)
+{
+    if (!aInstace)
+        return {};
+
+    return aInstace.instance->GetType()->GetName();
+}
+
+bool App::InspectionSystem::IsInstanceOf(const Red::WeakHandle<Red::ISerializable>& aInstace, Red::CName aType)
+{
+    return aInstace && aInstace.instance->GetType()->IsA(Red::GetType(aType));
 }
