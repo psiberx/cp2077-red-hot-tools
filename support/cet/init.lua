@@ -4,11 +4,11 @@ local Ref = require('Ref')
 -- Utils --
 
 local function isEmpty(value)
-    return value == nil or value == '' or value == 0
+    return value == nil or value == 0 or value == '' or value == 'None'
 end
 
 local function isNotEmpty(value)
-    return value ~= nil and value ~= '' and value ~= 0
+    return value ~= nil and value ~= 0 and value ~= '' and value ~= 'None'
 end
 
 -- App --
