@@ -20,11 +20,13 @@
 
 #include <RED4ext/ResourceDepot.hpp>
 #include <RED4ext/ResourceLoader.hpp>
+#include <RED4ext/Scripting/Natives/Generated/Box.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ent/ComponentsStorage.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ent/Entity.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ent/EntityID.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ent/IComponent.hpp>
 #include <RED4ext/Scripting/Natives/Generated/game/EntityStubComponentPS.hpp>
+#include <RED4ext/Scripting/Natives/Generated/game/ICameraSystem.hpp>
 #include <RED4ext/Scripting/Natives/Generated/game/IEntityStubSystem.hpp>
 #include <RED4ext/Scripting/Natives/Generated/game/IGameSystem.hpp>
 #include <RED4ext/Scripting/Natives/Generated/game/ScriptableSystem.hpp>

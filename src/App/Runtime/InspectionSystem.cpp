@@ -1,15 +1,18 @@
 #include "InspectionSystem.hpp"
 #include "Core/Facades/Container.hpp"
+#include "Red/CameraSystem.hpp"
 #include "Red/Debug.hpp"
 #include "Red/Entity.hpp"
 #include "Red/NodeRef.hpp"
 #include "Red/Physics.hpp"
+#include "Red/Transform.hpp"
 #include "Red/WorldNode.hpp"
 
 void App::InspectionSystem::OnWorldAttached(Red::world::RuntimeScene*)
 {
     m_resourceRegistry = Core::Resolve<ResourceRegistry>();
-    m_worldNodeRegistry = Red::GetRuntimeSystem<Red::worldNodeInstanceRegistry>();
+    m_nodeRegistry = Red::GetRuntimeSystem<Red::worldNodeInstanceRegistry>();
+    m_cameraSystem = Red::GetGameSystem<Red::gameICameraSystem>();
 }
 
 void App::InspectionSystem::OnAfterWorldDetach()
@@ -127,7 +130,8 @@ Red::EntityID App::InspectionSystem::ResolveCommunityIDFromEntityID(uint64_t aEn
     return entityStub->stubState->spawnerId.entityId;
 }
 
-Red::DynArray<Red::Handle<Red::IComponent>> App::InspectionSystem::GetComponents(const Red::WeakHandle<Red::Entity>& aEntity)
+Red::DynArray<Red::Handle<Red::IComponent>> App::InspectionSystem::GetComponents(
+    const Red::WeakHandle<Red::Entity>& aEntity)
 {
     if (aEntity.Expired())
         return {};
@@ -172,7 +176,7 @@ App::PhysicsObjectResult App::InspectionSystem::GetPhysicsTraceObject(Red::Scrip
         if (entityID.IsStatic())
         {
             Red::Handle<Red::worldINodeInstance> nodeInstance;
-            Raw::WorldNodeRegistry::FindNode(m_worldNodeRegistry, nodeInstance, entityID.hash);
+            Raw::WorldNodeRegistry::FindNode(m_nodeRegistry, nodeInstance, entityID.hash);
 
             if (nodeInstance)
             {
@@ -184,15 +188,74 @@ App::PhysicsObjectResult App::InspectionSystem::GetPhysicsTraceObject(Red::Scrip
     return result;
 }
 
-Red::WeakHandle<Red::worldNode> App::InspectionSystem::FindWorldNode(uint64_t aNodeID)
+Red::WeakHandle<Red::worldNode> App::InspectionSystem::FindStreamedWorldNode(uint64_t aNodeID)
 {
     Red::Handle<Red::worldINodeInstance> nodeInstance;
-    Raw::WorldNodeRegistry::FindNode(m_worldNodeRegistry, nodeInstance, aNodeID);
+    Raw::WorldNodeRegistry::FindNode(m_nodeRegistry, nodeInstance, aNodeID);
 
     if (!nodeInstance)
         return {};
 
     return Raw::WorldNodeInstance::Node::Ref(nodeInstance);
+}
+
+Red::DynArray<App::WorldNodeSceneData> App::InspectionSystem::GetWorldNodesInFrustum()
+{
+    static const auto s_meshNodeType = Red::GetClass("worldMeshNode");
+    static const auto s_decalNodeType = Red::GetClass("worldStaticDecalNode");
+    static const auto s_entityNodeType = Red::GetClass("worldEntityNode");
+    static const auto s_areaNodeType = Red::GetClass("worldAreaShapeNode");
+
+    Red::Frustum cameraFrustum;
+    Raw::CameraSystem::GetCameraFrustum(m_cameraSystem, cameraFrustum);
+
+    Red::DynArray<WorldNodeSceneData> frustumNodes;
+
+    for (const auto& [node, setup] : m_resourceRegistry->GetStreamedNodes())
+    {
+        if (!node)
+            continue;
+
+        if (!node.instance->GetType()->IsA(s_meshNodeType) && !node.instance->GetType()->IsA(s_decalNodeType) &&
+            !node.instance->GetType()->IsA(s_entityNodeType) && !node.instance->GetType()->IsA(s_areaNodeType))
+            continue;
+
+        Red::Box nodeBox{};
+        Raw::WorldNode::GetBoundingBox(node.instance, nodeBox);
+
+        // {
+        //     Red::Box modBox{};
+        //     Raw::WorldNode::GetDynamicBoundingBox(node.instance, modBox);
+        //
+        //     if (modBox.Max.X >= modBox.Min.X && modBox.Max.Y >= modBox.Min.Y && modBox.Max.Z >= modBox.Min.Z)
+        //     {
+        //         *reinterpret_cast<__m128*>(&nodeBox.Min) = _mm_min_ps(*reinterpret_cast<__m128*>(&nodeBox.Min),
+        //         *reinterpret_cast<__m128*>(&modBox.Min)); *reinterpret_cast<__m128*>(&nodeBox.Max) =
+        //         _mm_max_ps(*reinterpret_cast<__m128*>(&nodeBox.Max), *reinterpret_cast<__m128*>(&modBox.Max));
+        //     }
+        // }
+
+        if (nodeBox.Max.X < nodeBox.Min.X || nodeBox.Max.Y < nodeBox.Min.Y || nodeBox.Max.Z < nodeBox.Min.Z)
+        {
+            continue;
+        }
+
+        Red::Vector4 scale{setup->scale.X, setup->scale.Y, setup->scale.Z, 1.0};
+        *reinterpret_cast<__m128*>(&nodeBox.Min) =
+            _mm_mul_ps(*reinterpret_cast<__m128*>(&nodeBox.Min), *reinterpret_cast<__m128*>(&scale));
+        *reinterpret_cast<__m128*>(&nodeBox.Max) =
+            _mm_mul_ps(*reinterpret_cast<__m128*>(&nodeBox.Max), *reinterpret_cast<__m128*>(&scale));
+
+        Red::Box worldBox{};
+        Raw::Transform::ApplyToBox(setup->transform, worldBox, nodeBox);
+
+        if (cameraFrustum.Test(worldBox) != Red::FrustumResult::Outside)
+        {
+            frustumNodes.PushBack({node, setup->transform, worldBox, reinterpret_cast<uint64_t>(node.instance)});
+        }
+    }
+
+    return frustumNodes;
 }
 
 Red::CName App::InspectionSystem::GetTypeName(const Red::WeakHandle<Red::ISerializable>& aInstace)

@@ -12,6 +12,14 @@ struct PhysicsObjectResult
     bool resolved;
 };
 
+struct WorldNodeSceneData
+{
+    Red::WeakHandle<Red::worldNode> node;
+    Red::Transform transform;
+    Red::Box bounds;
+    uint64_t hash;
+};
+
 class InspectionSystem : public Red::IGameSystem
 {
 public:
@@ -24,7 +32,10 @@ public:
 
     Red::DynArray<Red::Handle<Red::IComponent>> GetComponents(const Red::WeakHandle<Red::Entity>& aEntity);
     PhysicsObjectResult GetPhysicsTraceObject(Red::ScriptRef<Red::physicsTraceResult>& aTrace);
-    Red::WeakHandle<Red::worldNode> FindWorldNode(uint64_t aNodeID);
+
+    Red::WeakHandle<Red::worldNode> FindStreamedWorldNode(uint64_t aNodeID);
+    Red::DynArray<WorldNodeSceneData> GetWorldNodesInFrustum();
+
     Red::CName GetTypeName(const Red::WeakHandle<Red::ISerializable>& aInstace);
     bool IsInstanceOf(const Red::WeakHandle<Red::ISerializable>& aInstace, Red::CName aType);
 
@@ -33,7 +44,8 @@ private:
     void OnAfterWorldDetach() override;
 
     Core::SharedPtr<ResourceRegistry> m_resourceRegistry;
-    Red::worldNodeInstanceRegistry* m_worldNodeRegistry;
+    Red::worldNodeInstanceRegistry* m_nodeRegistry;
+    Red::gameICameraSystem* m_cameraSystem;
 
     RTTI_IMPL_TYPEINFO(App::InspectionSystem);
     RTTI_IMPL_ALLOCATOR();
@@ -46,6 +58,13 @@ RTTI_DEFINE_CLASS(App::WorldNodeStaticData, {
     RTTI_PROPERTY(nodeCount);
     RTTI_PROPERTY(nodeID);
     RTTI_PROPERTY(nodeType);
+});
+
+RTTI_DEFINE_CLASS(App::WorldNodeSceneData, {
+    RTTI_PROPERTY(node);
+    RTTI_PROPERTY(transform);
+    RTTI_PROPERTY(bounds);
+    RTTI_PROPERTY(hash);
 });
 
 RTTI_DEFINE_CLASS(App::PhysicsObjectResult, {
@@ -64,7 +83,8 @@ RTTI_DEFINE_CLASS(App::InspectionSystem, {
     RTTI_METHOD(ResolveCommunityIDFromEntityID);
     RTTI_METHOD(GetComponents);
     RTTI_METHOD(GetPhysicsTraceObject);
-    RTTI_METHOD(FindWorldNode);
+    RTTI_METHOD(FindStreamedWorldNode);
+    RTTI_METHOD(GetWorldNodesInFrustum);
     RTTI_METHOD(GetTypeName);
     RTTI_METHOD(IsInstanceOf);
 });

@@ -108,6 +108,10 @@ def patterns():
                 Item(name="OnReady",
                      pattern="48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 48 83 EC ? 48 8B 91 ? ? ? ? 33 FF 48 8B D9"),
             ]),
+            Group(name="Transform", functions=[
+                Item(name="ApplyToBox",
+                     pattern="48 8B C4 48 81 EC ? ? ? ? 0F 29 70 ? 4C 8B D9 0F 29 78 ? 49 8B C8 44 0F 29 40 ? 4D 8B D0 44 0F 29 48 ? 4C 8B CA"),
+            ]),
         ]),
     ]
 

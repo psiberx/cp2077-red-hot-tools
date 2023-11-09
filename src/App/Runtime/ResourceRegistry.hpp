@@ -18,6 +18,12 @@ struct WorldNodeStaticData
     Red::CName nodeType;
 };
 
+struct WorldNodeDynamicData
+{
+    Red::WeakHandle<Red::worldNode> node;
+    Red::CompiledNodeInstanceSetupInfo* setup;
+};
+
 class ResourceRegistry
     : public Core::Feature
     , public Core::LoggingAgent
@@ -29,6 +35,7 @@ public:
     std::string_view ResolveResorcePath(Red::ResourcePath aPath);
     WorldNodeStaticData GetWorldNodeStaticData(uint64_t aHash);
     WorldNodeStaticData GetWorldNodeStaticData(void* aPtr);
+    Core::Vector<WorldNodeDynamicData> GetStreamedNodes();
     void ClearRuntimeData();
 
 protected:
@@ -44,5 +51,6 @@ protected:
     inline static std::shared_mutex s_nodeSectorLock;
     inline static Core::Map<uint64_t, WorldNodeStaticData> s_nodeRefToSectorMap;
     inline static Core::Map<uintptr_t, WorldNodeStaticData> s_nodePtrToSectorMap;
+    inline static Core::Map<uintptr_t, WorldNodeDynamicData> s_nodePtrToNodeMap;
 };
 }

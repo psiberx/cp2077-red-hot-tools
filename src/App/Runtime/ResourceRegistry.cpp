@@ -53,7 +53,9 @@ void App::ResourceRegistry::OnStreamingSectorPrepare(Red::worldStreamingSector* 
 
     for (auto& nodeSetup : buffer.nodeSetups)
     {
-        auto& nodePtrData = s_nodePtrToSectorMap[reinterpret_cast<uintptr_t>(nodeSetup.node)];
+        const auto& nodePtr = reinterpret_cast<uintptr_t>(nodeSetup.node);
+
+        auto& nodePtrData = s_nodePtrToSectorMap[nodePtr];
         nodePtrData.nodeID = nodeSetup.globalNodeID;
         nodePtrData.nodeType = nodeSetup.node->GetType()->GetName();
         nodePtrData.sectorHash = aSector->path;
@@ -64,13 +66,16 @@ void App::ResourceRegistry::OnStreamingSectorPrepare(Red::worldStreamingSector* 
         {
             s_nodeRefToSectorMap[nodeSetup.globalNodeID] = nodePtrData;
         }
+
+        s_nodePtrToNodeMap[nodePtr] = {Red::AsWeakHandle(nodeSetup.node), &nodeSetup};
     }
 
     for (int32_t nodeIndex = 0; nodeIndex < nodeCount; ++nodeIndex)
     {
-        auto& node = buffer.nodes[nodeIndex];
+        const auto& node = buffer.nodes[nodeIndex];
+        const auto& nodePtr = reinterpret_cast<uintptr_t>(node.instance);
 
-        auto& nodePtrData = s_nodePtrToSectorMap[reinterpret_cast<uintptr_t>(node.instance)];
+        auto& nodePtrData = s_nodePtrToSectorMap[nodePtr];
         nodePtrData.nodeType = node->GetType()->GetName();
         nodePtrData.sectorHash = aSector->path;
         nodePtrData.nodeIndex = nodeIndex;
@@ -93,7 +98,9 @@ void App::ResourceRegistry::OnStreamingSectorDestruct(Red::worldStreamingSector*
     size_t erased = 0;
     for (const auto& node : buffer.nodes)
     {
-        erased += s_nodePtrToSectorMap.erase(reinterpret_cast<uintptr_t>(node.instance));
+        const auto& nodePtr = reinterpret_cast<uintptr_t>(node.instance);
+        erased += s_nodePtrToSectorMap.erase(nodePtr);
+        s_nodePtrToNodeMap.erase(nodePtr);
     }
 
 #ifndef NDEBUG
@@ -143,6 +150,15 @@ App::WorldNodeStaticData App::ResourceRegistry::GetWorldNodeStaticData(void* aPt
     return it.value();
 }
 
+Core::Vector<App::WorldNodeDynamicData> App::ResourceRegistry::GetStreamedNodes()
+{
+    Core::Vector<WorldNodeDynamicData> nodes;
+    std::shared_lock _(s_nodeSectorLock);
+    std::transform(s_nodePtrToNodeMap.begin(), s_nodePtrToNodeMap.end(), std::back_inserter(nodes),
+                   [](auto& v) { return v.second; });
+    return nodes;
+}
+
 void App::ResourceRegistry::ClearRuntimeData()
 {
     std::unique_lock _(s_nodeSectorLock);
@@ -152,4 +168,5 @@ void App::ResourceRegistry::ClearRuntimeData()
 #endif
 
     s_nodePtrToSectorMap.clear();
+    s_nodePtrToNodeMap.clear();
 }
