@@ -11,7 +11,9 @@ For greater convenience it integrates with other tools:
 
 - **WolvenKit**: Pack & reload archives from the editor with a press of a button
 - **Visual Studio Code**: Reload scripts and tweaks from the editor using context menu or hotkeys
-- **Cyber Engine Tweaks**: Reload assets using in-game menu or console commands
+- **Cyber Engine Tweaks**: Reload assets using in-game menu and inspect world nodes and entities
+
+>  Archive reloading is not supported on game version 2.0+ yet
 
 ## Getting Started
 
@@ -33,9 +35,11 @@ For greater convenience it integrates with other tools:
 
 The extension can be installed by dragging the `.vsix` file onto your VS Code extension bar.
 
-## Documentation
+With extension installed, when editing scripts or tweaks files in VS Code, 
+you'll get new editor commands in the menu to hot reload the scripts or tweaks.
+As any other command they can also be bound to hotkeys.
 
-### Limitations
+## Limitations
 
 - Struct fields are not reinitialized (if you change the fields of a struct and an instance of that struct exists during hot reload, this can lead to issues)
 - Handlers for scriptable systems requests aren't registered on scripts load, if you add a new handler you have to reload the game session 
