@@ -555,8 +555,10 @@ local viewState = {
 local viewStyle = {
     windowX = 0,
     windowY = 300,
-    label = 0xff9f9f9f,
-    muted = 0xff9f9f9f,
+    labelTextColor = 0xff9f9f9f,
+    mutedTextColor = 0xff9f9f9f,
+    dangerTextColor = 0xff6666ff,
+    disabledButtonColor = 0xff4f4f4f,
 }
 
 local function initializeViewStyle()
@@ -581,6 +583,10 @@ local function initializeViewStyle()
         viewStyle.scannerFilterWidth = 170 * viewStyle.viewScale
         viewStyle.scannerStatsWidth = ImGui.CalcTextSize('000 / 000') * viewStyle.viewScale
     end
+end
+
+local function sanitizeTextInput(value)
+    return value:gsub('`', '')
 end
 
 -- GUI :: Fieldsets --
@@ -662,7 +668,7 @@ local function drawField(field, data)
         end
     end
 
-    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.label)
+    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
     ImGui.Text(label)
     ImGui.PopStyleColor()
 
@@ -755,7 +761,7 @@ local function drawFieldset(targetData, withComponents, maxComponents, withSepar
     if targetData.hasComponents and maxComponents ~= 0  then
         if withComponents then
             if maxComponents < 0 then
-                ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.label)
+                ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
                 ImGui.Text('Components:')
                 ImGui.PopStyleColor()
                 drawComponents(targetData.components, maxComponents)
@@ -771,7 +777,7 @@ local function drawFieldset(targetData, withComponents, maxComponents, withSepar
                 end
             end
         else
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.label)
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
             ImGui.Text(('Components (%d)'):format(#targetData.components))
             ImGui.PopStyleColor()
         end
@@ -787,7 +793,7 @@ local function drawInspectorContent(withComponents)
     if inspector.target and inspector.result then
         drawFieldset(inspector.result, withComponents)
     else
-        ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.muted)
+        ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
         ImGui.TextWrapped('No target.')
         ImGui.PopStyleColor()
     end
@@ -799,7 +805,10 @@ local function drawLookupContent()
     ImGui.TextWrapped('Lookup world nodes and spawned entities by their identities.')
     ImGui.Spacing()
     ImGui.SetNextItemWidth(viewStyle.windowWidth)
-    viewState.lookupQuery = ImGui.InputTextWithHint('##LookupQuery', 'Enter node reference or entity id or hash', viewState.lookupQuery, viewState.maxInputLen)
+    local query, queryChanged = ImGui.InputTextWithHint('##LookupQuery', 'Enter node reference or entity id or hash', viewState.lookupQuery, viewState.maxInputLen)
+    if queryChanged then
+        viewState.lookupQuery = sanitizeTextInput(query)
+    end
 
     if lookup.result then
         if not lookup.empty then
@@ -809,7 +818,7 @@ local function drawLookupContent()
             drawFieldset(lookup.result)
         else
             ImGui.Spacing()
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.muted)
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
             ImGui.TextWrapped('Nothing found.')
             ImGui.PopStyleColor()
         end
@@ -822,7 +831,7 @@ local function drawScannerContent()
     ImGui.TextWrapped('Search for world nodes without collisions and unreachable nodes hidden behind others.')
     ImGui.Spacing()
     ImGui.AlignTextToFramePadding()
-    ImGui.Text('Scanning distance:')
+    ImGui.Text('Scanning depth:')
     ImGui.SameLine()
     ImGui.SetNextItemWidth(viewStyle.scannerDistanceWidth)
     local distance, distanceChanged = ImGui.InputFloat('##ScannerDistance', viewState.scannerDistance, 0.5, 1.0, '%.1fm', ImGuiInputTextFlags.None)
@@ -848,11 +857,11 @@ local function drawScannerContent()
             ImGui.SetNextItemWidth(viewStyle.scannerFilterWidth)
             local filter, filterChanged = ImGui.InputTextWithHint('##ScannerFilter', 'Node type or reference or resource', viewState.scannerFilter, viewState.maxInputLen)
             if filterChanged then
-                viewState.scannerFilter = filter
+                viewState.scannerFilter = sanitizeTextInput(filter)
                 updateScanner(viewState.scannerFilter)
             end
             ImGui.SameLine()
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.muted)
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
             ImGui.Text(('%d / %d'):format(#scanner.filtered, #scanner.results))
             ImGui.PopStyleColor()
             ImGui.Spacing()
@@ -862,7 +871,7 @@ local function drawScannerContent()
                 ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
                 ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
 
-                local visibleRows = math.max(12, math.min(16, #scanner.filtered))
+                local visibleRows = math.max(14, math.min(18, #scanner.filtered))
                 ImGui.BeginChildFrame(1, 0, visibleRows * ImGui.GetFrameHeightWithSpacing())
 
                 for _, result in ipairs(scanner.filtered) do
@@ -877,12 +886,12 @@ local function drawScannerContent()
                 ImGui.PopStyleColor()
                 ImGui.PopStyleVar(2)
             else
-                ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.muted)
+                ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
                 ImGui.TextWrapped('No matches.')
                 ImGui.PopStyleColor()
             end
         else
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.muted)
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
             ImGui.TextWrapped('Nothing found.')
             ImGui.PopStyleColor()
         end
@@ -903,7 +912,7 @@ local function drawWatcherContent()
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
         ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
 
-        local visibleRows = math.max(10, math.min(16, watcher.numTargets))
+        local visibleRows = math.max(12, math.min(16, watcher.numTargets))
         ImGui.BeginChildFrame(1, 0, visibleRows * ImGui.GetFrameHeightWithSpacing())
 
         for _, result in pairs(watcher.results) do
@@ -917,7 +926,7 @@ local function drawWatcherContent()
         ImGui.PopStyleColor()
         ImGui.PopStyleVar(2)
     else
-        ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.muted)
+        ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
         ImGui.TextWrapped('No entities to watch.')
         ImGui.PopStyleColor()
     end
@@ -941,7 +950,7 @@ local function drawMainWindow()
 
             --[[
             ImGui.Text('Archives')
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.muted)
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
             ImGui.TextWrapped(
                 'Hot load archives from archive/pc/hot.\n' ..
                 'New archives will be moved to archive/pc/mod and loaded.\n' ..
@@ -949,11 +958,20 @@ local function drawMainWindow()
             ImGui.PopStyleColor()
             ImGui.Spacing()
 
-            ImGui.Checkbox('Watch for changes', true)
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.dangerTextColor)
+            ImGui.Text('Not supported on game version 2.0+ yet')
+            ImGui.PopStyleColor()
+            ImGui.Spacing()
 
+            --ImGui.Checkbox('Watch for changes', true)
+
+            ImGui.PushStyleColor(ImGuiCol.Button, viewStyle.disabledButtonColor)
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, viewStyle.disabledButtonColor)
+            ImGui.PushStyleColor(ImGuiCol.ButtonActive, viewStyle.disabledButtonColor)
             if ImGui.Button('Reload archives', viewStyle.windowWidth, viewStyle.buttonHeight) then
-                RedHotTools.ReloadArchives()
+                --RedHotTools.ReloadArchives()
             end
+            ImGui.PopStyleColor(3)
 
             ImGui.Spacing()
             ImGui.Separator()
@@ -961,7 +979,7 @@ local function drawMainWindow()
             --]]
 
             ImGui.Text('Scripts')
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.muted)
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
             ImGui.TextWrapped('Hot load scripts from r6/scripts.')
             ImGui.PopStyleColor()
             ImGui.Spacing()
@@ -976,7 +994,7 @@ local function drawMainWindow()
                 ImGui.Spacing()
 
                 ImGui.Text('Tweaks')
-                ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.muted)
+                ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
                 ImGui.TextWrapped('Hot load tweaks from r6/tweaks and scriptable tweaks.')
                 ImGui.PopStyleColor()
                 ImGui.Spacing()
