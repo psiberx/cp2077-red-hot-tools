@@ -151,16 +151,7 @@ local function resolveTargetComponents(entity)
             end
         end
 
-        local description = { data.componentName }
-
-        --if isNotEmpty(data.meshPath) then
-        --    local resourceName = data.meshPath:match('\\([^\\]+)$')
-        --    table.insert(description, resourceName)
-        --elseif isNotEmpty(data.morphPath) then
-        --    local resourceName = data.morphPath:match('\\([^\\]+)$')
-        --    table.insert(description, resourceName)
-        --end
-
+        local description = { data.componentType, data.componentName }
         data.description = table.concat(description, ' | ')
 
         table.insert(components, data)
@@ -627,7 +618,7 @@ local objectSchema = {
         { name = 'deviceClass', label = 'Device Class:' },
         { name = 'meshPath', label = 'Mesh Resource:', wrap = true },
         { name = 'meshAppearance', label = 'Mesh Appearance:' },
-        { name = 'materialPath', label = 'Material Resource:', wrap = true },
+        { name = 'materialPath', label = 'Material:', wrap = true },
     },
     {
         { name = 'resourcePath', label = 'Resource:', wrap = true },
@@ -635,10 +626,10 @@ local objectSchema = {
 }
 
 local componentSchema = {
-    { name = 'componentName', label = 'Component Name:' },
     { name = 'componentType', label = 'Component Type:' },
+    { name = 'componentName', label = 'Component Name:' },
     { name = 'meshPath', label = 'Mesh Resource:', wrap = true },
-    { name = 'morphPath', label = 'Morph Target Resource:', wrap = true },
+    { name = 'morphPath', label = 'Morph Target:', wrap = true },
     { name = 'meshAppearance', label = 'Mesh Appearance:' },
 }
 
@@ -763,10 +754,22 @@ local function drawFieldset(targetData, withComponents, maxComponents, withSepar
 
     if targetData.hasComponents and maxComponents ~= 0  then
         if withComponents then
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.label)
-            ImGui.Text('Components:')
-            ImGui.PopStyleColor()
-            drawComponents(targetData.components, maxComponents)
+            if maxComponents < 0 then
+                ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.label)
+                ImGui.Text('Components:')
+                ImGui.PopStyleColor()
+                drawComponents(targetData.components, maxComponents)
+            else
+                if withSeparators then
+                    ImGui.Spacing()
+                    ImGui.Separator()
+                    ImGui.Spacing()
+                end
+                if ImGui.TreeNodeEx(('Components (%d)##Components'):format(#targetData.components), ImGuiTreeNodeFlags.SpanFullWidth) then
+                    drawComponents(targetData.components, maxComponents)
+                    ImGui.TreePop()
+                end
+            end
         else
             ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.label)
             ImGui.Text(('Components (%d)'):format(#targetData.components))
