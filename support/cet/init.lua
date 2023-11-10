@@ -243,6 +243,8 @@ local function resolveTargetData(target)
 
     if isNotEmpty(data.nodeID) then
         data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.nodeID)
+    elseif isNotEmpty(target.nodeID) then
+        data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(target.nodeID)
     end
 
     if isNotEmpty(data.nodeType) then
