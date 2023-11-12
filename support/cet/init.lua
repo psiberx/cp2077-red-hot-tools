@@ -370,6 +370,8 @@ local function lookupTarget(lookupQuery)
     else
         local resolvedRef = ResolveNodeRef(CreateEntityReference(lookupQuery, {}).reference, GlobalNodeID.GetRoot())
         if isNotEmpty(resolvedRef.hash) then
+            target.entity = Game.FindEntityByID(EntityID.new({ hash = resolvedRef.hash }))
+            target.node = inspectionSystem:FindStreamedWorldNode(resolvedRef.hash)
             target.nodeID = resolvedRef.hash
         end
     end
