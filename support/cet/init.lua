@@ -557,8 +557,6 @@ local viewState = {
 }
 
 local viewStyle = {
-    windowX = 0,
-    windowY = 300,
     labelTextColor = 0xff9f9f9f,
     mutedTextColor = 0xff9f9f9f,
     dangerTextColor = 0xff6666ff,
@@ -572,8 +570,12 @@ local function initializeViewStyle()
 
         viewStyle.windowWidth = 400 * viewStyle.viewScale
         viewStyle.windowHeight = 0
+
         viewStyle.windowPaddingX = 8 * viewStyle.viewScale
-        viewStyle.windowPaddingY = 8 * viewStyle.viewScale
+        viewStyle.windowPaddingY = viewStyle.windowPaddingX
+
+        viewStyle.windowX = GetDisplayResolution() - viewStyle.windowWidth - viewStyle.windowPaddingX * 2 - 5
+        viewStyle.windowY = 5
 
         viewStyle.mainWindowFlags = ImGuiWindowFlags.NoResize
             + ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
@@ -832,7 +834,7 @@ end
 -- GUI :: Scanner --
 
 local function drawScannerContent()
-    ImGui.TextWrapped('Search for world nodes without collisions and unreachable nodes hidden behind others.')
+    ImGui.TextWrapped('Search for non-collision, hidden and unreachable world nodes.')
     ImGui.Spacing()
     ImGui.AlignTextToFramePadding()
     ImGui.Text('Scanning depth:')
@@ -864,10 +866,16 @@ local function drawScannerContent()
                 viewState.scannerFilter = sanitizeTextInput(filter)
                 updateScanner(viewState.scannerFilter)
             end
+
             ImGui.SameLine()
             ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+            ImGui.SetNextItemWidth(viewStyle.scannerStatsWidth)
             ImGui.Text(('%d / %d'):format(#scanner.filtered, #scanner.results))
             ImGui.PopStyleColor()
+            ImGui.SameLine()
+            local expandlAll = ImGui.Button('Expand all')
+            ImGui.SameLine()
+            local collapseAll = ImGui.Button('Collapse all')
             ImGui.Spacing()
 
             if #scanner.filtered > 0 then
@@ -879,6 +887,11 @@ local function drawScannerContent()
                 ImGui.BeginChildFrame(1, 0, visibleRows * ImGui.GetFrameHeightWithSpacing())
 
                 for _, result in ipairs(scanner.filtered) do
+                    if expandlAll then
+                        ImGui.SetNextItemOpen(true)
+                    elseif collapseAll then
+                        ImGui.SetNextItemOpen(false)
+                    end
                     local resultID = tostring(result.hash)
                     if ImGui.TreeNodeEx(result.description .. '##' .. resultID, ImGuiTreeNodeFlags.SpanFullWidth) then
                         drawFieldset(result, true, -1, false)
