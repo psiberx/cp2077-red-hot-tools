@@ -219,45 +219,52 @@ Red::DynArray<App::WorldNodeSceneData> App::InspectionSystem::GetWorldNodesInFru
 
     Red::DynArray<WorldNodeSceneData> frustumNodes;
 
+    Red::Box nodeBox{};
+    nodeBox.Min = {-0.1, -0.1, -0.1, 1.0};
+    nodeBox.Max = {0.1, 0.1, 0.1, 1.0};
+
     for (const auto& [node, setup] : m_resourceRegistry->GetStreamedNodes())
     {
-        if (!node)
+        if (!node || !node.instance->isVisibleInGame)
             continue;
 
-        if (!node.instance->GetType()->IsA(s_meshNodeType) && !node.instance->GetType()->IsA(s_decalNodeType) &&
-            !node.instance->GetType()->IsA(s_entityNodeType) && !node.instance->GetType()->IsA(s_areaNodeType))
+        if (!node.instance->GetType()->IsA(s_meshNodeType) &&
+            !node.instance->GetType()->IsA(s_decalNodeType) &&
+            !node.instance->GetType()->IsA(s_entityNodeType) &&
+            !node.instance->GetType()->IsA(s_areaNodeType))
             continue;
 
-        Red::Box nodeBox{};
-        Raw::WorldNode::GetBoundingBox(node.instance, nodeBox);
-
+        // Red::Box nodeBox{};
+        // Raw::WorldNode::GetBoundingBox(node.instance, nodeBox);
+        //
         // {
         //     Red::Box modBox{};
         //     Raw::WorldNode::GetDynamicBoundingBox(node.instance, modBox);
         //
         //     if (modBox.Max.X >= modBox.Min.X && modBox.Max.Y >= modBox.Min.Y && modBox.Max.Z >= modBox.Min.Z)
         //     {
-        //         *reinterpret_cast<__m128*>(&nodeBox.Min) = _mm_min_ps(*reinterpret_cast<__m128*>(&nodeBox.Min),
-        //         *reinterpret_cast<__m128*>(&modBox.Min)); *reinterpret_cast<__m128*>(&nodeBox.Max) =
-        //         _mm_max_ps(*reinterpret_cast<__m128*>(&nodeBox.Max), *reinterpret_cast<__m128*>(&modBox.Max));
+        //         *reinterpret_cast<__m128*>(&nodeBox.Min) =
+        //             _mm_min_ps(*reinterpret_cast<__m128*>(&nodeBox.Min), *reinterpret_cast<__m128*>(&modBox.Min));
+        //         *reinterpret_cast<__m128*>(&nodeBox.Max) =
+        //             _mm_max_ps(*reinterpret_cast<__m128*>(&nodeBox.Max), *reinterpret_cast<__m128*>(&modBox.Max));
         //     }
         // }
-
-        if (nodeBox.Max.X < nodeBox.Min.X || nodeBox.Max.Y < nodeBox.Min.Y || nodeBox.Max.Z < nodeBox.Min.Z)
-        {
-            continue;
-        }
-
-        Red::Vector4 scale{setup->scale.X, setup->scale.Y, setup->scale.Z, 1.0};
-        *reinterpret_cast<__m128*>(&nodeBox.Min) =
-            _mm_mul_ps(*reinterpret_cast<__m128*>(&nodeBox.Min), *reinterpret_cast<__m128*>(&scale));
-        *reinterpret_cast<__m128*>(&nodeBox.Max) =
-            _mm_mul_ps(*reinterpret_cast<__m128*>(&nodeBox.Max), *reinterpret_cast<__m128*>(&scale));
+        //
+        // if (nodeBox.Max.X < nodeBox.Min.X || nodeBox.Max.Y < nodeBox.Min.Y || nodeBox.Max.Z < nodeBox.Min.Z)
+        // {
+        //     continue;
+        // }
+        //
+        // Red::Vector4 scale{setup->scale.X, setup->scale.Y, setup->scale.Z, 1.0};
+        // *reinterpret_cast<__m128*>(&nodeBox.Min) =
+        //     _mm_mul_ps(*reinterpret_cast<__m128*>(&nodeBox.Min), *reinterpret_cast<__m128*>(&scale));
+        // *reinterpret_cast<__m128*>(&nodeBox.Max) =
+        //     _mm_mul_ps(*reinterpret_cast<__m128*>(&nodeBox.Max), *reinterpret_cast<__m128*>(&scale));
 
         Red::Box worldBox{};
         Raw::Transform::ApplyToBox(setup->transform, worldBox, nodeBox);
 
-        if (cameraFrustum.Test(worldBox) != Red::FrustumResult::Outside)
+        if (cameraFrustum.Test(worldBox) == Red::FrustumResult::Inside)
         {
             frustumNodes.PushBack({node, setup->transform, worldBox, reinterpret_cast<uint64_t>(node.instance)});
         }

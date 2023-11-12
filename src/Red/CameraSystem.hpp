@@ -13,6 +13,21 @@ struct Frustum
 {
     static constexpr auto NumberOfPlanes = 6;
 
+    FrustumResult Test(const Vector4& aPoint)
+    {
+        for (auto i = 0; i < NumberOfPlanes; ++i)
+        {
+            auto v3 = _mm_mul_ps(*reinterpret_cast<const __m128*>(&aPoint), planes[i]);
+            auto v4 = _mm_hadd_ps(v3, v3);
+            if (_mm_hadd_ps(v4, v4).m128_f32[0] < 0.0)
+            {
+                return FrustumResult::Outside;
+            }
+        }
+
+        return FrustumResult::Inside;
+    }
+
     FrustumResult Test(const Box& aBox)
     {
         auto result = FrustumResult::Inside;

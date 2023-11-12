@@ -36,6 +36,7 @@ public:
     WorldNodeStaticData GetWorldNodeStaticData(uint64_t aHash);
     WorldNodeStaticData GetWorldNodeStaticData(void* aPtr);
     Core::Vector<WorldNodeDynamicData> GetStreamedNodes();
+    Core::Vector<Red::WeakHandle<Red::worldINodeInstance>> GetStreamedNodeInstances();
     void ClearRuntimeData();
 
 protected:
@@ -44,6 +45,7 @@ protected:
     static void OnCreateResourcePath(Red::ResourcePath* aPath, const Red::StringView* aPathStr);
     static void OnStreamingSectorPrepare(Red::worldStreamingSector* aSector, uint64_t);
     static void OnStreamingSectorDestruct(Red::worldStreamingSector* aSector);
+    static void OnNodeInstanceInitialize(Red::worldINodeInstance* aNodeInstance, void*, void*);
 
     inline static std::shared_mutex s_resourcePathLock;
     inline static Core::Map<Red::ResourcePath, std::string> s_resourcePathMap;
@@ -52,5 +54,8 @@ protected:
     inline static Core::Map<uint64_t, WorldNodeStaticData> s_nodeRefToSectorMap;
     inline static Core::Map<uintptr_t, WorldNodeStaticData> s_nodePtrToSectorMap;
     inline static Core::Map<uintptr_t, WorldNodeDynamicData> s_nodePtrToNodeMap;
+
+    inline static std::shared_mutex s_nodeInstanceLock;
+    inline static Core::Vector<Red::WeakHandle<Red::worldINodeInstance>> s_nodeInstances;
 };
 }

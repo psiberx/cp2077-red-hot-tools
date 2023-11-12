@@ -28,6 +28,10 @@ namespace Raw::WorldNodeInstance
 using Transform = Core::OffsetPtr<0x30, Red::Transform>;
 using Scale = Core::OffsetPtr<0x50, Red::Vector3>;
 using Node = Core::OffsetPtr<0x60, Red::Handle<Red::worldNode>>;
+
+constexpr auto Initialize = Core::RawFunc<
+    /* addr = */ 0x1401B96A4 - Red::Addresses::ImageBase, // FIXME
+    /* type = */ bool (*)(Red::worldINodeInstance*, void*, void*)>();
 }
 
 namespace Raw::WorldNodeRegistry

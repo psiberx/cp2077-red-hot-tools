@@ -16,6 +16,7 @@ end
 local isPluginFound = false
 local isTweakXLFound = false
 
+local cameraSystem
 local targetingSystem
 local spatialQuerySystem
 local inspectionSystem
@@ -24,6 +25,7 @@ local function initializeEnvironment()
     isPluginFound = type(RedHotTools) == 'userdata'
     isTweakXLFound = type(TweakXL) == 'userdata'
 
+    cameraSystem = Game.GetCameraSystem()
     targetingSystem = Game.GetTargetingSystem()
     spatialQuerySystem = Game.GetSpatialQueriesSystem()
     inspectionSystem = Game.GetInspectionSystem()
@@ -415,11 +417,14 @@ local function scanTargets(maxDistance)
     local results = {}
 
     for _, target in ipairs(inspectionSystem:GetWorldNodesInFrustum()) do
-        local distance = Vector4.DistanceToEdge(position, target.bounds.Min, target.bounds.Max)
+        --local hit = Vector4.NearestPointOnEdge(position, target.bounds.Min, target.bounds.Max)
+        --local distance = Vector4.Distance(position, hit)
+        local distance = Vector4.Distance(position, target.transform.position)
         if distance <= maxDistance then
             local data = resolveTargetData(target)
             data.description = ('%s @ %.2fm'):format(data.description, distance)
             data.targetDistance = distance
+            data.worldPosition = target.transform.position
             table.insert(results, data)
         end
     end
@@ -582,6 +587,11 @@ local function initializeViewStyle()
         viewStyle.overlayWindowFlags = viewStyle.mainWindowFlags
             + ImGuiWindowFlags.NoTitleBar + ImGuiWindowFlags.NoCollapse
             + ImGuiWindowFlags.NoInputs + ImGuiWindowFlags.NoNav
+        viewStyle.projectionWindowFlags = ImGuiWindowFlags.NoSavedSettings
+            + ImGuiWindowFlags.NoInputs + ImGuiWindowFlags.NoNav
+            + ImGuiWindowFlags.NoResize + ImGuiWindowFlags.NoMove
+            + ImGuiWindowFlags.NoDecoration + ImGuiWindowFlags.NoBackground
+            + ImGuiWindowFlags.NoFocusOnAppearing + ImGuiWindowFlags.NoBringToFrontOnFocus
 
         viewStyle.buttonHeight = 21 * viewStyle.viewScale
 
@@ -590,6 +600,8 @@ local function initializeViewStyle()
         viewStyle.scannerStatsWidth = ImGui.CalcTextSize('000 / 000') * viewStyle.viewScale
     end
 end
+
+-- GUI :: Utils --
 
 local function sanitizeTextInput(value)
     return value:gsub('`', '')
@@ -764,33 +776,31 @@ local function drawFieldset(targetData, withComponents, maxComponents, withSepar
         end
     end
 
-    if targetData.hasComponents and maxComponents ~= 0  then
-        if withComponents then
-            if maxComponents < 0 then
-                ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
-                ImGui.Text('Components:')
-                ImGui.PopStyleColor()
-                drawComponents(targetData.components, maxComponents)
-            else
-                if withSeparators then
-                    ImGui.Spacing()
-                    ImGui.Separator()
-                    ImGui.Spacing()
-                end
-                if ImGui.TreeNodeEx(('Components (%d)##Components'):format(#targetData.components), ImGuiTreeNodeFlags.SpanFullWidth) then
-                    drawComponents(targetData.components, maxComponents)
-                    ImGui.TreePop()
-                end
-            end
-        else
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
-            ImGui.Text(('Components (%d)'):format(#targetData.components))
-            ImGui.PopStyleColor()
+    if targetData.hasComponents and withComponents then
+        if withSeparators then
+            ImGui.Spacing()
+            ImGui.Separator()
+            ImGui.Spacing()
         end
+        if ImGui.TreeNodeEx(('Components (%d)##Components'):format(#targetData.components), ImGuiTreeNodeFlags.SpanFullWidth) then
+            drawComponents(targetData.components, maxComponents)
+            ImGui.TreePop()
+        end
+        --ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
+        --ImGui.Text(('Components (%d)'):format(#targetData.components))
+        --ImGui.PopStyleColor()
     end
 
     ImGui.PopStyleColor()
     ImGui.PopStyleVar(2)
+end
+
+-- GUI :: Projector --
+
+local projectionQueue = {}
+
+local function enqueueTargetProjection(target)
+    table.insert(projectionQueue, target)
 end
 
 -- GUI :: Inspector --
@@ -887,6 +897,7 @@ local function drawScannerContent()
                 ImGui.BeginChildFrame(1, 0, visibleRows * ImGui.GetFrameHeightWithSpacing())
 
                 for _, result in ipairs(scanner.filtered) do
+                    ImGui.BeginGroup()
                     if expandlAll then
                         ImGui.SetNextItemOpen(true)
                     elseif collapseAll then
@@ -896,6 +907,10 @@ local function drawScannerContent()
                     if ImGui.TreeNodeEx(result.description .. '##' .. resultID, ImGuiTreeNodeFlags.SpanFullWidth) then
                         drawFieldset(result, true, -1, false)
                         ImGui.TreePop()
+                    end
+                    ImGui.EndGroup()
+                    if ImGui.IsItemHovered() then
+                        enqueueTargetProjection(result)
                     end
                 end
 
@@ -934,7 +949,7 @@ local function drawWatcherContent()
 
         for _, result in pairs(watcher.results) do
             if ImGui.TreeNodeEx(result.description, ImGuiTreeNodeFlags.SpanFullWidth) then
-                drawFieldset(result, true, -1, false)
+                drawFieldset(result, true, 0, false)
                 ImGui.TreePop()
             end
         end
@@ -950,6 +965,45 @@ local function drawWatcherContent()
 end
 
 -- GUI :: Windows --
+
+local function getScreenDescriptor()
+    local screen = {}
+    screen.width, screen.height = GetDisplayResolution()
+    screen.centerX = screen.width / 2
+    screen.centerY = screen.height / 2
+
+    return screen
+end
+
+local function drawProjectedPoint(screen, vertice, color, radius, thickness)
+    local projected = cameraSystem:ProjectPoint(vertice)
+    local pointX = screen.centerX + (projected.x * screen.centerX)
+    local pointY = screen.centerY - (projected.y * screen.centerY)
+    if thickness == true then
+        ImGui.ImDrawListAddCircleFilled(ImGui.GetWindowDrawList(), pointX, pointY, radius, color, -1)
+    else
+        ImGui.ImDrawListAddCircle(ImGui.GetWindowDrawList(), pointX, pointY, radius, color, -1, thickness)
+    end
+end
+
+local function drawProjections()
+    if #projectionQueue == 0 then
+        return
+    end
+
+    local screen = getScreenDescriptor()
+
+    ImGui.SetNextWindowSize(screen.width, screen.height, ImGuiCond.Always)
+    ImGui.SetNextWindowPos(0, 0, ImGuiCond.Always)
+
+    if ImGui.Begin('Red Hot Tools Projection', true, viewStyle.projectionWindowFlags) then
+        for _, target in ipairs(projectionQueue) do
+            drawProjectedPoint(screen, target.worldPosition, 0xff00ff00, 8, 4)
+        end
+    end
+
+    projectionQueue = {}
+end
 
 local function drawInspectorWindow()
     ImGui.Begin('Red Hot Tools', viewStyle.overlayWindowFlags)
@@ -1083,6 +1137,7 @@ registerForEvent('onDraw', function()
     end
 
     initializeViewStyle()
+    drawProjections()
 
     ImGui.SetNextWindowPos(viewStyle.windowX, viewStyle.windowY, ImGuiCond.FirstUseEver)
     ImGui.SetNextWindowSize(viewStyle.windowWidth + viewStyle.windowPaddingX * 2 - 1, viewStyle.windowHeight)

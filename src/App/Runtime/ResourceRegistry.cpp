@@ -28,6 +28,7 @@ void App::ResourceRegistry::OnBootstrap()
     HookAfter<Raw::ResourcePath::Create>(&OnCreateResourcePath);
     HookAfter<Raw::StreamingSector::Prepare>(&OnStreamingSectorPrepare);
     HookBefore<Raw::StreamingSector::Destruct>(&OnStreamingSectorDestruct);
+    //HookAfter<Raw::WorldNodeInstance::Initialize>(&OnNodeInstanceInitialize);
 }
 
 void App::ResourceRegistry::OnCreateResourcePath(Red::ResourcePath* aPath, const Red::StringView* aPathStr)
@@ -108,6 +109,12 @@ void App::ResourceRegistry::OnStreamingSectorDestruct(Red::worldStreamingSector*
 #endif
 }
 
+void App::ResourceRegistry::OnNodeInstanceInitialize(Red::worldINodeInstance* aNodeInstance, void*, void*)
+{
+    std::unique_lock _(s_nodeInstanceLock);
+    s_nodeInstances.push_back(Red::AsWeakHandle(aNodeInstance));
+}
+
 std::string_view App::ResourceRegistry::ResolveResorcePath(Red::ResourcePath aPath)
 {
     if (!aPath)
@@ -159,14 +166,26 @@ Core::Vector<App::WorldNodeDynamicData> App::ResourceRegistry::GetStreamedNodes(
     return nodes;
 }
 
+Core::Vector<Red::WeakHandle<Red::worldINodeInstance>> App::ResourceRegistry::GetStreamedNodeInstances()
+{
+    std::unique_lock _(s_nodeInstanceLock);
+    auto [b, e] = std::ranges::remove_if(s_nodeInstances, [](auto& x) { return x.Expired(); });
+    s_nodeInstances.erase(b, e);
+    return s_nodeInstances;
+}
+
 void App::ResourceRegistry::ClearRuntimeData()
 {
-    std::unique_lock _(s_nodeSectorLock);
-
+    {
+        std::unique_lock _(s_nodeSectorLock);
 #ifndef NDEBUG
-    LogInfo("ResourceRegistry: Cleaned up {} tracked nodes.", s_nodePtrToSectorMap.size());
+        LogInfo("ResourceRegistry: Cleaned up {} tracked nodes.", s_nodePtrToSectorMap.size());
 #endif
-
-    s_nodePtrToSectorMap.clear();
-    s_nodePtrToNodeMap.clear();
+        s_nodePtrToSectorMap.clear();
+        s_nodePtrToNodeMap.clear();
+    }
+    {
+        std::unique_lock _(s_nodeInstanceLock);
+        s_nodeInstances.clear();
+    }
 }
