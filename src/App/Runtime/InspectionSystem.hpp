@@ -31,6 +31,7 @@ public:
     Red::EntityID ResolveCommunityIDFromEntityID(uint64_t aEntityID);
 
     Red::DynArray<Red::Handle<Red::IComponent>> GetComponents(const Red::WeakHandle<Red::Entity>& aEntity);
+    Red::ResourceAsyncReference<> GetTemplatePath(const Red::WeakHandle<Red::Entity>& aEntity);
     PhysicsObjectResult GetPhysicsTraceObject(Red::ScriptRef<Red::physicsTraceResult>& aTrace);
 
     Red::WeakHandle<Red::worldNode> FindStreamedWorldNode(uint64_t aNodeID);
@@ -82,6 +83,7 @@ RTTI_DEFINE_CLASS(App::InspectionSystem, {
     RTTI_METHOD(ComputeNodeRefHash);
     RTTI_METHOD(ResolveCommunityIDFromEntityID);
     RTTI_METHOD(GetComponents);
+    RTTI_METHOD(GetTemplatePath);
     RTTI_METHOD(GetPhysicsTraceObject);
     RTTI_METHOD(FindStreamedWorldNode);
     RTTI_METHOD(GetWorldNodesInFrustum);

@@ -168,7 +168,7 @@ local function resolveTargetData(target)
         data.entityID = entity:GetEntityID().hash
         data.entityType = entity:GetClassName().value
 
-        local templatePath = entity:GetTemplatePath().resource
+        local templatePath = inspectionSystem:GetTemplatePath(entity)
         data.templatePath = inspectionSystem:ResolveResourcePath(templatePath.hash)
         data.appearanceName = entity:GetCurrentAppearanceName().value
         if isEmpty(data.templatePath) and isNotEmpty(templatePath.hash) then

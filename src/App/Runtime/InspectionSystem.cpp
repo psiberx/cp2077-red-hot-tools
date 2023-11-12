@@ -139,6 +139,14 @@ Red::DynArray<Red::Handle<Red::IComponent>> App::InspectionSystem::GetComponents
     return Raw::Entity::ComponentsStorage::Ptr(aEntity.instance)->components;
 }
 
+Red::ResourceAsyncReference<> App::InspectionSystem::GetTemplatePath(const Red::WeakHandle<Red::Entity>& aEntity)
+{
+    if (aEntity.Expired())
+        return {};
+
+    return Raw::Entity::TemplatePath::Ref(aEntity.instance);
+}
+
 App::PhysicsObjectResult App::InspectionSystem::GetPhysicsTraceObject(Red::ScriptRef<Red::physicsTraceResult>& aTrace)
 {
     PhysicsObjectResult result{};
