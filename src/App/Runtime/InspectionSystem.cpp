@@ -285,3 +285,8 @@ bool App::InspectionSystem::IsInstanceOf(const Red::WeakHandle<Red::ISerializabl
 {
     return aInstace && aInstace.instance->GetType()->IsA(Red::GetType(aType));
 }
+
+uint64_t App::InspectionSystem::GetObjectHash(const Red::WeakHandle<Red::ISerializable>& aInstace)
+{
+    return reinterpret_cast<uint64_t>(aInstace.instance);
+}

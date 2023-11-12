@@ -277,7 +277,14 @@ local function resolveTargetData(target)
 
     if isNotEmpty(target.hash) then
         data.hash = target.hash
+    elseif IsDefined(target.node) then
+        data.hash = inspectionSystem:GetObjectHash(target.node)
+    elseif IsDefined(target.entity) then
+        data.hash = inspectionSystem:GetObjectHash(target.entity)
     end
+
+    data.isEntity = IsDefined(target.entity)
+    data.isNode = IsDefined(target.node) or isNotEmpty(data.nodeID)
 
     return data
 end
@@ -607,6 +614,42 @@ local function sanitizeTextInput(value)
     return value:gsub('`', '')
 end
 
+-- GUI :: Plugins --
+
+local plugins = {}
+
+local function registerPlugin(plugin)
+    if type(plugin.getTargetActions) ~= 'function' then
+        return false
+    end
+
+    table.insert(plugins, plugin)
+    return true
+end
+
+local function getTargetActions(target, isInputMode)
+    local actions = {}
+    for _, plugin in ipairs(plugins) do
+        local result = plugin.getTargetActions(target)
+        if type(result) == 'table' then
+            if #result == 0 then
+                result = { result }
+            end
+            for _, action in ipairs(result) do
+                if isNotEmpty(action.label) and type(action.callback) == 'function' then
+                    if action.type == nil then
+                        action.type = 'button'
+                    end
+                    if isInputMode or action.type ~= 'button' then
+                        table.insert(actions, action)
+                    end
+                end
+            end
+        end
+    end
+    return actions
+end
+
 -- GUI :: Fieldsets --
 
 local objectSchema = {
@@ -739,9 +782,9 @@ local function drawComponents(components, maxComponents)
     end
 end
 
-local function drawFieldset(targetData, withComponents, maxComponents, withSeparators)
-    if withComponents == nil then
-        withComponents = true
+local function drawFieldset(targetData, withInputs, maxComponents, withSeparators)
+    if withInputs == nil then
+        withInputs = true
     end
 
     if maxComponents == nil then
@@ -776,7 +819,7 @@ local function drawFieldset(targetData, withComponents, maxComponents, withSepar
         end
     end
 
-    if targetData.hasComponents and withComponents then
+    if targetData.hasComponents and withInputs then
         if withSeparators then
             ImGui.Spacing()
             ImGui.Separator()
@@ -793,6 +836,27 @@ local function drawFieldset(targetData, withComponents, maxComponents, withSepar
 
     ImGui.PopStyleColor()
     ImGui.PopStyleVar(2)
+
+    local actions = getTargetActions(targetData, withInputs)
+    if #actions > 0 then
+        if withSeparators then
+            ImGui.Spacing()
+            ImGui.Separator()
+        end
+        ImGui.Spacing()
+        for _, action in ipairs(actions) do
+            if action.type == 'button' then
+                if ImGui.Button(action.label) then
+                    action.callback(targetData)
+                end
+            elseif action.type == 'checkbox' then
+                local _, pressed = ImGui.Checkbox(action.label, action.state)
+                if pressed then
+                    action.callback(targetData)
+                end
+            end
+        end
+    end
 end
 
 -- GUI :: Projector --
@@ -805,9 +869,9 @@ end
 
 -- GUI :: Inspector --
 
-local function drawInspectorContent(withComponents)
+local function drawInspectorContent(withInputs)
     if inspector.target and inspector.result then
-        drawFieldset(inspector.result, withComponents)
+        drawFieldset(inspector.result, withInputs)
     else
         ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
         ImGui.TextWrapped('No target.')
@@ -905,7 +969,11 @@ local function drawScannerContent()
                     end
                     local resultID = tostring(result.hash)
                     if ImGui.TreeNodeEx(result.description .. '##' .. resultID, ImGuiTreeNodeFlags.SpanFullWidth) then
+                        ImGui.PopStyleColor()
+                        ImGui.PopStyleVar()
                         drawFieldset(result, true, -1, false)
+                        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
+                        ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
                         ImGui.TreePop()
                     end
                     ImGui.EndGroup()
@@ -1186,3 +1254,20 @@ end)
 registerForEvent('onUpdate', function(delta)
 	Cron.Update(delta)
 end)
+
+-- API --
+
+return {
+    RegisterPlugin = registerPlugin,
+    GetLookAtObject = getLookAtTarget,
+    CollectTargetData = resolveTargetData,
+    GetInspectorTarget = function()
+        return inspector.result
+    end,
+    GetScannerTargets = function()
+        return scanner.results
+    end,
+    GetLookupTarget = function()
+        return lookup.result
+    end,
+}
