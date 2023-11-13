@@ -167,6 +167,7 @@ local function resolveTargetData(target)
 
     if IsDefined(target.entity) then
         local entity = target.entity
+        data.entity = entity
         data.entityID = entity:GetEntityID().hash
         data.entityType = entity:GetClassName().value
 
@@ -205,6 +206,7 @@ local function resolveTargetData(target)
 
     if IsDefined(target.node) then
         local node = target.node
+        data.node = node
         data.nodeType = inspectionSystem:GetTypeName(node).value
 
         local nodeData = inspectionSystem:ResolveNodeDataFromNode(node)
@@ -249,9 +251,19 @@ local function resolveTargetData(target)
         data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(target.nodeID)
     end
 
+    if isNotEmpty(target.hash) then
+        data.hash = target.hash
+    elseif IsDefined(target.node) then
+        data.hash = inspectionSystem:GetObjectHash(target.node)
+    elseif IsDefined(target.entity) then
+        data.hash = inspectionSystem:GetObjectHash(target.entity)
+    end
+
+    data.isEntity = IsDefined(data.entity)
+    data.isNode = IsDefined(data.node) or isNotEmpty(data.nodeID)
+
     if isNotEmpty(data.nodeType) then
         local description = { data.nodeType }
-
         if isNotEmpty(data.meshPath) then
             local resourceName = data.meshPath:match('\\([^\\]+)$')
             table.insert(description, resourceName)
@@ -269,22 +281,10 @@ local function resolveTargetData(target)
             table.insert(description, sectorName)
             table.insert(description, data.nodeIndex)
         end
-
         data.description = table.concat(description, ' | ')
     elseif isNotEmpty(data.entityType) then
         data.description = ('%s | %d'):format(data.entityType, data.entityID)
     end
-
-    if isNotEmpty(target.hash) then
-        data.hash = target.hash
-    elseif IsDefined(target.node) then
-        data.hash = inspectionSystem:GetObjectHash(target.node)
-    elseif IsDefined(target.entity) then
-        data.hash = inspectionSystem:GetObjectHash(target.entity)
-    end
-
-    data.isEntity = IsDefined(target.entity)
-    data.isNode = IsDefined(target.node) or isNotEmpty(data.nodeID)
 
     return data
 end
