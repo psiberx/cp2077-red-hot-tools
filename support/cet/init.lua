@@ -691,16 +691,14 @@ local function useInlineDistance(data)
     return isNotEmpty(data.collisionGroup) and '@'
 end
 
-local function isValidNodeIndex(data)
-    return type(data.nodeIndex) == 'number' and data.nodeIndex >= 0
-        and type(data.nodeCount) == 'number' and data.nodeCount > 0
-end
+--local function isValidNodeIndex(data)
+--    return type(data.nodeIndex) == 'number' and data.nodeIndex >= 0
+--        and type(data.nodeCount) == 'number' and data.nodeCount > 0
+--end
 
 local function isValidInstanceIndex(data)
-    return isValidNodeIndex(data)
-        and type(data.instanceIndex) == 'number' and data.instanceIndex >= 0
+    return type(data.instanceIndex) == 'number' and data.instanceIndex >= 0
         and type(data.instanceCount) == 'number' and data.instanceCount > 0
-        and (data.instanceIndex ~= data.nodeIndex or data.instanceCount ~= data.nodeCount)
 end
 
 local objectSchema = {
@@ -712,8 +710,8 @@ local objectSchema = {
         { name = 'nodeType', label = 'Node Type:' },
         { name = 'nodeID', label = 'Node ID:', format = '%u' },
         { name = 'nodeRef', label = 'Node Ref:', wrap = true },
-        { name = 'nodeIndex', label = 'Node Index:', format = '%d', validate = isValidNodeIndex },
-        { name = 'nodeCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
+        --{ name = 'nodeIndex', label = 'Node Index:', format = '%d', validate = isValidNodeIndex },
+        --{ name = 'nodeCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
         { name = 'instanceIndex', label = 'Node Instance:', format = '%d', validate = isValidInstanceIndex },
         { name = 'instanceCount', label = '/', format = '%d', inline = true, validate = isValidInstanceIndex },
         { name = 'sectorPath', label = 'World Sector:', wrap = true },

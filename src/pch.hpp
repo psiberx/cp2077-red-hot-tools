@@ -21,6 +21,7 @@
 #include <RED4ext/ResourceDepot.hpp>
 #include <RED4ext/ResourceLoader.hpp>
 #include <RED4ext/Scripting/Natives/Generated/Box.hpp>
+#include <RED4ext/Scripting/Natives/Generated/Transform.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ent/ComponentsStorage.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ent/Entity.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ent/EntityID.hpp>

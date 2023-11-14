@@ -3,8 +3,6 @@
 #include "Red/Addresses.hpp"
 #include "Red/Common.hpp"
 
-#include <RED4ext/Scripting/Natives/Generated/Transform.hpp>
-
 namespace Red
 {
 struct __declspec(align(0x10)) CompiledNodeInstanceSetupInfo
