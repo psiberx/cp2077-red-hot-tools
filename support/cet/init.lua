@@ -1,5 +1,6 @@
 local Cron = require('Cron')
 local Ref = require('Ref')
+local PersistentState = require('PersistentState')
 
 -- Utils --
 
@@ -585,15 +586,30 @@ local function updateWatcher()
     end
 end
 
+-- App :: User State --
+
+local userState = {
+    isInspectorOSD = false,
+    isInspectorOpen = false,
+    isScannerOpen = false,
+    isLookupOpen = false,
+    isWatcherOpen = false,
+    scannerDistance = 2.5,
+}
+
+local function initializeUserState()
+    PersistentState.Initialize('.state', userState)
+end
+
+local function saveUserState()
+    PersistentState.Flush()
+end
+
 -- GUI --
 
 local viewState = {
+    isFirstOpen = true,
     isConsoleOpen = false,
-    isInspectorOpen = false,
-    isLookupOpen = false,
-    isWatcherOpen = false,
-    isAlwaysOnScreen = false,
-    scannerDistance = 2.5,
     scannerFilter = '',
     lookupQuery = '',
     maxInputLen = 256,
@@ -955,14 +971,14 @@ local function drawScannerContent()
     ImGui.Text('Scanning depth:')
     ImGui.SameLine()
     ImGui.SetNextItemWidth(viewStyle.scannerDistanceWidth)
-    local distance, distanceChanged = ImGui.InputFloat('##ScannerDistance', viewState.scannerDistance, 0.5, 1.0, '%.1fm', ImGuiInputTextFlags.None)
+    local distance, distanceChanged = ImGui.InputFloat('##ScannerDistance', userState.scannerDistance, 0.5, 1.0, '%.1fm', ImGuiInputTextFlags.None)
     if distanceChanged then
-        viewState.scannerDistance = math.max(1.0, math.min(50.0, distance))
+        userState.scannerDistance = math.max(1.0, math.min(50.0, distance))
     end
     ImGui.Spacing()
 
     if ImGui.Button('Scan world nodes', viewStyle.windowWidth, viewStyle.buttonHeight) then
-        scanTargets(viewState.scannerDistance)
+        scanTargets(userState.scannerDistance)
         updateScanner(viewState.scannerFilter)
     end
 
@@ -1124,6 +1140,7 @@ end
 local function drawMainWindow()
     if ImGui.Begin('Red Hot Tools', viewStyle.mainWindowFlags) then
         ImGui.BeginTabBar('Red Hot Tools TabBar')
+        local tabFlags
 
 		if ImGui.BeginTabItem(' Reload ') then
             ImGui.Spacing()
@@ -1187,38 +1204,60 @@ local function drawMainWindow()
 			ImGui.EndTabItem()
         end
 
-        if ImGui.BeginTabItem(' Inspect ') then
-            viewState.isInspectorOpen = true
+        tabFlags = ImGuiTabItemFlags.None
+        if viewState.isFirstOpen and userState.isInspectorOpen then
+            tabFlags = ImGuiTabItemFlags.SetSelected
+        end
+
+        if ImGui.BeginTabItem(' Inspect ', tabFlags) then
+            userState.isInspectorOpen = true
             ImGui.Spacing()
             drawInspectorContent(true)
             ImGui.EndTabItem()
         else
-            viewState.isInspectorOpen = false
+            userState.isInspectorOpen = false
         end
 
-        if ImGui.BeginTabItem(' Scan ') then
+        tabFlags = ImGuiTabItemFlags.None
+        if viewState.isFirstOpen and userState.isScannerOpen then
+            tabFlags = ImGuiTabItemFlags.SetSelected
+        end
+
+        if ImGui.BeginTabItem(' Scan ', tabFlags) then
             ImGui.Spacing()
             drawScannerContent()
             ImGui.EndTabItem()
         end
 
-        if ImGui.BeginTabItem(' Lookup ') then
-            viewState.isLookupOpen = true
+        tabFlags = ImGuiTabItemFlags.None
+        if viewState.isFirstOpen and userState.isLookupOpen then
+            tabFlags = ImGuiTabItemFlags.SetSelected
+        end
+
+        if ImGui.BeginTabItem(' Lookup ', tabFlags) then
+            userState.isLookupOpen = true
             ImGui.Spacing()
             drawLookupContent()
             ImGui.EndTabItem()
         else
-            viewState.isLookupOpen = false
+            userState.isLookupOpen = false
         end
 
-        if ImGui.BeginTabItem(' Watch ') then
-            viewState.isWatcherOpen = true
+        tabFlags = ImGuiTabItemFlags.None
+        if viewState.isFirstOpen and userState.isWatcherOpen then
+            tabFlags = ImGuiTabItemFlags.SetSelected
+        end
+
+        if ImGui.BeginTabItem(' Watch ', tabFlags) then
+            userState.isWatcherOpen = true
             ImGui.Spacing()
             drawWatcherContent()
             ImGui.EndTabItem()
         else
-            viewState.isWatcherOpen = false
+            userState.isWatcherOpen = false
         end
+
+        viewState.isFirstOpen = false
     end
     ImGui.End()
 end
@@ -1231,9 +1270,7 @@ end)
 
 registerForEvent('onOverlayClose', function()
     viewState.isConsoleOpen = false
-    viewState.isInspectorOpen = false
-    viewState.isLookupOpen = false
-    viewState.isWatcherOpen = false
+    saveUserState()
 end)
 
 registerForEvent('onDraw', function()
@@ -1241,7 +1278,7 @@ registerForEvent('onDraw', function()
         return
     end
 
-    if not viewState.isConsoleOpen and not viewState.isAlwaysOnScreen then
+    if not viewState.isConsoleOpen and not userState.isInspectorOSD then
         return
     end
 
@@ -1254,7 +1291,7 @@ registerForEvent('onDraw', function()
 
     if viewState.isConsoleOpen then
         drawMainWindow()
-    elseif viewState.isAlwaysOnScreen then
+    elseif userState.isInspectorOSD then
         drawInspectorWindow()
     end
 
@@ -1265,7 +1302,17 @@ end)
 
 registerHotkey('ToggleInspector', 'Toggle inspector window', function()
     if not viewState.isConsoleOpen then
-        viewState.isAlwaysOnScreen = not viewState.isAlwaysOnScreen
+        userState.isInspectorOSD = not userState.isInspectorOSD
+
+        if userState.isInspectorOSD then
+            userState.isInspectorOpen = true
+            userState.isScannerOpen = false
+            userState.isLookupOpen = false
+            userState.isWatcherOpen = false
+            viewState.isFirstOpen = true
+        end
+
+        saveUserState()
     end
 end)
 
@@ -1275,17 +1322,18 @@ registerForEvent('onInit', function()
     initializeEnvironment()
 
     if isPluginFound then
+        initializeUserState()
         initializeInspector()
         initializeWatcher()
 
         Cron.Every(0.2, function()
-            if viewState.isInspectorOpen or viewState.isAlwaysOnScreen then
+            if viewState.isConsoleOpen and userState.isInspectorOpen or userState.isInspectorOSD then
                 updateInspector()
             end
-            if viewState.isLookupOpen then
+            if viewState.isConsoleOpen and userState.isLookupOpen then
                 updateLookup(viewState.lookupQuery)
             end
-            if viewState.isWatcherOpen then
+            if viewState.isConsoleOpen and userState.isWatcherOpen then
                 updateWatcher()
             end
         end)
@@ -1294,6 +1342,10 @@ end)
 
 registerForEvent('onUpdate', function(delta)
 	Cron.Update(delta)
+end)
+
+registerForEvent('onShutdown', function()
+    saveUserState()
 end)
 
 -- API --
