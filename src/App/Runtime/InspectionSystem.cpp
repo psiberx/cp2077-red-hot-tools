@@ -211,11 +211,15 @@ App::WorldNodeSceneData App::InspectionSystem::FindStreamedWorldNode(uint64_t aN
 
 Red::DynArray<App::WorldNodeSceneData> App::InspectionSystem::GetStreamedWorldNodesInFrustum()
 {
-    static const auto s_meshNodeType = Red::GetClass("worldMeshNode");
-    static const auto s_decalNodeType = Red::GetClass("worldStaticDecalNode");
-    static const auto s_entityNodeType = Red::GetClass("worldEntityNode");
-    static const auto s_areaNodeType = Red::GetClass("worldAreaShapeNode");
-    static const auto s_populationNodeType = Red::GetClass("worldPopulationSpawnerNode");
+    // static const auto s_allowedNodeTypes = {
+    //     Red::GetClass("worldMeshNode"),
+    //     Red::GetClass("worldStaticDecalNode"),
+    //     Red::GetClass("worldEntityNode"),
+    //     Red::GetClass("worldAreaShapeNode"),
+    //     Red::GetClass("worldBendedMeshNode"),
+    //     Red::GetClass("worldCompiledCommunityAreaNode"),
+    //     Red::GetClass("worldPopulationSpawnerNode"),
+    // };
 
     Red::Frustum cameraFrustum;
     Raw::CameraSystem::GetCameraFrustum(m_cameraSystem, cameraFrustum);
@@ -234,12 +238,10 @@ Red::DynArray<App::WorldNodeSceneData> App::InspectionSystem::GetStreamedWorldNo
         if (!nodeInstance || !nodeDefinition)
             continue;
 
-        if (!nodeDefinition->GetType()->IsA(s_meshNodeType) &&
-            !nodeDefinition->GetType()->IsA(s_decalNodeType) &&
-            !nodeDefinition->GetType()->IsA(s_entityNodeType) &&
-            !nodeDefinition->GetType()->IsA(s_areaNodeType) &&
-            !nodeDefinition->GetType()->IsA(s_populationNodeType))
-            continue;
+        // if (std::ranges::all_of(s_allowedNodeTypes, [&nodeDefinition](const Red::CClass* aType) {
+        //         return !nodeDefinition->GetType()->IsA(aType);
+        //     }))
+        //     continue;
 
         Red::Box worldBox{};
         Raw::Transform::ApplyToBox(setup->transform, worldBox, nodeBox);
