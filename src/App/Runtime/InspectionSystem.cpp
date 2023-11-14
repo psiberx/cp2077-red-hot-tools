@@ -25,7 +25,7 @@ Red::CString App::InspectionSystem::ResolveResourcePath(uint64_t aResourceHash)
     return m_resourceRegistry->ResolveResorcePath(aResourceHash);
 }
 
-App::WorldNodeStaticData App::InspectionSystem::ResolveNodeDataFromNodeID(uint64_t aNodeID)
+App::WorldNodeStaticData App::InspectionSystem::ResolveSectorDataFromNodeID(uint64_t aNodeID)
 {
     {
         static const Red::GlobalNodeRef context{Red::FNV1a64("$")};
@@ -40,13 +40,13 @@ App::WorldNodeStaticData App::InspectionSystem::ResolveNodeDataFromNodeID(uint64
         }
     }
 
-    return m_resourceRegistry->GetWorldNodeStaticData(aNodeID);
+    return m_resourceRegistry->GetNodeStaticData(aNodeID);
 }
 
-App::WorldNodeStaticData App::InspectionSystem::ResolveNodeDataFromNode(
-    const Red::WeakHandle<Red::ISerializable>& aNode)
+App::WorldNodeStaticData App::InspectionSystem::ResolveSectorDataFromNodeInstance(
+    const Red::WeakHandle<Red::worldINodeInstance>& aNodeInstance)
 {
-    return m_resourceRegistry->GetWorldNodeStaticData(aNode.instance);
+    return m_resourceRegistry->GetNodeStaticData(aNodeInstance);
 }
 
 Red::CString App::InspectionSystem::ResolveNodeRefFromNodeHash(uint64_t aNodeID)
@@ -147,9 +147,9 @@ Red::ResourceAsyncReference<> App::InspectionSystem::GetTemplatePath(const Red::
     return Raw::Entity::TemplatePath::Ref(aEntity.instance);
 }
 
-App::PhysicsObjectResult App::InspectionSystem::GetPhysicsTraceObject(Red::ScriptRef<Red::physicsTraceResult>& aTrace)
+App::PhysicsTraceObject App::InspectionSystem::GetPhysicsTraceObject(Red::ScriptRef<Red::physicsTraceResult>& aTrace)
 {
-    PhysicsObjectResult result{};
+    PhysicsTraceObject result{};
 
     if (!aTrace)
         return result;
@@ -163,13 +163,25 @@ App::PhysicsObjectResult App::InspectionSystem::GetPhysicsTraceObject(Red::Scrip
 
         if (object)
         {
-            if (object->GetType()->IsA(Red::GetType<Red::worldINodeInstance>()))
+            if (auto nodeInstance = Red::Cast<Red::worldINodeInstance>(object))
             {
-                result.node = Raw::WorldNodeInstance::Node::Ref(object);
+                result.nodeInstance = nodeInstance;
+                result.nodeDefinition = Raw::WorldNodeInstance::Node::Ref(nodeInstance);
             }
-            else
+            else if (auto& entity = Red::Cast<Red::entEntity>(object))
             {
-                result.entity = Red::Cast<Red::entEntity>(object);
+                result.entity = entity;
+
+                const auto& entityID = Raw::Entity::EntityID::Ref(entity.instance);
+                if (entityID.IsStatic())
+                {
+                    Raw::WorldNodeRegistry::FindNode(m_nodeRegistry, nodeInstance, entityID.hash);
+                    if (nodeInstance)
+                    {
+                        result.nodeInstance = nodeInstance;
+                        result.nodeDefinition = Raw::WorldNodeInstance::Node::Ref(nodeInstance);
+                    }
+                }
             }
 
             result.hash = reinterpret_cast<uint64_t>(object.instance);
@@ -178,25 +190,10 @@ App::PhysicsObjectResult App::InspectionSystem::GetPhysicsTraceObject(Red::Scrip
         }
     }
 
-    if (result.entity)
-    {
-        const auto& entityID = Raw::Entity::EntityID::Ref(result.entity.instance);
-        if (entityID.IsStatic())
-        {
-            Red::Handle<Red::worldINodeInstance> nodeInstance;
-            Raw::WorldNodeRegistry::FindNode(m_nodeRegistry, nodeInstance, entityID.hash);
-
-            if (nodeInstance)
-            {
-                result.node = Raw::WorldNodeInstance::Node::Ref(nodeInstance);
-            }
-        }
-    }
-
     return result;
 }
 
-Red::WeakHandle<Red::worldNode> App::InspectionSystem::FindStreamedWorldNode(uint64_t aNodeID)
+App::WorldNodeSceneData App::InspectionSystem::FindStreamedWorldNode(uint64_t aNodeID)
 {
     Red::Handle<Red::worldINodeInstance> nodeInstance;
     Raw::WorldNodeRegistry::FindNode(m_nodeRegistry, nodeInstance, aNodeID);
@@ -204,15 +201,21 @@ Red::WeakHandle<Red::worldNode> App::InspectionSystem::FindStreamedWorldNode(uin
     if (!nodeInstance)
         return {};
 
-    return Raw::WorldNodeInstance::Node::Ref(nodeInstance);
+    const auto& [setup, nodeInstanceWeak, nodeDefinitionWeak] = m_resourceRegistry->GetNodeRuntimeData(nodeInstance);
+
+    if (!nodeInstanceWeak)
+        return {};
+
+    return {nodeInstanceWeak, nodeDefinitionWeak, setup->transform};
 }
 
-Red::DynArray<App::WorldNodeSceneData> App::InspectionSystem::GetWorldNodesInFrustum()
+Red::DynArray<App::WorldNodeSceneData> App::InspectionSystem::GetStreamedWorldNodesInFrustum()
 {
     static const auto s_meshNodeType = Red::GetClass("worldMeshNode");
     static const auto s_decalNodeType = Red::GetClass("worldStaticDecalNode");
     static const auto s_entityNodeType = Red::GetClass("worldEntityNode");
     static const auto s_areaNodeType = Red::GetClass("worldAreaShapeNode");
+    static const auto s_populationNodeType = Red::GetClass("worldPopulationSpawnerNode");
 
     Red::Frustum cameraFrustum;
     Raw::CameraSystem::GetCameraFrustum(m_cameraSystem, cameraFrustum);
@@ -223,50 +226,27 @@ Red::DynArray<App::WorldNodeSceneData> App::InspectionSystem::GetWorldNodesInFru
     nodeBox.Min = {-0.1, -0.1, -0.1, 1.0};
     nodeBox.Max = {0.1, 0.1, 0.1, 1.0};
 
-    for (const auto& [node, setup] : m_resourceRegistry->GetStreamedNodes())
+    for (const auto& [setup, nodeInstanceWeak, nodeDefinitionWeak] : m_resourceRegistry->GetAllStreamedNodes())
     {
-        if (!node || !node.instance->isVisibleInGame)
+        auto nodeInstance = nodeInstanceWeak.Lock();
+        auto nodeDefinition = nodeDefinitionWeak.Lock();
+
+        if (!nodeInstance || !nodeDefinition)
             continue;
 
-        if (!node.instance->GetType()->IsA(s_meshNodeType) &&
-            !node.instance->GetType()->IsA(s_decalNodeType) &&
-            !node.instance->GetType()->IsA(s_entityNodeType) &&
-            !node.instance->GetType()->IsA(s_areaNodeType))
+        if (!nodeDefinition->GetType()->IsA(s_meshNodeType) &&
+            !nodeDefinition->GetType()->IsA(s_decalNodeType) &&
+            !nodeDefinition->GetType()->IsA(s_entityNodeType) &&
+            !nodeDefinition->GetType()->IsA(s_areaNodeType) &&
+            !nodeDefinition->GetType()->IsA(s_populationNodeType))
             continue;
-
-        // Red::Box nodeBox{};
-        // Raw::WorldNode::GetBoundingBox(node.instance, nodeBox);
-        //
-        // {
-        //     Red::Box modBox{};
-        //     Raw::WorldNode::GetDynamicBoundingBox(node.instance, modBox);
-        //
-        //     if (modBox.Max.X >= modBox.Min.X && modBox.Max.Y >= modBox.Min.Y && modBox.Max.Z >= modBox.Min.Z)
-        //     {
-        //         *reinterpret_cast<__m128*>(&nodeBox.Min) =
-        //             _mm_min_ps(*reinterpret_cast<__m128*>(&nodeBox.Min), *reinterpret_cast<__m128*>(&modBox.Min));
-        //         *reinterpret_cast<__m128*>(&nodeBox.Max) =
-        //             _mm_max_ps(*reinterpret_cast<__m128*>(&nodeBox.Max), *reinterpret_cast<__m128*>(&modBox.Max));
-        //     }
-        // }
-        //
-        // if (nodeBox.Max.X < nodeBox.Min.X || nodeBox.Max.Y < nodeBox.Min.Y || nodeBox.Max.Z < nodeBox.Min.Z)
-        // {
-        //     continue;
-        // }
-        //
-        // Red::Vector4 scale{setup->scale.X, setup->scale.Y, setup->scale.Z, 1.0};
-        // *reinterpret_cast<__m128*>(&nodeBox.Min) =
-        //     _mm_mul_ps(*reinterpret_cast<__m128*>(&nodeBox.Min), *reinterpret_cast<__m128*>(&scale));
-        // *reinterpret_cast<__m128*>(&nodeBox.Max) =
-        //     _mm_mul_ps(*reinterpret_cast<__m128*>(&nodeBox.Max), *reinterpret_cast<__m128*>(&scale));
 
         Red::Box worldBox{};
         Raw::Transform::ApplyToBox(setup->transform, worldBox, nodeBox);
 
         if (cameraFrustum.Test(worldBox) == Red::FrustumResult::Inside)
         {
-            frustumNodes.PushBack({node, setup->transform, worldBox, reinterpret_cast<uint64_t>(node.instance)});
+            frustumNodes.PushBack({nodeInstanceWeak, nodeDefinitionWeak, setup->transform, worldBox});
         }
     }
 

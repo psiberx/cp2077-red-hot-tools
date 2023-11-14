@@ -31,7 +31,7 @@ using Node = Core::OffsetPtr<0x60, Red::Handle<Red::worldNode>>;
 
 constexpr auto Initialize = Core::RawFunc<
     /* addr = */ 0x1401B96A4 - Red::Addresses::ImageBase, // FIXME
-    /* type = */ bool (*)(Red::worldINodeInstance*, void*, void*)>();
+    /* type = */ bool (*)(Red::worldINodeInstance*, Red::CompiledNodeInstanceSetupInfo*, void*)>();
 }
 
 namespace Raw::WorldNodeRegistry
@@ -42,5 +42,6 @@ using EntriesCount = Core::OffsetPtr<0x58, uint32_t>;
 
 constexpr auto FindNode = Core::RawVFunc<
     /* addr = */ 0x190,
-    /* type = */ void (Red::worldNodeInstanceRegistry::*)(Red::Handle<Red::worldINodeInstance>& aOut, uint64_t aNodeID)>();
+    /* type = */ void (Red::worldNodeInstanceRegistry::*)(Red::Handle<Red::worldINodeInstance>& aOut,
+                                                          uint64_t aNodeID)>();
 }

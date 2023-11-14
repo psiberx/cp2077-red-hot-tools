@@ -123,7 +123,7 @@ end
 
 -- App :: Resolving --
 
-local function resolveTargetComponents(entity)
+local function resolveComponents(entity)
     local components = {}
 
     for _, component in ipairs(inspectionSystem:GetComponents(entity)) do
@@ -156,15 +156,15 @@ local function resolveTargetComponents(entity)
         local description = { data.componentType, data.componentName }
         data.description = table.concat(description, ' | ')
 
+        data.hash = inspectionSystem:GetObjectHash(component)
+
         table.insert(components, data)
     end
 
     return components
 end
 
-local function resolveTargetData(target)
-    local data = {}
-
+local function fillTargetEntityData(target, data)
     if IsDefined(target.entity) then
         local entity = target.entity
         data.entity = entity
@@ -185,37 +185,34 @@ local function resolveTargetData(target)
             end
         end
 
-        data.components = resolveTargetComponents(entity)
+        data.components = resolveComponents(entity)
         data.hasComponents = (#data.components > 0)
-
-        if not IsDefined(target.node) then
-            if data.entityID > 0xffffff then
-                target.nodeID = data.entityID
-            else
-                local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(data.entityID)
-                if communityID.hash > 0xffffff then
-                    target.nodeID = communityID.hash
-                end
-            end
-
-            if isNotEmpty(target.nodeID) then
-                target.node = inspectionSystem:FindStreamedWorldNode(data.nodeID)
-            end
-        end
     end
 
-    if IsDefined(target.node) then
-        local node = target.node
-        data.node = node
-        data.nodeType = inspectionSystem:GetTypeName(node).value
+    data.isEntity = IsDefined(data.entity)
+end
 
-        local nodeData = inspectionSystem:ResolveNodeDataFromNode(node)
-        if nodeData.sectorHash ~= 0 then
-            data.sectorPath = inspectionSystem:ResolveResourcePath(nodeData.sectorHash)
-            data.nodeIndex = nodeData.nodeIndex
-            data.nodeCount = nodeData.nodeCount
-            data.nodeID = nodeData.nodeID
-        end
+local function fillTargetNodeData(target, data)
+    local sectorData
+    if IsDefined(target.nodeInstance) then
+        sectorData = inspectionSystem:ResolveSectorDataFromNodeInstance(target.nodeInstance)
+    elseif isNotEmpty(target.nodeID) then
+        sectorData = inspectionSystem:ResolveSectorDataFromNodeID(target.nodeID)
+    end
+    if sectorData and sectorData.sectorHash ~= 0 then
+        data.sectorPath = inspectionSystem:ResolveResourcePath(sectorData.sectorHash)
+        data.instanceIndex = sectorData.instanceIndex
+        data.instanceCount = sectorData.instanceCount
+        data.nodeIndex = sectorData.nodeIndex
+        data.nodeCount = sectorData.nodeCount
+        data.nodeID = sectorData.nodeID
+        data.nodeType = sectorData.nodeType.value
+    end
+
+    if IsDefined(target.nodeDefinition) then
+        local node = target.nodeDefinition
+        data.nodeDefinition = target.nodeDefinition
+        data.nodeType = inspectionSystem:GetTypeName(node).value
 
         if inspectionSystem:IsInstanceOf(node, 'worldMeshNode') or inspectionSystem:IsInstanceOf(node, 'worldInstancedMeshNode') then
             data.meshPath = inspectionSystem:ResolveResourcePath(node.mesh.hash)
@@ -234,15 +231,6 @@ local function resolveTargetData(target)
         if inspectionSystem:IsInstanceOf(node, 'worldDeviceNode') then
             data.deviceClass = node.deviceClassName.value
         end
-    elseif isNotEmpty(target.nodeID) then
-        local nodeData = inspectionSystem:ResolveNodeDataFromNodeID(target.nodeID)
-        if nodeData.sectorHash ~= 0 then
-            data.sectorPath = inspectionSystem:ResolveResourcePath(nodeData.sectorHash)
-            data.nodeIndex = nodeData.nodeIndex
-            data.nodeCount = nodeData.nodeCount
-            data.nodeID = nodeData.nodeID
-            data.nodeType = nodeData.nodeType.value
-        end
     end
 
     if isNotEmpty(data.nodeID) then
@@ -251,17 +239,10 @@ local function resolveTargetData(target)
         data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(target.nodeID)
     end
 
-    if isNotEmpty(target.hash) then
-        data.hash = target.hash
-    elseif IsDefined(target.node) then
-        data.hash = inspectionSystem:GetObjectHash(target.node)
-    elseif IsDefined(target.entity) then
-        data.hash = inspectionSystem:GetObjectHash(target.entity)
-    end
+    data.isNode = IsDefined(data.nodeInstance) or IsDefined(data.nodeDefinition) or isNotEmpty(data.nodeID)
+end
 
-    data.isEntity = IsDefined(data.entity)
-    data.isNode = IsDefined(data.node) or isNotEmpty(data.nodeID)
-
+local function fillTargetDescription(_, data)
     if isNotEmpty(data.nodeType) then
         local description = { data.nodeType }
         if isNotEmpty(data.meshPath) then
@@ -285,7 +266,50 @@ local function resolveTargetData(target)
     elseif isNotEmpty(data.entityType) then
         data.description = ('%s | %d'):format(data.entityType, data.entityID)
     end
+end
 
+local function fillTargetHash(target, data)
+    if isNotEmpty(target.hash) then
+        data.hash = target.hash
+    elseif IsDefined(target.nodeInstance) then
+        data.hash = inspectionSystem:GetObjectHash(target.nodeInstance)
+    elseif IsDefined(target.nodeDefinition) then
+        data.hash = inspectionSystem:GetObjectHash(target.nodeDefinition)
+    elseif IsDefined(target.entity) then
+        data.hash = inspectionSystem:GetObjectHash(target.entity)
+    end
+end
+
+local function expandTarget(target)
+    if IsDefined(target.entity) and not IsDefined(target.nodeDefinition) then
+        local entityID = target.entity:GetEntityID().hash
+        local nodeID
+
+        if entityID > 0xffffff then
+            nodeID = entityID
+        else
+            local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(entityID)
+            if communityID.hash > 0xffffff then
+                nodeID = communityID.hash
+            end
+        end
+
+        if isNotEmpty(nodeID) then
+            local streamingData = inspectionSystem:FindStreamedWorldNode(nodeID)
+            target.nodeInstance = streamingData.nodeInstance
+            target.nodeDefinition = streamingData.nodeDefinition
+            target.nodeID = nodeID
+        end
+    end
+end
+
+local function resolveTargetData(target)
+    expandTarget(target)
+    local data = {}
+    fillTargetEntityData(target, data)
+    fillTargetNodeData(target, data)
+    fillTargetDescription(target, data)
+    fillTargetHash(target, data)
     return data
 end
 
@@ -358,19 +382,20 @@ local function lookupTarget(lookupQuery)
         if IsDefined(entity) then
             target.entity = entity
         else
-            local node = inspectionSystem:FindStreamedWorldNode(hash)
-            if IsDefined(node) then
-                target.node = node
+            local streamingData = inspectionSystem:FindStreamedWorldNode(hash)
+            if IsDefined(streamingData.nodeInstance) then
+                target.nodeInstance = streamingData.nodeInstance
+                target.nodeDefinition = streamingData.nodeDefinition
             else
                 if hash <= 0xffffff then
                     local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(hash)
                     if communityID.hash > 0xffffff then
-                        hash = communityID.hash
-                        node = inspectionSystem:FindStreamedWorldNode(hash)
-                        if IsDefined(node) then
-                            target.node = node
+                        streamingData = inspectionSystem:FindStreamedWorldNode(communityID.hash)
+                        if IsDefined(streamingData.nodeInstance) then
+                            target.nodeInstance = streamingData.nodeInstance
+                            target.nodeDefinition = streamingData.nodeDefinition
                         else
-                            target.nodeID = hash
+                            target.nodeID = communityID.hash
                         end
                     end
                 end
@@ -379,9 +404,15 @@ local function lookupTarget(lookupQuery)
     else
         local resolvedRef = ResolveNodeRef(CreateEntityReference(lookupQuery, {}).reference, GlobalNodeID.GetRoot())
         if isNotEmpty(resolvedRef.hash) then
-            target.entity = Game.FindEntityByID(EntityID.new({ hash = resolvedRef.hash }))
-            target.node = inspectionSystem:FindStreamedWorldNode(resolvedRef.hash)
-            target.nodeID = resolvedRef.hash
+            local entity = Game.FindEntityByID(EntityID.new({ hash = resolvedRef.hash }))
+            if IsDefined(entity) then
+                target.entity = entity
+            else
+                local streamingData = inspectionSystem:FindStreamedWorldNode(resolvedRef.hash)
+                target.nodeInstance = streamingData.nodeInstance
+                target.nodeDefinition = streamingData.nodeDefinition
+                target.nodeID = resolvedRef.hash
+            end
         end
     end
 
@@ -423,7 +454,7 @@ local function scanTargets(maxDistance)
 	local position, _ = targetingSystem:GetCrosshairData(player)
     local results = {}
 
-    for _, target in ipairs(inspectionSystem:GetWorldNodesInFrustum()) do
+    for _, target in ipairs(inspectionSystem:GetStreamedWorldNodesInFrustum()) do
         --local hit = Vector4.NearestPointOnEdge(position, target.bounds.Min, target.bounds.Max)
         --local distance = Vector4.Distance(position, hit)
         local distance = Vector4.Distance(position, target.transform.position)
@@ -652,28 +683,39 @@ end
 
 -- GUI :: Fieldsets --
 
+local function formatDistance(data)
+    return ('%.2fm'):format(data.targetDistance)
+end
+
+local function useInlineDistance(data)
+    return isNotEmpty(data.collisionGroup) and '@'
+end
+
+local function isValidNodeIndex(data)
+    return type(data.nodeIndex) == 'number' and data.nodeIndex >= 0
+        and type(data.nodeCount) == 'number' and data.nodeCount > 0
+end
+
+local function isValidInstanceIndex(data)
+    return isValidNodeIndex(data)
+        and type(data.instanceIndex) == 'number' and data.instanceIndex >= 0
+        and type(data.instanceCount) == 'number' and data.instanceCount > 0
+        and (data.instanceIndex ~= data.nodeIndex or data.instanceCount ~= data.nodeCount)
+end
+
 local objectSchema = {
     {
         { name = 'collisionGroup', label = 'Collision:' },
-        { name = 'targetDistance', label = 'Distance:',
-            format = function(data)
-                return ('%.2fm'):format(data.targetDistance)
-            end,
-            inline = function(data)
-                return isNotEmpty(data.collisionGroup) and '@'
-            end,
-        },
+        { name = 'targetDistance', label = 'Distance:', format = formatDistance, inline = useInlineDistance },
     },
     {
         { name = 'nodeType', label = 'Node Type:' },
         { name = 'nodeID', label = 'Node ID:', format = '%u' },
         { name = 'nodeRef', label = 'Node Ref:', wrap = true },
-        { name = 'nodeIndex', label = 'Node Index:', format = '%d',
-            validate = function(data)
-                return type(data.nodeIndex) == 'number' and data.nodeIndex > 0
-            end,
-        },
-        { name = 'nodeCount', label = '/', format = '%d', inline = true },
+        { name = 'nodeIndex', label = 'Node Index:', format = '%d', validate = isValidNodeIndex },
+        { name = 'nodeCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
+        { name = 'instanceIndex', label = 'Node Instance:', format = '%d', validate = isValidInstanceIndex },
+        { name = 'instanceCount', label = '/', format = '%d', inline = true, validate = isValidInstanceIndex },
         { name = 'sectorPath', label = 'World Sector:', wrap = true },
     },
     {
@@ -767,7 +809,8 @@ local function drawComponents(components, maxComponents)
     end
 
     for _, componentData in ipairs(components) do
-        if ImGui.TreeNodeEx(componentData.description, ImGuiTreeNodeFlags.SpanFullWidth) then
+        local componentID = tostring(componentData.hash)
+        if ImGui.TreeNodeEx(componentData.description .. '##' .. componentID, ImGuiTreeNodeFlags.SpanFullWidth) then
             for _, field in ipairs(componentSchema) do
                 if isVisibleField(field, componentData) then
                     drawField(field, componentData)
