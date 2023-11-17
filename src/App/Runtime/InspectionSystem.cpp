@@ -5,6 +5,7 @@
 #include "Red/Entity.hpp"
 #include "Red/NodeRef.hpp"
 #include "Red/Physics.hpp"
+#include "Red/Rendering.hpp"
 #include "Red/Transform.hpp"
 #include "Red/WorldNode.hpp"
 
@@ -211,24 +212,12 @@ App::WorldNodeSceneData App::InspectionSystem::FindStreamedWorldNode(uint64_t aN
 
 Red::DynArray<App::WorldNodeSceneData> App::InspectionSystem::GetStreamedWorldNodesInFrustum()
 {
-    // static const auto s_allowedNodeTypes = {
-    //     Red::GetClass("worldMeshNode"),
-    //     Red::GetClass("worldStaticDecalNode"),
-    //     Red::GetClass("worldEntityNode"),
-    //     Red::GetClass("worldAreaShapeNode"),
-    //     Red::GetClass("worldBendedMeshNode"),
-    //     Red::GetClass("worldCompiledCommunityAreaNode"),
-    //     Red::GetClass("worldPopulationSpawnerNode"),
-    // };
-
     Red::Frustum cameraFrustum;
     Raw::CameraSystem::GetCameraFrustum(m_cameraSystem, cameraFrustum);
 
     Red::DynArray<WorldNodeSceneData> frustumNodes;
 
-    Red::Box nodeBox{};
-    nodeBox.Min = {-0.1, -0.1, -0.1, 1.0};
-    nodeBox.Max = {0.1, 0.1, 0.1, 1.0};
+    const Red::Box dummyBox{{-0.1, -0.1, -0.1, 1.0}, {0.1, 0.1, 0.1, 1.0}};
 
     for (const auto& [setup, nodeInstanceWeak, nodeDefinitionWeak] : m_resourceRegistry->GetAllStreamedNodes())
     {
@@ -238,21 +227,294 @@ Red::DynArray<App::WorldNodeSceneData> App::InspectionSystem::GetStreamedWorldNo
         if (!nodeInstance || !nodeDefinition)
             continue;
 
-        // if (std::ranges::all_of(s_allowedNodeTypes, [&nodeDefinition](const Red::CClass* aType) {
-        //         return !nodeDefinition->GetType()->IsA(aType);
-        //     }))
-        //     continue;
+        auto& transform = Raw::WorldNodeInstance::Transform::Ref(nodeInstance);
+        auto& scale = Raw::WorldNodeInstance::Scale::Ref(nodeInstance);
 
-        Red::Box worldBox{};
-        Raw::Transform::ApplyToBox(setup->transform, worldBox, nodeBox);
+        if (Red::IsInstanceOf<Red::worldMeshNode>(nodeDefinition))
+        {
+            auto& mesh = Raw::WorldMeshNodeInstance::Mesh::Ref(nodeInstance);
+            if (mesh)
+            {
+                auto worldBox = mesh->boundingBox;
+                Red::ScaleBox(worldBox, scale);
+                Red::TransformBox(worldBox, transform);
+
+                if (cameraFrustum.Test(worldBox) != Red::FrustumResult::Outside)
+                {
+                    frustumNodes.PushBack({nodeInstanceWeak, nodeDefinitionWeak, transform, worldBox});
+                }
+                continue;
+            }
+        }
+        else if (Red::IsInstanceOf<Red::worldInstancedMeshNode>(nodeDefinition))
+        {
+            for (const auto& worldBox : Raw::WorldInstancedMeshNode::Bounds::Ref(nodeDefinition))
+            {
+                if (cameraFrustum.Test(worldBox) != Red::FrustumResult::Outside)
+                {
+                    frustumNodes.PushBack({nodeInstanceWeak, nodeDefinitionWeak, transform, worldBox});
+                }
+            }
+            continue;
+        }
+        else if (Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition) ||
+                 Red::IsInstanceOf<Red::worldBendedMeshNode>(nodeDefinition))
+        {
+            Red::Box worldBox{};
+            Raw::WorldNode::GetBoundingBox(nodeDefinition, worldBox);
+
+            if (Red::IsValidBox(worldBox))
+            {
+                Red::ScaleBox(worldBox, scale);
+                Red::TransformBox(worldBox, transform);
+
+                if (cameraFrustum.Test(worldBox) != Red::FrustumResult::Outside)
+                {
+                    frustumNodes.PushBack({nodeInstanceWeak, nodeDefinitionWeak, transform, worldBox});
+                }
+                continue;
+            }
+        }
+
+        auto worldBox = dummyBox;
+        Red::TransformBox(worldBox, transform);
 
         if (cameraFrustum.Test(worldBox) == Red::FrustumResult::Inside)
         {
-            frustumNodes.PushBack({nodeInstanceWeak, nodeDefinitionWeak, setup->transform, worldBox});
+            frustumNodes.PushBack({nodeInstanceWeak, nodeDefinitionWeak, transform, {}});
         }
     }
 
     return frustumNodes;
+}
+
+bool App::InspectionSystem::SetNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aVisible)
+{
+    return UpdateNodeVisibility(aNodeInstance, false, true);
+}
+
+bool App::InspectionSystem::ToggleNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance)
+{
+    return UpdateNodeVisibility(aNodeInstance, true, true);
+}
+
+bool App::InspectionSystem::UpdateNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance,
+                                                 bool aToggle, bool aVisible)
+{
+    if (Red::IsInstanceOf<Red::worldEntityNodeInstance>(aNodeInstance))
+    {
+        if (aToggle)
+            aVisible = !Raw::WorldNodeInstance::IsVisible(aNodeInstance);
+
+        Raw::WorldNodeInstance::SetVisibility(aNodeInstance, aVisible);
+        return true;
+    }
+
+    if (Red::IsInstanceOf<Red::worldMeshNodeInstance>(aNodeInstance))
+    {
+        return SetRenderProxyVisibility<Raw::WorldMeshNodeInstance::RenderProxy>(aNodeInstance, aToggle, aVisible);
+    }
+
+    if (Red::IsInstanceOf<Red::worldMeshNodeInstance>(aNodeInstance))
+    {
+        return SetRenderProxyVisibility<Raw::WorldMeshNodeInstance::RenderProxy>(aNodeInstance, aToggle, aVisible);
+    }
+
+    if (Red::IsInstanceOf<Red::worldStaticDecalNodeInstance>(aNodeInstance))
+    {
+        return SetRenderProxyVisibility<Raw::WorldStaticDecalNodeInstance::RenderProxy>(aNodeInstance, aToggle, aVisible);
+    }
+
+    if (Red::IsInstanceOf<Red::worldBendedMeshNodeInstance>(aNodeInstance))
+    {
+        return SetRenderProxyVisibility<Raw::WorldBendedMeshNodeInstance::RenderProxy>(aNodeInstance, aToggle, aVisible);
+    }
+
+    if (Red::IsInstanceOf<Red::worldPhysicalDestructionNodeInstance>(aNodeInstance))
+    {
+        return SetRenderProxyVisibility<Raw::WorldPhysicalDestructionNodeInstance::RenderProxy>(aNodeInstance, aToggle, aVisible);
+    }
+
+    if (Red::IsInstanceOf<Red::worldInstancedMeshNodeInstance>(aNodeInstance))
+    {
+        return SetRenderProxyVisibility<Raw::WorldInstancedMeshNodeInstance::RenderProxies>(aNodeInstance, aToggle, aVisible);
+    }
+
+    if (Red::IsInstanceOf<Red::worldFoliageNodeInstance>(aNodeInstance))
+    {
+        return SetRenderProxyVisibility<Raw::WorldFoliageNodeInstance::RenderProxies>(aNodeInstance, aToggle, aVisible);
+    }
+
+    if (Red::IsInstanceOf<Red::worldTerrainMeshNodeInstance>(aNodeInstance))
+    {
+        return SetRenderProxyVisibility<Raw::WorldTerrainMeshNodeInstance::RenderProxies>(aNodeInstance, aToggle, aVisible);
+    }
+
+    return false;
+}
+
+template<typename TRenderProxy>
+bool App::InspectionSystem::SetRenderProxyVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance,
+                                                     bool aToggle, bool aVisible)
+{
+    if constexpr (Red::IsArray<typename TRenderProxy::Type>)
+    {
+        auto& renderProxies = TRenderProxy::Ref(aNodeInstance);
+
+        if (!renderProxies.size)
+            return false;
+
+        for (auto& renderProxy : renderProxies)
+        {
+            if (aToggle)
+                aVisible = !Raw::RenderProxy::IsVisible(renderProxy);
+
+            Raw::RenderProxy::SetVisibility(renderProxy, aVisible);
+        }
+        return true;
+    }
+    else
+    {
+        auto& renderProxy = TRenderProxy::Ref(aNodeInstance);
+
+        if (!renderProxy)
+            return false;
+
+        if (aToggle)
+            aVisible = !Raw::RenderProxy::IsVisible(renderProxy);
+
+        Raw::RenderProxy::SetVisibility(renderProxy, aVisible);
+        return true;
+    }
+}
+
+bool App::InspectionSystem::ApplyHighlightEffect(const Red::Handle<Red::ISerializable>& aObject,
+                                                 const Red::Handle<Red::entRenderHighlightEvent>& aEffect)
+{
+    if (auto& entity = Red::Cast<Red::entEntity>(aObject))
+    {
+        return SetEntityHighlightEffect(entity, aEffect);
+    }
+
+    if (auto& nodeInstance = Red::Cast<Red::worldINodeInstance>(aObject))
+    {
+        if (Red::IsInstanceOf<Red::worldEntityNodeInstance>(nodeInstance))
+        {
+            auto& entity = Raw::WorldEntityNodeInstance::Entity::Ref(nodeInstance);
+            return SetEntityHighlightEffect(entity, aEffect);
+        }
+
+        Red::HighlightParams highlight{aEffect->seeThroughWalls, 0,
+                                       aEffect->fillIndex,
+                                       aEffect->outlineIndex,
+                                       aEffect->opacity,
+                                       true};
+
+        if (Red::IsInstanceOf<Red::worldMeshNodeInstance>(nodeInstance))
+        {
+            return SetRenderProxyHighlightEffect<Raw::WorldMeshNodeInstance::RenderProxy>(nodeInstance, aEffect);
+        }
+
+        if (Red::IsInstanceOf<Red::worldMeshNodeInstance>(nodeInstance))
+        {
+            return SetRenderProxyHighlightEffect<Raw::WorldMeshNodeInstance::RenderProxy>(nodeInstance, aEffect);
+        }
+
+        if (Red::IsInstanceOf<Red::worldStaticDecalNodeInstance>(nodeInstance))
+        {
+            return SetRenderProxyHighlightEffect<Raw::WorldStaticDecalNodeInstance::RenderProxy>(nodeInstance, aEffect);
+        }
+
+        if (Red::IsInstanceOf<Red::worldBendedMeshNodeInstance>(nodeInstance))
+        {
+            return SetRenderProxyHighlightEffect<Raw::WorldBendedMeshNodeInstance::RenderProxy>(nodeInstance, aEffect);
+        }
+
+        if (Red::IsInstanceOf<Red::worldPhysicalDestructionNodeInstance>(nodeInstance))
+        {
+            return SetRenderProxyHighlightEffect<Raw::WorldPhysicalDestructionNodeInstance::RenderProxy>(nodeInstance, aEffect);
+        }
+
+        if (Red::IsInstanceOf<Red::worldInstancedMeshNodeInstance>(nodeInstance))
+        {
+            return SetRenderProxyHighlightEffect<Raw::WorldInstancedMeshNodeInstance::RenderProxies>(nodeInstance, aEffect);
+        }
+
+        if (Red::IsInstanceOf<Red::worldFoliageNodeInstance>(nodeInstance))
+        {
+            return SetRenderProxyHighlightEffect<Raw::WorldFoliageNodeInstance::RenderProxies>(nodeInstance, aEffect);
+        }
+
+        if (Red::IsInstanceOf<Red::worldTerrainMeshNodeInstance>(nodeInstance))
+        {
+            return SetRenderProxyHighlightEffect<Raw::WorldTerrainMeshNodeInstance::RenderProxies>(nodeInstance, aEffect);
+        }
+    }
+
+    return false;
+}
+
+template<typename TRenderProxy>
+bool App::InspectionSystem::SetRenderProxyHighlightEffect(const Red::Handle<Red::worldINodeInstance>& aNodeInstance,
+                                                          const Red::Handle<Red::entRenderHighlightEvent>& aEffect)
+{
+    if constexpr (Red::IsArray<typename TRenderProxy::Type>)
+    {
+        auto& renderProxies = TRenderProxy::Ref(aNodeInstance);
+
+        if (!renderProxies.size)
+            return false;
+
+        Red::HighlightParams highlight{aEffect->seeThroughWalls, 0, aEffect->fillIndex, aEffect->outlineIndex,
+                                       aEffect->opacity, true};
+
+        for (auto& renderProxy : renderProxies)
+        {
+            Raw::RenderProxy::SetHighlightParams(renderProxy, highlight);
+        }
+        return true;
+    }
+    else
+    {
+        auto& renderProxy = TRenderProxy::Ref(aNodeInstance);
+
+        if (!renderProxy)
+            return false;
+
+        Red::HighlightParams highlight{aEffect->seeThroughWalls, 0, aEffect->fillIndex, aEffect->outlineIndex,
+                                       aEffect->opacity, true};
+
+        Raw::RenderProxy::SetHighlightParams(renderProxy, highlight);
+        return true;
+    }
+}
+
+bool App::InspectionSystem::SetEntityHighlightEffect(const Red::Handle<Red::entEntity>& aEntity,
+                                                     const Red::Handle<Red::entRenderHighlightEvent>& aEffect)
+{
+    if (!aEntity)
+        return false;
+
+    aEffect->unk54[0] = 1; // forced
+    Red::CallVirtual(aEntity, "QueueEvent", aEffect);
+
+    return true;
+}
+
+Red::Vector4 App::InspectionSystem::ProjectWorldPoint(const Red::Vector4& aPoint)
+{
+    auto* camera = Raw::CameraSystem::Camera::Ptr(m_cameraSystem);
+    auto& point = *reinterpret_cast<const Red::Vector3*>(&aPoint);
+
+    Red::Vector4 result{};
+    Raw::Camera::ProjectPoint(camera, result, point);
+
+    if (result.W > 0)
+    {
+        *reinterpret_cast<__m128*>(&result) = _mm_div_ps(*reinterpret_cast<__m128*>(&result), _mm_set1_ps(result.W));
+    }
+
+    return result;
 }
 
 Red::CName App::InspectionSystem::GetTypeName(const Red::WeakHandle<Red::ISerializable>& aInstace)

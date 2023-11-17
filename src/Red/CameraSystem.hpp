@@ -13,7 +13,7 @@ struct Frustum
 {
     static constexpr auto NumberOfPlanes = 6;
 
-    FrustumResult Test(const Vector4& aPoint)
+    inline FrustumResult Test(const Vector4& aPoint)
     {
         for (auto i = 0; i < NumberOfPlanes; ++i)
         {
@@ -28,7 +28,7 @@ struct Frustum
         return FrustumResult::Inside;
     }
 
-    FrustumResult Test(const Box& aBox)
+    inline FrustumResult Test(const Box& aBox)
     {
         auto result = FrustumResult::Inside;
 
@@ -60,10 +60,23 @@ struct Frustum
     __m128 planes[NumberOfPlanes]{};
     __m128 masks[NumberOfPlanes]{};
 };
+
+struct Camera
+{
+};
+}
+
+namespace Raw::Camera
+{
+constexpr auto ProjectPoint = Core::RawFunc<
+    /* addr = */ 0x1403EF110 - Red::Addresses::ImageBase, // FIXME
+    /* type = */ void* (*)(Red::Camera* aCamera, Red::Vector4& aOut, const Red::Vector3& aPoint)>();
 }
 
 namespace Raw::CameraSystem
 {
+using Camera = Core::OffsetPtr<0x60, Red::Camera>;
+
 constexpr auto GetCameraFrustum = Core::RawVFunc<
     /* addr = */ 0x250,
     /* type = */ void (Red::gameICameraSystem::*)(Red::Frustum& aOut)>();

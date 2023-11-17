@@ -40,6 +40,12 @@ public:
 
     WorldNodeSceneData FindStreamedWorldNode(uint64_t aNodeID);
     Red::DynArray<WorldNodeSceneData> GetStreamedWorldNodesInFrustum();
+    bool SetNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aVisible);
+    bool ToggleNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance);
+
+    bool ApplyHighlightEffect(const Red::Handle<Red::ISerializable>& aObject,
+                              const Red::Handle<Red::entRenderHighlightEvent>& aEffect);
+    Red::Vector4 ProjectWorldPoint(const Red::Vector4& aPoint);
 
     Red::CName GetTypeName(const Red::WeakHandle<Red::ISerializable>& aInstace);
     bool IsInstanceOf(const Red::WeakHandle<Red::ISerializable>& aInstace, Red::CName aType);
@@ -48,6 +54,15 @@ public:
 private:
     void OnWorldAttached(Red::world::RuntimeScene*) override;
     void OnAfterWorldDetach() override;
+
+    bool UpdateNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aToggle, bool aVisible);
+    template<typename TRenderProxy>
+    bool SetRenderProxyVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aToggle, bool aVisible);
+    template<typename TRenderProxy>
+    bool SetRenderProxyHighlightEffect(const Red::Handle<Red::worldINodeInstance>& aNodeInstance,
+                                    const Red::Handle<Red::entRenderHighlightEvent>& aEffect);
+    bool SetEntityHighlightEffect(const Red::Handle<Red::entEntity>& aEntity,
+                                      const Red::Handle<Red::entRenderHighlightEvent>& aEffect);
 
     Core::SharedPtr<ResourceRegistry> m_resourceRegistry;
     Red::worldNodeInstanceRegistry* m_nodeRegistry;
@@ -96,6 +111,10 @@ RTTI_DEFINE_CLASS(App::InspectionSystem, {
     RTTI_METHOD(GetPhysicsTraceObject);
     RTTI_METHOD(FindStreamedWorldNode);
     RTTI_METHOD(GetStreamedWorldNodesInFrustum);
+    RTTI_METHOD(SetNodeVisibility);
+    RTTI_METHOD(ToggleNodeVisibility);
+    RTTI_METHOD(ApplyHighlightEffect);
+    RTTI_METHOD(ProjectWorldPoint);
     RTTI_METHOD(GetTypeName);
     RTTI_METHOD(IsInstanceOf);
     RTTI_METHOD(GetObjectHash);
