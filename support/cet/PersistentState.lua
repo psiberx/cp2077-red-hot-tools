@@ -72,11 +72,11 @@ function PersistentState.Initialize(filePath, dataRef, dataSchema)
 
     for field, schema in pairs(dataSchema) do
         if type(schema.type) == 'string' then
-            if type(stateDataRef[field]) ~= schema.type then
+            if stateDataRef[field] == nil or type(stateDataRef[field]) ~= schema.type then
                 stateDataRef[field] = schema.default
             end
         elseif type(schema.type) == 'table' then
-            if schema.type[stateDataRef[field]] ~= stateDataRef[field] then
+            if stateDataRef[field] == nil or schema.type[stateDataRef[field]] ~= stateDataRef[field] then
                 stateDataRef[field] = schema.default
             end
         end

@@ -20,13 +20,23 @@ struct WorldNodeStaticData
     Red::CName nodeType;
 };
 
-struct WorldNodeRuntimeData
+struct WorldNodeInstanceData
 {
     Red::CompiledNodeInstanceSetupInfo* setup{};
     Red::WeakHandle<Red::worldINodeInstance> nodeInstance;
     Red::WeakHandle<Red::worldNode> nodeDefinition;
 };
 
+struct INodeInstanceWatcher
+{
+    virtual void OnNodeStreamedIn(uint64_t aNodeHash,
+                                  Red::worldNode* aNodeDefinition,
+                                  Red::worldINodeInstance* aNodeInstance,
+                                  Red::CompiledNodeInstanceSetupInfo* aNodeSetup) = 0;
+    virtual void OnNodeStreamedOut(uint64_t aNodeHash) = 0;
+};
+
+// TODO: Split into ResourceRegistry and NodeRegistry
 class ResourceRegistry
     : public Core::Feature
     , public Core::LoggingAgent
@@ -38,9 +48,12 @@ public:
     std::string_view ResolveResorcePath(Red::ResourcePath aPath);
     WorldNodeStaticData GetNodeStaticData(Red::NodeRef aNodeRef);
     WorldNodeStaticData GetNodeStaticData(const Red::WeakHandle<Red::worldINodeInstance>& aNode);
-    WorldNodeRuntimeData GetNodeRuntimeData(const Red::WeakHandle<Red::worldINodeInstance>& aNode);
-    Core::Vector<WorldNodeRuntimeData> GetAllStreamedNodes();
+    WorldNodeInstanceData GetNodeRuntimeData(const Red::WeakHandle<Red::worldINodeInstance>& aNode);
+    Core::Vector<WorldNodeInstanceData> GetAllStreamedNodes();
     void ClearRuntimeData();
+
+    void RegisterWatcher(INodeInstanceWatcher* aWatcher);
+    void UnregisterWatcher(INodeInstanceWatcher* aWatcher);
 
 protected:
     void OnBootstrap() override;
@@ -52,16 +65,18 @@ protected:
                                          Red::CompiledNodeInstanceSetupInfo* aNodeSetup, void*);
 
     WorldNodeStaticData GetNodeStaticData(Red::CompiledNodeInstanceSetupInfo* aNodeSetup);
-    WorldNodeRuntimeData GetNodeRuntimeData(Red::CompiledNodeInstanceSetupInfo* aNodeSetup);
+    WorldNodeInstanceData GetNodeRuntimeData(Red::CompiledNodeInstanceSetupInfo* aNodeSetup);
 
     inline static std::shared_mutex s_resourcePathLock;
     inline static Core::Map<Red::ResourcePath, std::string> s_resourcePathMap;
 
     inline static std::shared_mutex s_nodeStaticDataLock;
-    inline static std::shared_mutex s_nodeRuntimeDataLock;
+    inline static std::shared_mutex s_nodeInstanceDataLock;
     inline static Core::Map<Red::NodeRef, WorldNodeStaticData> s_nodeRefToStaticDataMap;
     inline static Core::Map<Red::CompiledNodeInstanceSetupInfo*, WorldNodeStaticData> s_nodeSetupToStaticDataMap;
-    inline static Core::Map<Red::CompiledNodeInstanceSetupInfo*, WorldNodeRuntimeData> s_nodeSetupToRuntimeDataMap;
+    inline static Core::Map<Red::CompiledNodeInstanceSetupInfo*, WorldNodeInstanceData> s_nodeSetupToRuntimeDataMap;
     inline static Core::Map<Red::worldINodeInstance*, Red::CompiledNodeInstanceSetupInfo*> s_nodeInstanceToNodeSetupMap;
+
+    inline static Core::Vector<INodeInstanceWatcher*> s_watchers;
 };
 }

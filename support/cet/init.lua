@@ -56,34 +56,38 @@ local function initializeEnvironment()
     cameraSystem = Game.GetCameraSystem()
     targetingSystem = Game.GetTargetingSystem()
     spatialQuerySystem = Game.GetSpatialQueriesSystem()
-    inspectionSystem = Game.GetInspectionSystem()
+
+    if isPluginFound then
+        inspectionSystem = Game.GetInspectionSystem()
+    end
 end
 
 -- App :: User State --
 
+local Feature = enum('None', 'Inspect', 'Scan', 'Lookup', 'Watch', 'Reload')
 local ColorScheme = enum('Green', 'Red', 'Yellow', 'White', 'Shimmer')
 local OutlineMode = enum('ForSupportedObjects', 'Never')
 local MarkerMode = enum('Always', 'WhenOutlineIsUnsupported', 'Never')
 local BoundingBoxMode = enum('ForAreaNodes', 'Never')
+local TargetingMode = enum('GamePhysics', 'StaticMeshBounds')
 
 local userState = {}
 local userStateSchema = {
-    isInspectorOSD = { type = 'boolean', default = false },
-    isInspectorOpen = { type = 'boolean', default = false },
-    isScannerOpen = { type = 'boolean', default = false },
-    isLookupOpen = { type = 'boolean', default = false },
-    isWatcherOpen = { type = 'boolean', default = false },
+    activeTool = { type = Feature, default = Feature.Inspect },
+    showOnScreenDisplay = { type = 'boolean', default = false },
     scannerDistance = { type = 'number', default = 5.0 },
     highlightColor = { type = ColorScheme, default = ColorScheme.Red },
     outlineMode = { type = OutlineMode, default = OutlineMode.ForSupportedObjects },
     markerMode = { type = MarkerMode, default = MarkerMode.WhenOutlineIsUnsupported },
     boundingBoxMode = { type = BoundingBoxMode, default = BoundingBoxMode.Never },
+    showMarkerDistance = { type = 'boolean', default = false },
+    showBoundingBoxDistances = { type = 'boolean', default = false },
+    targetingMode = { type = TargetingMode, default = TargetingMode.GamePhysics },
     highlightInspectorResult = { type = 'boolean', default = true },
     highlightScannerResult = { type = 'boolean', default = true },
     highlightLookupResult = { type = 'boolean', default = false },
     keepLastHoveredResultHighlighted = { type = 'boolean', default = true },
-    showMarkerDistance = { type = 'boolean', default = false },
-    showBoundingBoxDistances = { type = 'boolean', default = false },
+    pushAreaNodesToTheEnd = { type = 'boolean', default = true },
 }
 
 local function initializeUserState()
@@ -163,56 +167,71 @@ local function getLookAtTarget(maxDistance)
         return
 	end
 
-    local results = {}
+	if userState.targetingMode == TargetingMode.GamePhysics then
+        local results = {}
 
-	local entity = targetingSystem:GetLookAtObject(camera.instigator, true, false)
-	if IsDefined(entity) then
-	    local target = {
-	        resolved = true,
-	        entity = Ref.Weak(entity),
-	        hash = inspectionSystem:GetObjectHash(entity),
-	    }
+        local entity = targetingSystem:GetLookAtObject(camera.instigator, true, false)
+        if IsDefined(entity) then
+            local target = {
+                resolved = true,
+                entity = Ref.Weak(entity),
+                hash = inspectionSystem:GetObjectHash(entity),
+            }
 
-        local distance = Vector4.Distance(camera.position, ToVector4(entity:GetWorldPosition()))
+            local distance = Vector4.Distance(camera.position, ToVector4(entity:GetWorldPosition()))
 
-        table.insert(results, {
-            distance = distance,
-            target = target,
-            group = collisionGroups[2],
-        })
-	end
+            table.insert(results, {
+                distance = distance,
+                target = target,
+                group = collisionGroups[2],
+            })
+        end
 
-	for _, group in ipairs(collisionGroups) do
-		local success, trace = spatialQuerySystem:SyncRaycastByCollisionGroup(camera.position, camera.destination, group.name, false, false)
-		if success then
-			local target = inspectionSystem:GetPhysicsTraceObject(trace)
-			if target.resolved then
-			    local distance = Vector4.Distance(camera.position, ToVector4(trace.position))
-			    if distance > group.threshold then
-                    table.insert(results, {
-                        distance = distance,
-                        target = target,
-                        group = group,
-                    })
+        for _, group in ipairs(collisionGroups) do
+            local success, trace = spatialQuerySystem:SyncRaycastByCollisionGroup(camera.position, camera.destination, group.name, false, false)
+            if success then
+                local target = inspectionSystem:GetPhysicsTraceObject(trace)
+                if target.resolved then
+                    local distance = Vector4.Distance(camera.position, ToVector4(trace.position))
+                    if distance > group.threshold then
+                        table.insert(results, {
+                            distance = distance,
+                            target = target,
+                            group = group,
+                        })
+                    end
                 end
-			end
-		end
+            end
+        end
+
+        if #results == 0 then
+            return
+        end
+
+        local nearest = results[1]
+
+        for i = 2, #results do
+            local diff = nearest.distance - results[i].distance
+            if diff > results[i].group.tolerance then
+                nearest = results[i]
+            end
+        end
+
+        nearest.target.collisionGroup = nearest.group.name
+        nearest.target.distance = nearest.distance
+
+        return nearest.target, nearest.group.name, nearest.distance
 	end
 
-	if #results == 0 then
-		return nil
-	end
+    if userState.targetingMode == TargetingMode.StaticMeshBounds then
+        local results = inspectionSystem:GetStreamedWorldNodesInCrosshair()
 
-	local nearest = results[1]
+        if #results == 0 then
+            return
+        end
 
-	for i = 2, #results do
-	    local diff = nearest.distance - results[i].distance
-		if diff > results[i].group.tolerance then
-            nearest = results[i]
-		end
-	end
-
-	return nearest.target, nearest.group.name, nearest.distance
+        return results[1], collisionGroups[1].name, results[1].distance
+    end
 end
 
 -- App :: Highlighting --
@@ -755,22 +774,16 @@ local scanner = {
     hovered = nil,
 }
 
-local function resolveTargetPosition(camera, target)
+local function resolveTargetPosition(target)
+    local bounds
+    local position = target.transform.position
+
     if not target.bounds.Min:IsXYZZero() then
-        local distance = 0
-        if not insideBox(camera.position, target.bounds) then
-            distance = Vector4.DistanceToEdge(camera.position, target.bounds.Min, target.bounds.Max)
-        end
-        local position = Game['OperatorAdd;Vector4Vector4;Vector4'](target.bounds.Min, target.bounds:GetExtents())
-        return position, target.bounds, distance
+        bounds = target.bounds
+        position = Game['OperatorAdd;Vector4Vector4;Vector4'](target.bounds.Min, target.bounds:GetExtents())
     end
 
-    if not target.transform.position:IsXYZZero() then
-        local distance = Vector4.Distance(camera.position, target.transform.position)
-        return target.transform.position, nil, distance
-    end
-
-    return nil, nil, 0xFFFF
+    return position, bounds, target.distance
 end
 
 local function requestScan(maxDistance)
@@ -793,22 +806,10 @@ local function scanTargets()
 
     scanner.requested = false
 
-	local camera = getCameraData()
-
-	if not camera then
-        scanner.results = {}
-        scanner.filter = nil
-        scanner.filtered = {}
-        scanner.hovered = nil
-        scanner.finished = true
-		return
-	end
-
     local results = {}
 
-    local allNodes = inspectionSystem:GetStreamedWorldNodesInFrustum()
-    for _, target in ipairs(allNodes) do
-        local position, bounds, distance = resolveTargetPosition(camera, target)
+    for _, target in ipairs(inspectionSystem:GetStreamedWorldNodesInFrustum()) do
+        local position, bounds, distance = resolveTargetPosition(target)
         if distance <= scanner.distance then
             local data = resolveTargetData(target)
             data.description = ('%s @ %.2fm'):format(data.description, distance)
@@ -819,9 +820,23 @@ local function scanTargets()
         end
     end
 
-    table.sort(results, function(a, b)
-        return a.targetDistance < b.targetDistance
-    end)
+    if userState.pushAreaNodesToTheEnd then
+        table.sort(results, function(a, b)
+            if a.isAreaNode == b.isAreaNode then
+                return a.targetDistance < b.targetDistance
+            end
+            if a.isAreaNode then
+                return false
+            end
+            if b.isAreaNode then
+                return true
+            end
+        end)
+    else
+        table.sort(results, function(a, b)
+            return a.targetDistance < b.targetDistance
+        end)
+    end
 
     scanner.results = results
     scanner.filter = nil
@@ -1006,6 +1021,7 @@ local function initializeViewData()
     viewData.outlineModeOptions = buildComboOptions(OutlineMode.values)
     viewData.markerModeOptions = buildComboOptions(MarkerMode.values)
     viewData.boundingBoxModeOptions = buildComboOptions(BoundingBoxMode.values)
+    viewData.targetingModeOptions = buildComboOptions(TargetingMode.values)
 end
 
 local function initializeViewStyle()
@@ -1330,9 +1346,9 @@ end
 
 -- GUI :: Inspector --
 
-local function drawInspectorContent(withInputs)
+local function drawInspectorContent(isModal)
     if inspector.target and inspector.result then
-        drawFieldset(inspector.result, withInputs)
+        drawFieldset(inspector.result, not isModal)
     else
         ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
         ImGui.TextWrapped('No target')
@@ -1476,7 +1492,7 @@ local function drawWatcherContent()
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
         ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
 
-        local visibleRows = clamp(watcher.numTargets, 12, 16)
+        local visibleRows = clamp(watcher.numTargets, 14, 18)
         ImGui.BeginChildFrame(1, 0, visibleRows * ImGui.GetFrameHeightWithSpacing())
 
         for _, result in pairs(watcher.results) do
@@ -1496,14 +1512,73 @@ local function drawWatcherContent()
     end
 end
 
+-- GUI :: Hot Reload --
+
+local function drawHotReloadContent()
+    --[[
+    ImGui.Text('Archives')
+    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+    ImGui.TextWrapped(
+        'Hot load archives from archive/pc/hot.\n' ..
+        'New archives will be moved to archive/pc/mod and loaded.\n' ..
+        'Existing archives will be unloaded and replaced.')
+    ImGui.PopStyleColor()
+    ImGui.Spacing()
+
+    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.dangerTextColor)
+    ImGui.Text('Not supported on game version 2.0+ yet')
+    ImGui.PopStyleColor()
+    ImGui.Spacing()
+
+    --ImGui.Checkbox('Watch for changes', true)
+
+    ImGui.PushStyleColor(ImGuiCol.Button, viewStyle.disabledButtonColor)
+    ImGui.PushStyleColor(ImGuiCol.ButtonHovered, viewStyle.disabledButtonColor)
+    ImGui.PushStyleColor(ImGuiCol.ButtonActive, viewStyle.disabledButtonColor)
+    if ImGui.Button('Reload archives', viewStyle.windowWidth, viewStyle.buttonHeight) then
+        --RedHotTools.ReloadArchives()
+    end
+    ImGui.PopStyleColor(3)
+
+    ImGui.Spacing()
+    ImGui.Separator()
+    ImGui.Spacing()
+    --]]
+
+    ImGui.Text('Scripts')
+    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+    ImGui.TextWrapped('Hot load scripts from r6/scripts.')
+    ImGui.PopStyleColor()
+    ImGui.Spacing()
+
+    if ImGui.Button('Reload scripts', viewStyle.windowWidth, viewStyle.buttonHeight) then
+        RedHotTools.ReloadScripts()
+    end
+
+    if isTweakXLFound then
+        ImGui.Spacing()
+        ImGui.Separator()
+        ImGui.Spacing()
+
+        ImGui.Text('Tweaks')
+        ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+        ImGui.TextWrapped('Hot load tweaks from r6/tweaks and scriptable tweaks.')
+        ImGui.PopStyleColor()
+        ImGui.Spacing()
+
+        if ImGui.Button('Reload tweaks', viewStyle.windowWidth, viewStyle.buttonHeight) then
+            RedHotTools.ReloadTweaks()
+        end
+    end
+end
+
 -- GUI :: Settings --
 
 local function drawSettingsContent()
     local state, changed
-
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
     ImGui.SetWindowFontScale(0.85)
-    ImGui.Text('TARGET HIGHLIGHTING')
+    ImGui.Text('INSPECTING')
     ImGui.SetWindowFontScale(1.0)
     ImGui.PopStyleColor()
     ImGui.Separator()
@@ -1511,7 +1586,83 @@ local function drawSettingsContent()
 
     ImGui.BeginGroup()
     ImGui.AlignTextToFramePadding()
-    ImGui.Text('Highlight color:')
+    ImGui.Text('Targeting mode:')
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
+    state, changed = ImGui.Combo('##TargetingMode', TargetingMode.values[userState.targetingMode] - 1, viewData.targetingModeOptions, #viewData.targetingModeOptions)
+    if changed then
+        userState.targetingMode = TargetingMode.values[state + 1]
+    end
+    ImGui.EndGroup()
+
+    ImGui.Spacing()
+
+    state, changed = ImGui.Checkbox('Highlight inspected target', userState.highlightInspectorResult)
+    if changed then
+        userState.highlightInspectorResult = state
+    end
+
+    ImGui.Spacing()
+    ImGui.Spacing()
+    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+    ImGui.SetWindowFontScale(0.85)
+    ImGui.Text('SCANNING')
+    ImGui.SetWindowFontScale(1.0)
+    ImGui.PopStyleColor()
+    ImGui.Separator()
+    ImGui.Spacing()
+
+    state, changed = ImGui.Checkbox('Highlight scanned target when hover over', userState.highlightScannerResult)
+    if changed then
+        userState.highlightScannerResult = state
+    end
+
+    ImGui.Indent(ImGui.GetFrameHeightWithSpacing())
+    if not userState.highlightScannerResult then
+        ImGui.BeginDisabled()
+    end
+    state, changed = ImGui.Checkbox('Keep last target highlighted when hover out', userState.keepLastHoveredResultHighlighted)
+    if changed then
+        userState.keepLastHoveredResultHighlighted = state
+    end
+    if not userState.highlightScannerResult then
+        ImGui.EndDisabled()
+    end
+    ImGui.Unindent(ImGui.GetFrameHeightWithSpacing())
+
+    state, changed = ImGui.Checkbox('Put all area nodes at the end of the results', userState.pushAreaNodesToTheEnd)
+    if changed then
+        userState.pushAreaNodesToTheEnd = state
+    end
+
+    ImGui.Spacing()
+    ImGui.Spacing()
+    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+    ImGui.SetWindowFontScale(0.85)
+    ImGui.Text('LOOKUP')
+    ImGui.SetWindowFontScale(1.0)
+    ImGui.PopStyleColor()
+    ImGui.Separator()
+    ImGui.Spacing()
+
+    state, changed = ImGui.Checkbox('Highlight lookup target', userState.highlightLookupResult)
+    if changed then
+        userState.highlightLookupResult = state
+    end
+
+    ImGui.Spacing()
+    ImGui.Spacing()
+    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+    ImGui.SetWindowFontScale(0.85)
+    ImGui.Text('HIGHLIGHTING')
+    ImGui.SetWindowFontScale(1.0)
+    ImGui.PopStyleColor()
+    ImGui.Separator()
+    ImGui.Spacing()
+
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Color theme:')
     ImGui.SameLine()
     ImGui.SetNextItemWidth(viewStyle.settingsShortComboRowWidth - ImGui.GetCursorPosX())
     state, changed = ImGui.Combo('##HighlightColor', ColorScheme.values[userState.highlightColor] - 1, viewData.colorSchemeOptions, #viewData.colorSchemeOptions)
@@ -1520,8 +1671,6 @@ local function drawSettingsContent()
         configureHighlight()
     end
     ImGui.EndGroup()
-
-    ImGui.Spacing()
 
     ImGui.BeginGroup()
     ImGui.AlignTextToFramePadding()
@@ -1540,7 +1689,7 @@ local function drawSettingsContent()
     ImGui.SameLine()
     ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
     state, changed = ImGui.Combo('##MarkerMode', MarkerMode.values[userState.markerMode] - 1, viewData.markerModeOptions, #viewData.markerModeOptions)
-    if markerModeChanged then
+    if changed then
         userState.markerMode = MarkerMode.values[state + 1]
     end
     ImGui.EndGroup()
@@ -1576,36 +1725,6 @@ local function drawSettingsContent()
     state, changed = ImGui.Checkbox('Show distances to the corners of bounding box', userState.showBoundingBoxDistances)
     if changed then
         userState.showBoundingBoxDistances = state
-    end
-
-    ImGui.Spacing()
-
-    state, changed = ImGui.Checkbox('Highlight inspected target', userState.highlightInspectorResult)
-    if changed then
-        userState.highlightInspectorResult = state
-    end
-
-    state, changed = ImGui.Checkbox('Highlight scanned target when hover over', userState.highlightScannerResult)
-    if changed then
-        userState.highlightScannerResult = state
-    end
-
-    ImGui.Indent(ImGui.GetFrameHeightWithSpacing())
-    if not userState.highlightScannerResult then
-        ImGui.BeginDisabled()
-    end
-    state, changed = ImGui.Checkbox('Keep last target highlighted when hover out', userState.keepLastHoveredResultHighlighted)
-    if changed then
-        userState.keepLastHoveredResultHighlighted = state
-    end
-    if not userState.highlightScannerResult then
-        ImGui.EndDisabled()
-    end
-    ImGui.Unindent(ImGui.GetFrameHeightWithSpacing())
-
-    state, changed = ImGui.Checkbox('Highlight lookup target', userState.highlightLookupResult)
-    if changed then
-        userState.highlightLookupResult = state
     end
 end
 
@@ -1884,131 +2003,36 @@ end
 local function drawInspectorWindow()
     ImGui.Begin('Red Hot Tools', viewStyle.overlayWindowFlags)
     ImGui.SetCursorPosY(ImGui.GetCursorPosY() - 2)
-    drawInspectorContent(false)
+    drawInspectorContent(true)
     ImGui.End()
 end
 
 local function drawMainWindow()
     if ImGui.Begin('Red Hot Tools', viewStyle.mainWindowFlags) then
         ImGui.BeginTabBar('Red Hot Tools TabBar')
-        local tabFlags
 
-		if ImGui.BeginTabItem(' Reload ') then
-            ImGui.Spacing()
+        local activeTool
+        local toolTabs = {
+            { id = Feature.Inspect, draw = drawInspectorContent },
+            { id = Feature.Scan, draw = drawScannerContent },
+            { id = Feature.Lookup, draw = drawLookupContent },
+            { id = Feature.Watch, draw = drawWatcherContent },
+            { id = Feature.Reload, draw = drawHotReloadContent },
+        }
 
-            --[[
-            ImGui.Text('Archives')
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-            ImGui.TextWrapped(
-                'Hot load archives from archive/pc/hot.\n' ..
-                'New archives will be moved to archive/pc/mod and loaded.\n' ..
-                'Existing archives will be unloaded and replaced.')
-            ImGui.PopStyleColor()
-            ImGui.Spacing()
-
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.dangerTextColor)
-            ImGui.Text('Not supported on game version 2.0+ yet')
-            ImGui.PopStyleColor()
-            ImGui.Spacing()
-
-            --ImGui.Checkbox('Watch for changes', true)
-
-            ImGui.PushStyleColor(ImGuiCol.Button, viewStyle.disabledButtonColor)
-            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, viewStyle.disabledButtonColor)
-            ImGui.PushStyleColor(ImGuiCol.ButtonActive, viewStyle.disabledButtonColor)
-            if ImGui.Button('Reload archives', viewStyle.windowWidth, viewStyle.buttonHeight) then
-                --RedHotTools.ReloadArchives()
-            end
-            ImGui.PopStyleColor(3)
-
-            ImGui.Spacing()
-            ImGui.Separator()
-            ImGui.Spacing()
-            --]]
-
-            ImGui.Text('Scripts')
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-            ImGui.TextWrapped('Hot load scripts from r6/scripts.')
-            ImGui.PopStyleColor()
-            ImGui.Spacing()
-
-            if ImGui.Button('Reload scripts', viewStyle.windowWidth, viewStyle.buttonHeight) then
-                RedHotTools.ReloadScripts()
+        for _, toolTab in ipairs(toolTabs) do
+            local tabLabel = ' ' .. toolTab.id .. ' '
+            local tabFlags = ImGuiTabItemFlags.None
+            if viewState.isFirstOpen and userState.activeTool == toolTab.id then
+                tabFlags = ImGuiTabItemFlags.SetSelected
             end
 
-            if isTweakXLFound then
+            if ImGui.BeginTabItem(tabLabel, tabFlags) then
+                activeTool = toolTab.id
                 ImGui.Spacing()
-                ImGui.Separator()
-                ImGui.Spacing()
-
-                ImGui.Text('Tweaks')
-                ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-                ImGui.TextWrapped('Hot load tweaks from r6/tweaks and scriptable tweaks.')
-                ImGui.PopStyleColor()
-                ImGui.Spacing()
-
-                if ImGui.Button('Reload tweaks', viewStyle.windowWidth, viewStyle.buttonHeight) then
-                    RedHotTools.ReloadTweaks()
-                end
+                toolTab.draw()
+                ImGui.EndTabItem()
             end
-
-			ImGui.EndTabItem()
-        end
-
-        tabFlags = ImGuiTabItemFlags.None
-        if viewState.isFirstOpen and userState.isInspectorOpen then
-            tabFlags = ImGuiTabItemFlags.SetSelected
-        end
-
-        if ImGui.BeginTabItem(' Inspect ', tabFlags) then
-            userState.isInspectorOpen = true
-            ImGui.Spacing()
-            drawInspectorContent(true)
-            ImGui.EndTabItem()
-        else
-            userState.isInspectorOpen = false
-        end
-
-        tabFlags = ImGuiTabItemFlags.None
-        if viewState.isFirstOpen and userState.isScannerOpen then
-            tabFlags = ImGuiTabItemFlags.SetSelected
-        end
-
-        if ImGui.BeginTabItem(' Scan ', tabFlags) then
-            userState.isScannerOpen = true
-            ImGui.Spacing()
-            drawScannerContent()
-            ImGui.EndTabItem()
-        else
-            userState.isScannerOpen = false
-        end
-
-        tabFlags = ImGuiTabItemFlags.None
-        if viewState.isFirstOpen and userState.isLookupOpen then
-            tabFlags = ImGuiTabItemFlags.SetSelected
-        end
-
-        if ImGui.BeginTabItem(' Lookup ', tabFlags) then
-            userState.isLookupOpen = true
-            ImGui.Spacing()
-            drawLookupContent()
-            ImGui.EndTabItem()
-        else
-            userState.isLookupOpen = false
-        end
-
-        tabFlags = ImGuiTabItemFlags.None
-        if viewState.isFirstOpen and userState.isWatcherOpen then
-            tabFlags = ImGuiTabItemFlags.SetSelected
-        end
-
-        if ImGui.BeginTabItem(' Watch ', tabFlags) then
-            userState.isWatcherOpen = true
-            ImGui.Spacing()
-            drawWatcherContent()
-            ImGui.EndTabItem()
-        else
-            userState.isWatcherOpen = false
         end
 
 		if ImGui.BeginTabItem(' Settings ') then
@@ -2017,6 +2041,7 @@ local function drawMainWindow()
             ImGui.EndTabItem()
         end
 
+        userState.activeTool = activeTool
         viewState.isFirstOpen = false
     end
     ImGui.End()
@@ -2038,7 +2063,7 @@ registerForEvent('onDraw', function()
         return
     end
 
-    if not viewState.isConsoleOpen and not userState.isInspectorOSD then
+    if not viewState.isConsoleOpen and not userState.showOnScreenDisplay then
         return
     end
 
@@ -2051,7 +2076,7 @@ registerForEvent('onDraw', function()
 
     if viewState.isConsoleOpen then
         drawMainWindow()
-    elseif userState.isInspectorOSD then
+    elseif userState.showOnScreenDisplay then
         drawInspectorWindow()
     end
 
@@ -2062,13 +2087,10 @@ end)
 
 registerHotkey('ToggleInspector', 'Toggle inspector window', function()
     if not viewState.isConsoleOpen then
-        userState.isInspectorOSD = not userState.isInspectorOSD
+        userState.showOnScreenDisplay = not userState.showOnScreenDisplay
 
-        if userState.isInspectorOSD then
-            userState.isInspectorOpen = true
-            userState.isScannerOpen = false
-            userState.isLookupOpen = false
-            userState.isWatcherOpen = false
+        if userState.showOnScreenDisplay then
+            userState.activeTool = Feature.Inspect
             viewState.isFirstOpen = true
         end
 
@@ -2077,8 +2099,31 @@ registerHotkey('ToggleInspector', 'Toggle inspector window', function()
 end)
 
 registerHotkey('ToggleNodeState', 'Toggle state of inspected node', function()
-    if not viewState.isConsoleOpen and userState.isInspectorOSD then
+    if not viewState.isConsoleOpen and userState.showOnScreenDisplay then
         toggleNodeVisibility(inspector.target)
+    end
+end)
+
+registerHotkey('CycleTargetingMode', 'Cycle targeting modes', function()
+    if not viewState.isConsoleOpen and userState.showOnScreenDisplay then
+        local nextModeIndex = TargetingMode.values[userState.targetingMode] + 1
+        if nextModeIndex > #TargetingMode.values then
+            nextModeIndex = 1
+        end
+        userState.targetingMode = TargetingMode.values[nextModeIndex]
+        saveUserState()
+    end
+end)
+
+registerHotkey('CycleHighlightColor', 'Cycle highlight colors', function()
+    if not viewState.isConsoleOpen and userState.showOnScreenDisplay then
+        local nextColorIndex = ColorScheme.values[userState.highlightColor] + 1
+        if nextColorIndex > #ColorScheme.values then
+            nextColorIndex = 1
+        end
+        userState.highlightColor = ColorScheme.values[nextColorIndex]
+        configureHighlight()
+        saveUserState()
     end
 end)
 
@@ -2096,16 +2141,16 @@ registerForEvent('onInit', function()
 
         Cron.Every(0.2, function()
             if viewState.isConsoleOpen then
-                if userState.isInspectorOpen then
+                if userState.activeTool == Feature.Inspect then
                     updateInspector()
-                elseif userState.isScannerOpen then
+                elseif userState.activeTool == Feature.Scan then
                     updateScanner(viewState.scannerFilter)
-                elseif userState.isLookupOpen then
+                elseif userState.activeTool == Feature.Lookup then
                     updateLookup(viewState.lookupQuery)
-                elseif userState.isWatcherOpen then
+                elseif userState.activeTool == Feature.Watch then
                     updateWatcher()
                 end
-            elseif userState.isInspectorOSD then
+            elseif userState.showOnScreenDisplay then
                 updateInspector()
             end
             updateHighlights()

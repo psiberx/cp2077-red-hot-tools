@@ -45,4 +45,11 @@ inline bool IsValidBox(const Box& aBox)
 {
     return aBox.Max.X >= aBox.Min.X && aBox.Max.Y >= aBox.Min.Y && aBox.Max.Z >= aBox.Min.Z;
 }
+
+inline bool IsZeroBox(const Box& aBox)
+{
+    return aBox.Max.X == 0 && aBox.Min.X == 0 &&
+           aBox.Max.Y == 0 && aBox.Min.Y == 0 &&
+           aBox.Max.Z == 0 && aBox.Min.Z == 0;
+}
 }

@@ -42,7 +42,7 @@ void App::ResourceRegistry::OnCreateResourcePath(Red::ResourcePath* aPath, const
 
 void App::ResourceRegistry::OnStreamingSectorPrepare(Red::worldStreamingSector* aSector, uint64_t)
 {
-    std::scoped_lock _(s_nodeStaticDataLock, s_nodeRuntimeDataLock);
+    std::scoped_lock _(s_nodeStaticDataLock, s_nodeInstanceDataLock);
     auto& buffer = Raw::StreamingSector::NodeBuffer::Ref(aSector);
     auto instanceCount = static_cast<uint32_t>(buffer.nodeSetups.end() - buffer.nodeSetups.begin());
     auto nodeCount = buffer.nodes.size;
@@ -84,7 +84,7 @@ void App::ResourceRegistry::OnStreamingSectorPrepare(Red::worldStreamingSector* 
 
 void App::ResourceRegistry::OnStreamingSectorDestruct(Red::worldStreamingSector* aSector)
 {
-    std::scoped_lock _(s_nodeStaticDataLock, s_nodeRuntimeDataLock);
+    std::scoped_lock _(s_nodeStaticDataLock, s_nodeInstanceDataLock);
     auto& buffer = Raw::StreamingSector::NodeBuffer::Ref(aSector);
 
     size_t erased = 0;
@@ -93,6 +93,11 @@ void App::ResourceRegistry::OnStreamingSectorDestruct(Red::worldStreamingSector*
         if (auto& nodeInstance = s_nodeSetupToRuntimeDataMap[&nodeSetup].nodeInstance)
         {
             s_nodeInstanceToNodeSetupMap.erase(nodeInstance.instance);
+        }
+
+        for (const auto& watcher : s_watchers)
+        {
+            watcher->OnNodeStreamedOut(reinterpret_cast<uint64_t>(&nodeSetup));
         }
 
         s_nodeSetupToStaticDataMap.erase(&nodeSetup);
@@ -109,9 +114,14 @@ void App::ResourceRegistry::OnStreamingSectorDestruct(Red::worldStreamingSector*
 void App::ResourceRegistry::OnNodeInstanceInitialize(Red::worldINodeInstance* aNodeInstance,
                                                      Red::CompiledNodeInstanceSetupInfo* aNodeSetup, void*)
 {
-    std::unique_lock _(s_nodeRuntimeDataLock);
+    std::unique_lock _(s_nodeInstanceDataLock);
     s_nodeSetupToRuntimeDataMap[aNodeSetup].nodeInstance = Red::AsWeakHandle(aNodeInstance);
     s_nodeInstanceToNodeSetupMap[aNodeInstance] = aNodeSetup;
+
+    for (const auto& watcher : s_watchers)
+    {
+        watcher->OnNodeStreamedIn(reinterpret_cast<uint64_t>(aNodeSetup), aNodeSetup->node, aNodeInstance, aNodeSetup);
+    }
 }
 
 std::string_view App::ResourceRegistry::ResolveResorcePath(Red::ResourcePath aPath)
@@ -161,7 +171,7 @@ App::WorldNodeStaticData App::ResourceRegistry::GetNodeStaticData(const Red::Wea
     if (!aNode)
         return {};
 
-    std::shared_lock _(s_nodeRuntimeDataLock);
+    std::shared_lock _(s_nodeInstanceDataLock);
     const auto& it = s_nodeInstanceToNodeSetupMap.find(aNode.instance);
 
     if (it == s_nodeInstanceToNodeSetupMap.end())
@@ -170,12 +180,12 @@ App::WorldNodeStaticData App::ResourceRegistry::GetNodeStaticData(const Red::Wea
     return GetNodeStaticData(it.value());
 }
 
-App::WorldNodeRuntimeData App::ResourceRegistry::GetNodeRuntimeData(Red::CompiledNodeInstanceSetupInfo* aNodeSetup)
+App::WorldNodeInstanceData App::ResourceRegistry::GetNodeRuntimeData(Red::CompiledNodeInstanceSetupInfo* aNodeSetup)
 {
     if (!aNodeSetup)
         return {};
 
-    std::shared_lock _(s_nodeRuntimeDataLock);
+    std::shared_lock _(s_nodeInstanceDataLock);
     const auto& it = s_nodeSetupToRuntimeDataMap.find(aNodeSetup);
 
     if (it == s_nodeSetupToRuntimeDataMap.end())
@@ -184,13 +194,13 @@ App::WorldNodeRuntimeData App::ResourceRegistry::GetNodeRuntimeData(Red::Compile
     return it.value();
 }
 
-App::WorldNodeRuntimeData App::ResourceRegistry::GetNodeRuntimeData(
+App::WorldNodeInstanceData App::ResourceRegistry::GetNodeRuntimeData(
     const Red::WeakHandle<Red::worldINodeInstance>& aNode)
 {
     if (!aNode)
         return {};
 
-    std::shared_lock _(s_nodeRuntimeDataLock);
+    std::shared_lock _(s_nodeInstanceDataLock);
     const auto& it = s_nodeInstanceToNodeSetupMap.find(aNode.instance);
 
     if (it == s_nodeInstanceToNodeSetupMap.end())
@@ -199,11 +209,11 @@ App::WorldNodeRuntimeData App::ResourceRegistry::GetNodeRuntimeData(
     return GetNodeRuntimeData(it.value());
 }
 
-Core::Vector<App::WorldNodeRuntimeData> App::ResourceRegistry::GetAllStreamedNodes()
+Core::Vector<App::WorldNodeInstanceData> App::ResourceRegistry::GetAllStreamedNodes()
 {
-    Core::Vector<WorldNodeRuntimeData> nodes;
+    Core::Vector<WorldNodeInstanceData> nodes;
     {
-        std::shared_lock _(s_nodeRuntimeDataLock);
+        std::shared_lock _(s_nodeInstanceDataLock);
         std::transform(s_nodeSetupToRuntimeDataMap.begin(), s_nodeSetupToRuntimeDataMap.end(),
                        std::back_inserter(nodes), [](auto& v) { return v.second; });
     }
@@ -220,8 +230,18 @@ void App::ResourceRegistry::ClearRuntimeData()
         s_nodeSetupToStaticDataMap.clear();
     }
     {
-        std::unique_lock _(s_nodeRuntimeDataLock);
+        std::unique_lock _(s_nodeInstanceDataLock);
         s_nodeSetupToRuntimeDataMap.clear();
         s_nodeInstanceToNodeSetupMap.clear();
     }
+}
+
+void App::ResourceRegistry::RegisterWatcher(App::INodeInstanceWatcher* aWatcher)
+{
+    s_watchers.push_back(aWatcher);
+}
+
+void App::ResourceRegistry::UnregisterWatcher(App::INodeInstanceWatcher* aWatcher)
+{
+    s_watchers.erase(std::remove(s_watchers.begin(), s_watchers.end(), aWatcher), s_watchers.end());
 }

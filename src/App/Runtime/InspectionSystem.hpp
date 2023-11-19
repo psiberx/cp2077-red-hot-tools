@@ -4,7 +4,7 @@
 
 namespace App
 {
-struct PhysicsTraceObject
+struct PhysicsTraceResultObject
 {
     Red::WeakHandle<Red::worldINodeInstance> nodeInstance;
     Red::WeakHandle<Red::worldNode> nodeDefinition;
@@ -13,18 +13,46 @@ struct PhysicsTraceObject
     bool resolved;
 };
 
-struct WorldNodeSceneData
+struct WorldNodeStreamingRequest
+{
+    bool streaming;
+    uint64_t hash;
+    Red::WeakHandle<Red::worldINodeInstance> nodeInstance;
+    Red::WeakHandle<Red::worldNode> nodeDefinition;
+    Red::CompiledNodeInstanceSetupInfo* nodeSetup;
+};
+
+struct WorldNodeStaticSceneData
+{
+    Red::WeakHandle<Red::worldINodeInstance> nodeInstance;
+    Red::WeakHandle<Red::worldNode> nodeDefinition;
+    Red::CompiledNodeInstanceSetupInfo* nodeSetup;
+    Core::Vector<Red::Box> boundingBoxes;
+    bool isStaticMesh{false};
+};
+
+struct WorldNodeRuntimeSceneData
 {
     Red::WeakHandle<Red::worldINodeInstance> nodeInstance;
     Red::WeakHandle<Red::worldNode> nodeDefinition;
     Red::Transform transform;
     Red::Box bounds;
-    // uint64_t hash;
+    float distance;
+    uint64_t hash;
+    bool resolved;
 };
 
-class InspectionSystem : public Red::IGameSystem
+class InspectionSystem
+    : public Red::IGameSystem
+    , public INodeInstanceWatcher
 {
 public:
+    static constexpr auto FrustumUpdateFreq = 0.25f;
+    static constexpr auto FrustumMaxDistance = 200.0f;
+    static constexpr auto RayCastingMaxDistance = 100.0f;
+
+    InspectionSystem() = default;
+
     Red::CString ResolveResourcePath(uint64_t aResourceHash);
 
     WorldNodeStaticData ResolveSectorDataFromNodeID(uint64_t aNodeID);
@@ -36,10 +64,12 @@ public:
 
     Red::DynArray<Red::Handle<Red::IComponent>> GetComponents(const Red::WeakHandle<Red::Entity>& aEntity);
     Red::ResourceAsyncReference<> GetTemplatePath(const Red::WeakHandle<Red::Entity>& aEntity);
-    PhysicsTraceObject GetPhysicsTraceObject(Red::ScriptRef<Red::physicsTraceResult>& aTrace);
+    PhysicsTraceResultObject GetPhysicsTraceObject(Red::ScriptRef<Red::physicsTraceResult>& aTrace);
 
-    WorldNodeSceneData FindStreamedWorldNode(uint64_t aNodeID);
-    Red::DynArray<WorldNodeSceneData> GetStreamedWorldNodesInFrustum();
+    WorldNodeRuntimeSceneData FindStreamedWorldNode(uint64_t aNodeID);
+    Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedWorldNodesInFrustum();
+    Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedWorldNodesInCrosshair();
+
     bool SetNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aVisible);
     bool ToggleNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance);
 
@@ -54,19 +84,42 @@ public:
 private:
     void OnWorldAttached(Red::world::RuntimeScene*) override;
     void OnAfterWorldDetach() override;
+    void OnRegisterUpdates(Red::UpdateRegistrar* aRegistrar) override;
+
+    void OnNodeStreamedIn(uint64_t aNodeHash,
+                          Red::worldNode* aNodeDefinition,
+                          Red::worldINodeInstance* aNodeInstance,
+                          Red::CompiledNodeInstanceSetupInfo* aNodeSetup) override;
+    void OnNodeStreamedOut(uint64_t aNodeHash) override;
+
+    void UpdateStreamedNodes();
+    void UpdateFrustumNodes();
 
     bool UpdateNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aToggle, bool aVisible);
     template<typename TRenderProxy>
     bool SetRenderProxyVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aToggle, bool aVisible);
     template<typename TRenderProxy>
     bool SetRenderProxyHighlightEffect(const Red::Handle<Red::worldINodeInstance>& aNodeInstance,
-                                    const Red::Handle<Red::entRenderHighlightEvent>& aEffect);
+                                       const Red::Handle<Red::entRenderHighlightEvent>& aEffect);
     bool SetEntityHighlightEffect(const Red::Handle<Red::entEntity>& aEntity,
-                                      const Red::Handle<Red::entRenderHighlightEvent>& aEffect);
+                                  const Red::Handle<Red::entRenderHighlightEvent>& aEffect);
 
     Core::SharedPtr<ResourceRegistry> m_resourceRegistry;
     Red::worldNodeInstanceRegistry* m_nodeRegistry;
     Red::gameICameraSystem* m_cameraSystem;
+
+    std::shared_mutex m_pendingNodesLock;
+    Core::Vector<WorldNodeStreamingRequest> m_pendingNodes;
+
+    std::shared_mutex m_streamedNodesLock;
+    Core::Map<uint64_t, WorldNodeStaticSceneData> m_streamedNodes;
+
+    std::shared_mutex m_frustumNodesLock;
+    Red::DynArray<WorldNodeRuntimeSceneData> m_frustumNodes;
+    Red::DynArray<WorldNodeRuntimeSceneData> m_targetedNodes;
+
+    float m_nodesUpdateDelay;
+    volatile bool m_nodesUpdating;
 
     RTTI_IMPL_TYPEINFO(App::InspectionSystem);
     RTTI_IMPL_ALLOCATOR();
@@ -83,15 +136,17 @@ RTTI_DEFINE_CLASS(App::WorldNodeStaticData, {
     RTTI_PROPERTY(nodeType);
 });
 
-RTTI_DEFINE_CLASS(App::WorldNodeSceneData, {
+RTTI_DEFINE_CLASS(App::WorldNodeRuntimeSceneData, {
     RTTI_PROPERTY(nodeInstance);
     RTTI_PROPERTY(nodeDefinition);
     RTTI_PROPERTY(transform);
     RTTI_PROPERTY(bounds);
-    // RTTI_PROPERTY(hash);
+    RTTI_PROPERTY(distance);
+    RTTI_PROPERTY(resolved);
+    RTTI_PROPERTY(hash);
 });
 
-RTTI_DEFINE_CLASS(App::PhysicsTraceObject, {
+RTTI_DEFINE_CLASS(App::PhysicsTraceResultObject, {
     RTTI_PROPERTY(nodeInstance);
     RTTI_PROPERTY(nodeDefinition);
     RTTI_PROPERTY(entity);
@@ -106,14 +161,15 @@ RTTI_DEFINE_CLASS(App::InspectionSystem, {
     RTTI_METHOD(ResolveNodeRefFromNodeHash);
     RTTI_METHOD(ComputeNodeRefHash);
     RTTI_METHOD(ResolveCommunityIDFromEntityID);
-    RTTI_METHOD(GetComponents);
-    RTTI_METHOD(GetTemplatePath);
-    RTTI_METHOD(GetPhysicsTraceObject);
     RTTI_METHOD(FindStreamedWorldNode);
     RTTI_METHOD(GetStreamedWorldNodesInFrustum);
+    RTTI_METHOD(GetStreamedWorldNodesInCrosshair);
     RTTI_METHOD(SetNodeVisibility);
     RTTI_METHOD(ToggleNodeVisibility);
     RTTI_METHOD(ApplyHighlightEffect);
+    RTTI_METHOD(GetComponents);
+    RTTI_METHOD(GetTemplatePath);
+    RTTI_METHOD(GetPhysicsTraceObject);
     RTTI_METHOD(ProjectWorldPoint);
     RTTI_METHOD(GetTypeName);
     RTTI_METHOD(IsInstanceOf);

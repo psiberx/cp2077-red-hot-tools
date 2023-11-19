@@ -4,9 +4,10 @@ namespace Red
 {
 enum FrustumResult
 {
-    Outside = 0,
-    Intersecting = 1,
-    Inside = 2,
+    Undefined = 0,
+    Outside = 1,
+    Intersecting = 2,
+    Inside = 3,
 };
 
 struct Frustum
@@ -77,7 +78,15 @@ namespace Raw::CameraSystem
 {
 using Camera = Core::OffsetPtr<0x60, Red::Camera>;
 
+constexpr auto GetCameraPosition = Core::RawVFunc<
+    /* addr = */ 0x218,
+    /* type = */ void* (Red::gameICameraSystem::*)(Red::Vector3& aOut)>();
+
 constexpr auto GetCameraFrustum = Core::RawVFunc<
     /* addr = */ 0x250,
     /* type = */ void (Red::gameICameraSystem::*)(Red::Frustum& aOut)>();
+
+constexpr auto GetCameraForward = Core::RawVFunc<
+    /* addr = */ 0x290,
+    /* type = */ void* (Red::gameICameraSystem::*)(Red::Vector4& aOut)>();
 }
