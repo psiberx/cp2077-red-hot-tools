@@ -509,11 +509,6 @@ Red::Vector4 App::InspectionSystem::ProjectWorldPoint(const Red::Vector4& aPoint
     Red::Vector4 result{};
     Raw::Camera::ProjectPoint(camera, result, point);
 
-    if (result.W > 0)
-    {
-        *reinterpret_cast<__m128*>(&result) = _mm_div_ps(*reinterpret_cast<__m128*>(&result), _mm_set1_ps(result.W));
-    }
-
     return result;
 }
 

@@ -12,6 +12,33 @@ local function isNotEmpty(value)
     return value ~= nil and value ~= 0 and value ~= '' and value ~= 'None'
 end
 
+local function clamp(value, rangeMin, rangeMax)
+    return math.max(rangeMin, math.min(rangeMax, value))
+end
+
+local function opacity(abgr)
+    return bit32.band(bit32.rshift(abgr, 24), 0xFF)
+end
+
+local function fade(abgr, a)
+    return bit32.bor(bit32.lshift(bit32.band(a, 0xFF), 24), bit32.band(abgr, 0xFFFFFF))
+end
+
+local function insideBox(point, box)
+    return point.x >= box.Min.x and point.y >= box.Min.y and point.z >= box.Min.z
+        and point.x <= box.Max.x and point.y <= box.Max.y and point.z <= box.Max.z
+end
+
+local function enum(...)
+    local map = { values = {} }
+    for index, value in ipairs({...}) do
+        map[value] = value
+        map.values[index] = value
+        map.values[value] = index
+    end
+    return map
+end
+
 -- App --
 
 local isPluginFound = false
@@ -32,19 +59,52 @@ local function initializeEnvironment()
     inspectionSystem = Game.GetInspectionSystem()
 end
 
+-- App :: User State --
+
+local ColorScheme = enum('Green', 'Red', 'Yellow', 'White', 'Shimmer')
+local OutlineMode = enum('ForSupportedObjects', 'Never')
+local MarkerMode = enum('Always', 'WhenOutlineIsUnsupported', 'Never')
+local BoundingBoxMode = enum('ForAreaNodes', 'Never')
+
+local userState = {}
+local userStateSchema = {
+    isInspectorOSD = { type = 'boolean', default = false },
+    isInspectorOpen = { type = 'boolean', default = false },
+    isScannerOpen = { type = 'boolean', default = false },
+    isLookupOpen = { type = 'boolean', default = false },
+    isWatcherOpen = { type = 'boolean', default = false },
+    scannerDistance = { type = 'number', default = 5.0 },
+    highlightColor = { type = ColorScheme, default = ColorScheme.Red },
+    outlineMode = { type = OutlineMode, default = OutlineMode.ForSupportedObjects },
+    markerMode = { type = MarkerMode, default = MarkerMode.WhenOutlineIsUnsupported },
+    boundingBoxMode = { type = BoundingBoxMode, default = BoundingBoxMode.Never },
+    highlightInspectorResult = { type = 'boolean', default = true },
+    highlightScannerResult = { type = 'boolean', default = true },
+    highlightLookupResult = { type = 'boolean', default = false },
+    keepLastHoveredResultHighlighted = { type = 'boolean', default = true },
+}
+
+local function initializeUserState()
+    PersistentState.Initialize('.state', userState, userStateSchema)
+end
+
+local function saveUserState()
+    PersistentState.Flush()
+end
+
 -- App :: Targeting --
 
 local collisionGroups = {
     { name = 'Static', threshold = 0.0, tolerance = 0.2 },
+    { name = 'Dynamic', threshold = 0.0, tolerance = 0.0 },
     --{ name = 'Cloth', threshold = 0.2, tolerance = 0.0 },
     --{ name = 'Player', threshold = 0.2, tolerance = 0.0 },
-    { name = 'AI', threshold = 0.0, tolerance = 0.0 },
-    { name = 'Dynamic', threshold = 0.0, tolerance = 0.0 },
+    --{ name = 'AI', threshold = 0.0, tolerance = 0.0 },
     { name = 'Vehicle', threshold = 0.0, tolerance = 0.0 },
     --{ name = 'Tank', threshold = 0.0, tolerance = 0.0 },
     { name = 'Destructible', threshold = 0.0, tolerance = 0.0 },
     { name = 'Terrain', threshold = 0.0, tolerance = 0.0 },
-    --{ name = 'Collider', threshold = 0.0, tolerance = 0.0 },
+    { name = 'Collider', threshold = 0.0, tolerance = 0.0 },
     --{ name = 'Particle', threshold = 0.0, tolerance = 0.0 },
     --{ name = 'Ragdoll', threshold = 0.0, tolerance = 0.0 },
     --{ name = 'Ragdoll Inner', threshold = 0.0, tolerance = 0.0 },
@@ -67,34 +127,65 @@ local collisionGroups = {
     --{ name = 'NPCCollision', threshold = 0.0, tolerance = 0.0 },
 }
 
-local function getLookAtTarget(maxDistance)
+local function getCameraData(distance)
 	local player = GetPlayer()
 
 	if not IsDefined(player) or IsDefined(GetMountedVehicle(player)) then
         return nil
 	end
 
-	if not maxDistance then
-		maxDistance = 100
+    local position, forward = targetingSystem:GetCrosshairData(player)
+    local destination = position
+
+    if distance ~= nil then
+        destination = Vector4.new(
+            position.x + forward.x * distance,
+            position.y + forward.y * distance,
+            position.z + forward.z * distance,
+            position.w
+        )
+    end
+
+    return {
+        position = position,
+        forward = forward,
+        destination = destination,
+        instigator = Ref.Weak(player)
+    }
+end
+
+local function getLookAtTarget(maxDistance)
+	local camera = getCameraData(maxDistance or 100)
+
+	if not camera then
+        return
 	end
 
-	local from, forward = targetingSystem:GetCrosshairData(player)
-	local to = Vector4.new(
-		from.x + forward.x * maxDistance,
-		from.y + forward.y * maxDistance,
-		from.z + forward.z * maxDistance,
-		from.w
-	)
+    local results = {}
 
-	local results = {}
+	local entity = targetingSystem:GetLookAtObject(camera.instigator, true, false)
+	if IsDefined(entity) then
+	    local target = {
+	        resolved = true,
+	        entity = Ref.Weak(entity),
+	        hash = inspectionSystem:GetObjectHash(entity),
+	    }
+
+        local distance = Vector4.Distance(camera.position, ToVector4(entity:GetWorldPosition()))
+
+        table.insert(results, {
+            distance = distance,
+            target = target,
+            group = collisionGroups[2],
+        })
+	end
 
 	for _, group in ipairs(collisionGroups) do
-		local success, trace = spatialQuerySystem:SyncRaycastByCollisionGroup(from, to, group.name, false, false)
-
+		local success, trace = spatialQuerySystem:SyncRaycastByCollisionGroup(camera.position, camera.destination, group.name, false, false)
 		if success then
 			local target = inspectionSystem:GetPhysicsTraceObject(trace)
 			if target.resolved then
-			    local distance = Vector4.Distance(from, ToVector4(trace.position))
+			    local distance = Vector4.Distance(camera.position, ToVector4(trace.position))
 			    if distance > group.threshold then
                     table.insert(results, {
                         distance = distance,
@@ -120,6 +211,150 @@ local function getLookAtTarget(maxDistance)
 	end
 
 	return nearest.target, nearest.group.name, nearest.distance
+end
+
+-- App :: Highlighting --
+
+local highlight = {
+    target = nil,
+    pending = nil,
+    projections = {},
+    color = 0,
+    outline = 0,
+}
+
+local shimmer = {
+    steps = { 1, 5, 3, 4 },
+    reverse = false,
+    state = 1,
+    tick = 1,
+    delay = 1,
+}
+
+local colorMapping = {
+    [ColorScheme.Green] = 0xFF32FF1D,
+    [ColorScheme.Red] = 0xFF050FFF,
+    [ColorScheme.Yellow] = 0xFFF0B537,
+    [ColorScheme.White] = 0xFFFFFFFF,
+    [ColorScheme.Shimmer] = 0xFF0090FF,
+}
+
+local outlineMapping = {
+    [ColorScheme.Green] = 1,
+    [ColorScheme.Red] = 2,
+    [ColorScheme.Yellow] = 5,
+    [ColorScheme.White] = 7,
+    [ColorScheme.Shimmer] = 0,
+}
+
+local function configureHighlight()
+    highlight.color = colorMapping[userState.highlightColor]
+    highlight.outline = outlineMapping[userState.highlightColor]
+
+    if userState.highlightColor == ColorScheme.Shimmer then
+        shimmer.state = 1
+        shimmer.reverse = false
+        highlight.outline = shimmer.steps[shimmer.state]
+    end
+end
+
+local function applyHighlightEffect(target, enabled)
+    local effect = entRenderHighlightEvent.new({
+        seeThroughWalls = true,
+        outlineIndex = enabled and highlight.outline or 0,
+        opacity = 1.0
+    })
+
+    if IsDefined(target.entity) then
+        return inspectionSystem:ApplyHighlightEffect(target.entity, effect)
+    end
+
+    if IsDefined(target.nodeInstance) then
+        return inspectionSystem:ApplyHighlightEffect(target.nodeInstance, effect)
+    end
+
+    return false
+end
+
+local function enableHighlight(target)
+    local isOutlineActive = false
+    if userState.outlineMode == OutlineMode.ForSupportedObjects then
+        isOutlineActive = applyHighlightEffect(target, true)
+
+        if isOutlineActive and userState.highlightColor == ColorScheme.Shimmer then
+            if shimmer.tick == shimmer.delay then
+                if shimmer.reverse then
+                    shimmer.state = shimmer.state - 1
+                    if shimmer.state == 1 then
+                        shimmer.reverse = false
+                    end
+                else
+                    shimmer.state = shimmer.state + 1
+                    if shimmer.state == #shimmer.steps then
+                        shimmer.reverse = true
+                    end
+                end
+                shimmer.tick = 1
+            else
+                shimmer.tick = shimmer.tick + 1
+            end
+
+            highlight.outline = shimmer.steps[shimmer.state]
+        end
+    end
+
+    local showMarker = false
+    if userState.markerMode == MarkerMode.Always then
+        showMarker = true
+    elseif userState.markerMode == MarkerMode.WhenOutlineIsUnsupported and not isOutlineActive then
+        showMarker = true
+    end
+
+    local showBoundindBox = false
+    if userState.boundingBoxMode == BoundingBoxMode.ForAreaNodes and target.isAreaNode then
+        showBoundindBox = true
+    end
+
+    if showMarker or showBoundindBox then
+        highlight.projections[target.hash] = {
+            target = target,
+            color = highlight.color,
+            position = showMarker,
+            bounds = showBoundindBox,
+        }
+    else
+        highlight.projections[target.hash] = nil
+    end
+end
+
+local function disableHighlight(target)
+    applyHighlightEffect(target, false)
+    highlight.projections[target.hash] = nil
+end
+
+local function highlightTarget(target)
+    highlight.pending = target
+end
+
+local function updateHighlights()
+    if not highlight.pending then
+        if highlight.target then
+            disableHighlight(highlight.target)
+            highlight.target = nil
+        end
+        return
+    end
+
+    if highlight.target then
+        if highlight.target.hash ~= highlight.pending.hash then
+            disableHighlight(highlight.target)
+        end
+    end
+
+    highlight.target = highlight.pending
+    highlight.pending = nil
+
+    enableHighlight(highlight.target)
 end
 
 -- App :: Resolving --
@@ -168,7 +403,6 @@ end
 local function fillTargetEntityData(target, data)
     if IsDefined(target.entity) then
         local entity = target.entity
-        data.entity = entity
         data.entityID = entity:GetEntityID().hash
         data.entityType = entity:GetClassName().value
 
@@ -190,6 +424,7 @@ local function fillTargetEntityData(target, data)
         data.hasComponents = (#data.components > 0)
     end
 
+    data.entity = target.entity
     data.isEntity = IsDefined(data.entity)
 end
 
@@ -212,16 +447,32 @@ local function fillTargetNodeData(target, data)
 
     if IsDefined(target.nodeDefinition) then
         local node = target.nodeDefinition
-        data.nodeDefinition = target.nodeDefinition
         data.nodeType = inspectionSystem:GetTypeName(node).value
 
-        if inspectionSystem:IsInstanceOf(node, 'worldMeshNode') or inspectionSystem:IsInstanceOf(node, 'worldInstancedMeshNode') then
+        if inspectionSystem:IsInstanceOf(node, 'worldMeshNode')
+        or inspectionSystem:IsInstanceOf(node, 'worldInstancedMeshNode')
+        or inspectionSystem:IsInstanceOf(node, 'worldBendedMeshNode')
+        or inspectionSystem:IsInstanceOf(node, 'worldFoliageNode')
+        or inspectionSystem:IsInstanceOf(node, 'worldPhysicalDestructionNode') then
             data.meshPath = inspectionSystem:ResolveResourcePath(node.mesh.hash)
             data.meshAppearance = node.meshAppearance.value
         end
 
+        if inspectionSystem:IsInstanceOf(node, 'worldTerrainMeshNode') then
+            data.meshPath = inspectionSystem:ResolveResourcePath(node.meshRef.hash)
+        end
+
         if inspectionSystem:IsInstanceOf(node, 'worldStaticDecalNode') then
             data.materialPath = inspectionSystem:ResolveResourcePath(node.material.hash)
+        end
+
+        if inspectionSystem:IsInstanceOf(node, 'worldEffectNode') then
+            data.effectPath = inspectionSystem:ResolveResourcePath(node.effect.hash)
+        end
+
+        if inspectionSystem:IsInstanceOf(node, 'worldPopulationSpawnerNode') then
+            data.recordID = node.objectRecordId.value
+            data.appearanceName = node.appearanceName.value
         end
 
         if inspectionSystem:IsInstanceOf(node, 'worldEntityNode') then
@@ -240,7 +491,13 @@ local function fillTargetNodeData(target, data)
         data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(target.nodeID)
     end
 
+    data.nodeDefinition = target.nodeDefinition
+    data.nodeInstance = target.nodeInstance
+
     data.isNode = IsDefined(data.nodeInstance) or IsDefined(data.nodeDefinition) or isNotEmpty(data.nodeID)
+    data.isAreaNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldAreaShapeNode')
+    data.isEntityNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldEntityNode')
+    data.isVisibleNode = data.isNode and isNotEmpty(data.meshPath) or isNotEmpty(data.materialPath) or isNotEmpty(data.templatePath)
 end
 
 local function fillTargetDescription(_, data)
@@ -252,12 +509,17 @@ local function fillTargetDescription(_, data)
         elseif isNotEmpty(data.materialPath) then
             local resourceName = data.materialPath:match('\\([^\\]+)$')
             table.insert(description, resourceName)
+        elseif isNotEmpty(data.effectPath) then
+            local resourceName = data.effectPath:match('\\([^\\]+)$')
+            table.insert(description, resourceName)
         elseif isNotEmpty(data.templatePath) then
             local resourceName = data.templatePath:match('\\([^\\]+)$')
             table.insert(description, resourceName)
         elseif isNotEmpty(data.nodeRef) then
             local nodeAlias = data.nodeRef:match('(#?[^/]+)$')
             table.insert(description, nodeAlias)
+        elseif isNotEmpty(data.recordID) then
+            table.insert(description, data.recordID)
         elseif isNotEmpty(data.sectorPath) then
             local sectorName = data.sectorPath:match('\\([^\\.]+)%.')
             table.insert(description, sectorName)
@@ -286,11 +548,11 @@ local function expandTarget(target)
         local entityID = target.entity:GetEntityID().hash
         local nodeID
 
-        if entityID > 0xffffff then
+        if entityID > 0xFFFFFF then
             nodeID = entityID
         else
             local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(entityID)
-            if communityID.hash > 0xffffff then
+            if communityID.hash > 0xFFFFFF then
                 nodeID = communityID.hash
             end
         end
@@ -312,6 +574,14 @@ local function resolveTargetData(target)
     fillTargetDescription(target, data)
     fillTargetHash(target, data)
     return data
+end
+
+-- App :: Nodes --
+
+local function toggleNodeVisibility(target)
+    if target and IsDefined(target.nodeInstance) then
+        inspectionSystem:ToggleNodeVisibility(target.nodeInstance)
+    end
 end
 
 -- App :: Inspector --
@@ -351,6 +621,10 @@ end
 
 local function updateInspector()
     inspectTarget(getLookAtTarget())
+
+    if userState.highlightInspectorResult then
+        highlightTarget(inspector.result)
+    end
 end
 
 -- App :: Lookup --
@@ -360,6 +634,20 @@ local lookup = {
     result = nil,
     empty = true,
 }
+
+local function parseLookupHash(lookupQuery)
+    local lookupHex = lookupQuery:match('^0x([0-9A-F]+)$') or lookupQuery:match('^([0-9A-F]+)$')
+    if lookupHex ~= nil then
+        return loadstring('return 0x' .. lookupHex .. 'ULL', '')()
+    end
+
+    local lookupDec = lookupQuery:match('^(%d+)ULL$') or lookupQuery:match('^(%d+)$')
+    if lookupDec ~= nil then
+        return loadstring('return ' .. lookupDec .. 'ULL', '')()
+    end
+
+    return nil
+end
 
 local function lookupTarget(lookupQuery)
     if isEmpty(lookupQuery) then
@@ -374,23 +662,24 @@ local function lookupTarget(lookupQuery)
 
     local target = {}
 
-    local lookupHash = lookupQuery:match('^(%d+)ULL$') or lookupQuery:match('^(%d+)$')
+    local lookupHash = parseLookupHash(lookupQuery)
     if lookupHash ~= nil then
-        local hash = loadstring('return ' .. lookupHash .. 'ULL', '')()
-        target.resourceHash = hash
+        target.resourceHash = lookupHash
+        target.tdbidHash = lookupHash
+        target.nameHash = lookupHash
 
-        local entity = Game.FindEntityByID(EntityID.new({ hash = hash }))
+        local entity = Game.FindEntityByID(EntityID.new({ hash = lookupHash }))
         if IsDefined(entity) then
             target.entity = entity
         else
-            local streamingData = inspectionSystem:FindStreamedWorldNode(hash)
+            local streamingData = inspectionSystem:FindStreamedWorldNode(lookupHash)
             if IsDefined(streamingData.nodeInstance) then
                 target.nodeInstance = streamingData.nodeInstance
                 target.nodeDefinition = streamingData.nodeDefinition
             else
-                if hash <= 0xffffff then
-                    local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(hash)
-                    if communityID.hash > 0xffffff then
+                if lookupHash <= 0xFFFFFF then
+                    local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(lookupHash)
+                    if communityID.hash > 0xFFFFFF then
                         streamingData = inspectionSystem:FindStreamedWorldNode(communityID.hash)
                         if IsDefined(streamingData.nodeInstance) then
                             target.nodeInstance = streamingData.nodeInstance
@@ -420,50 +709,110 @@ local function lookupTarget(lookupQuery)
     local data = resolveTargetData(target)
 
     if isNotEmpty(target.resourceHash) then
-        data.resourcePath = inspectionSystem:ResolveResourcePath(target.resourceHash)
+        data.resolvedPath = inspectionSystem:ResolveResourcePath(target.resourceHash)
+    end
+
+    if isNotEmpty(target.tdbidHash) then
+		local length = math.floor(tonumber(target.tdbidHash / 0x100000000))
+		local hash = tonumber(target.tdbidHash - (length * 0x100000000))
+        local name = ToTweakDBID{ hash = hash, length = length }.value
+        if name and not name:match('^<') then
+            data.resolvedTDBID = name
+        end
+    end
+
+    if isNotEmpty(target.nameHash) then
+        local hi = tonumber(bit32.rshift(target.nameHash, 32))
+        local lo = tonumber(bit32.band(target.nameHash, 0xFFFFFFFF))
+        data.resolvedName = ToCName{ hash_hi = hi, hash_lo = lo }.value
     end
 
     lookup.result = data
-    lookup.empty = isEmpty(data.resourcePath) and isEmpty(data.entityID) and isEmpty(data.nodeID) and isEmpty(data.sectorPath)
+    lookup.empty = isEmpty(data.entityID) and isEmpty(data.nodeID) and isEmpty(data.sectorPath)
+        and isEmpty(data.resourcePath) and isEmpty(data.resolvedTDBID) and isEmpty(data.resolvedName)
     lookup.query = lookupQuery
 end
 
 local function updateLookup(lookupQuery)
     lookupTarget(lookupQuery)
+
+    if userState.highlightLookupResult then
+        highlightTarget(lookup.result)
+    end
 end
 
 -- App :: Scanner --
 
 local scanner = {
     requested = false,
+    distance = 0,
+    finished = false,
     results = {},
     filter = nil,
     filtered = {},
+    hovered = nil,
 }
 
-local function scanTargets(maxDistance)
-    local player = GetPlayer()
+local function resolveTargetPosition(camera, target)
+    if not target.bounds.Min:IsXYZZero() then
+        local distance = 0
+        if not insideBox(camera.position, target.bounds) then
+            distance = Vector4.DistanceToEdge(camera.position, target.bounds.Min, target.bounds.Max)
+        end
+        local position = Game['OperatorAdd;Vector4Vector4;Vector4'](target.bounds.Min, target.bounds:GetExtents())
+        return position, target.bounds, distance
+    end
 
-	if not IsDefined(player) or IsDefined(GetMountedVehicle(player)) then
+    if not target.transform.position:IsXYZZero() then
+        local distance = Vector4.Distance(camera.position, target.transform.position)
+        return target.transform.position, nil, distance
+    end
+
+    return nil, nil, 0xFFFF
+end
+
+local function requestScan(maxDistance)
+    scanner.distance = maxDistance
+    scanner.requested = true
+end
+
+local function resetHoveredResult()
+    scanner.hovered = nil
+end
+
+local function setHoveredResult(result)
+    scanner.hovered = result
+end
+
+local function scanTargets()
+    if not scanner.requested then
         return
+    end
+
+    scanner.requested = false
+
+	local camera = getCameraData()
+
+	if not camera then
+        scanner.results = {}
+        scanner.filter = nil
+        scanner.filtered = {}
+        scanner.hovered = nil
+        scanner.finished = true
+		return
 	end
 
-	if not maxDistance then
-		maxDistance = 2.5
-	end
-
-	local position, _ = targetingSystem:GetCrosshairData(player)
     local results = {}
 
-    for _, target in ipairs(inspectionSystem:GetStreamedWorldNodesInFrustum()) do
-        --local hit = Vector4.NearestPointOnEdge(position, target.bounds.Min, target.bounds.Max)
-        --local distance = Vector4.Distance(position, hit)
-        local distance = Vector4.Distance(position, target.transform.position)
-        if distance <= maxDistance then
+    local allNodes = inspectionSystem:GetStreamedWorldNodesInFrustum()
+    for _, target in ipairs(allNodes) do
+        local position, bounds, distance = resolveTargetPosition(camera, target)
+        if distance <= scanner.distance then
             local data = resolveTargetData(target)
             data.description = ('%s @ %.2fm'):format(data.description, distance)
             data.targetDistance = distance
-            data.worldPosition = target.transform.position
+            data.worldPosition = position
+            data.worldBounds = bounds
             table.insert(results, data)
         end
     end
@@ -475,37 +824,62 @@ local function scanTargets(maxDistance)
     scanner.results = results
     scanner.filter = nil
     scanner.filtered = results
-    scanner.requested = true
+    scanner.hovered = nil
+    scanner.finished = true
 end
 
-local function updateScanner(filter)
+local function filterTargets(filter)
     if isEmpty(filter) then
         scanner.filtered = scanner.results
         scanner.filter = nil
         return
     end
 
+    if scanner.filter == filter then
+        return
+    end
+
     local filtered = {}
 
-	local filterEsc = filter:upper():gsub('([^%w])', '%%%1')
-	local filterRe = filterEsc:gsub('%s+', '.* ') .. '.*'
+    local filterExact = filter:upper()
+    local filterEsc = filter:upper():gsub('([^%w])', '%%%1')
+    local filterRe = filterEsc:gsub('%s+', '.* ') .. '.*'
 
-    local fields = {
+    local gsubFields = {
         'nodeType',
         'nodeRef',
         'sectorPath',
         'meshPath',
         'materialPath',
+        'effectPath',
         'templatePath',
+        'recordID',
+    }
+
+    local exactFields = {
+        'instanceIndex',
     }
 
     for _, result in ipairs(scanner.results) do
-        for _, field in ipairs(fields) do
+        local match = false
+        for _, field in ipairs(gsubFields) do
             if isNotEmpty(result[field]) then
                 local value = result[field]:upper()
                 if value:find(filterEsc) or value:find(filterRe) then
                     table.insert(filtered, result)
+                    match = true
                     break
+                end
+            end
+        end
+        if not match then
+            for _, field in ipairs(exactFields) do
+                if isNotEmpty(result[field]) then
+                    local value = tostring(result[field]):upper()
+                    if value == filterExact then
+                        table.insert(filtered, result)
+                        break
+                    end
                 end
             end
         end
@@ -513,6 +887,15 @@ local function updateScanner(filter)
 
     scanner.filter = filter
     scanner.filtered = filtered
+end
+
+local function updateScanner(filter)
+    scanTargets()
+    filterTargets(filter)
+
+    if userState.highlightScannerResult then
+        highlightTarget(scanner.hovered)
+    end
 end
 
 -- App :: Watcher --
@@ -586,25 +969,6 @@ local function updateWatcher()
     end
 end
 
--- App :: User State --
-
-local userState = {
-    isInspectorOSD = false,
-    isInspectorOpen = false,
-    isScannerOpen = false,
-    isLookupOpen = false,
-    isWatcherOpen = false,
-    scannerDistance = 2.5,
-}
-
-local function initializeUserState()
-    PersistentState.Initialize('.state', userState)
-end
-
-local function saveUserState()
-    PersistentState.Flush()
-end
-
 -- GUI --
 
 local viewState = {
@@ -612,15 +976,35 @@ local viewState = {
     isConsoleOpen = false,
     scannerFilter = '',
     lookupQuery = '',
+}
+
+local viewData = {
     maxInputLen = 256,
 }
 
 local viewStyle = {
-    labelTextColor = 0xff9f9f9f,
-    mutedTextColor = 0xff9f9f9f,
-    dangerTextColor = 0xff6666ff,
-    disabledButtonColor = 0xff4f4f4f,
+    labelTextColor = 0xFFA5A19B, -- #9F9F9F
+    mutedTextColor = 0xFFA5A19B,
+    dangerTextColor = 0xFF6666FF,
+    disabledButtonColor = 0xFF4F4F4F,
 }
+
+local function buildComboOptions(values)
+    local options = {}
+    for index, value in ipairs(values) do
+        options[index] = value:gsub('([a-z])([A-Z])', function(l, u)
+            return l .. ' ' .. u:lower()
+        end)
+    end
+    return options
+end
+
+local function initializeViewData()
+    viewData.colorSchemeOptions = buildComboOptions(ColorScheme.values)
+    viewData.outlineModeOptions = buildComboOptions(OutlineMode.values)
+    viewData.markerModeOptions = buildComboOptions(MarkerMode.values)
+    viewData.boundingBoxModeOptions = buildComboOptions(BoundingBoxMode.values)
+end
 
 local function initializeViewStyle()
     if not viewStyle.fontSize then
@@ -652,6 +1036,9 @@ local function initializeViewStyle()
         viewStyle.scannerDistanceWidth = 110 * viewStyle.viewScale
         viewStyle.scannerFilterWidth = 170 * viewStyle.viewScale
         viewStyle.scannerStatsWidth = ImGui.CalcTextSize('000 / 000') * viewStyle.viewScale
+
+        viewStyle.settingsShortComboRowWidth = 160 * viewStyle.viewScale
+        viewStyle.settingsLongComboRowWidth = 240 * viewStyle.viewScale
     end
 end
 
@@ -661,22 +1048,35 @@ local function sanitizeTextInput(value)
     return value:gsub('`', '')
 end
 
--- GUI :: Plugins --
+-- GUI :: Extensions --
 
-local plugins = {}
+local extensions = {}
 
-local function registerPlugin(plugin)
+local function registerExtension(plugin)
     if type(plugin.getTargetActions) ~= 'function' then
         return false
     end
 
-    table.insert(plugins, plugin)
+    table.insert(extensions, plugin)
     return true
 end
 
+-- GUI :: Actions --
+
 local function getTargetActions(target, isInputMode)
     local actions = {}
-    for _, plugin in ipairs(plugins) do
+
+    if isInputMode then
+        if IsDefined(target.nodeInstance) and target.isVisibleNode then
+            table.insert(actions, {
+                type = 'button',
+                label = 'Toggle node',
+                callback = toggleNodeVisibility,
+            })
+        end
+    end
+
+    for _, plugin in ipairs(extensions) do
         local result = plugin.getTargetActions(target)
         if type(result) == 'table' then
             if #result == 0 then
@@ -694,13 +1094,14 @@ local function getTargetActions(target, isInputMode)
             end
         end
     end
+
     return actions
 end
 
 -- GUI :: Fieldsets --
 
 local function formatDistance(data)
-    return ('%.2fm'):format(data.targetDistance)
+    return ('%.2fm'):format(type(data) == 'number' and data or data.targetDistance)
 end
 
 local function useInlineDistance(data)
@@ -742,9 +1143,12 @@ local objectSchema = {
         { name = 'meshPath', label = 'Mesh Resource:', wrap = true },
         { name = 'meshAppearance', label = 'Mesh Appearance:' },
         { name = 'materialPath', label = 'Material:', wrap = true },
+        { name = 'effectPath', label = 'Effect:', wrap = true },
     },
     {
-        { name = 'resourcePath', label = 'Resource:', wrap = true },
+        { name = 'resolvedPath', label = 'Resource:', wrap = true },
+        { name = 'resolvedName', label = 'CName:' },
+        { name = 'resolvedTDBID', label = 'TweakDBID:' },
     }
 }
 
@@ -818,7 +1222,7 @@ local function drawComponents(components, maxComponents)
     end
 
     if maxComponents > 0 then
-        local visibleComponents = maxComponents -- math.min(maxComponents, #components)
+        local visibleComponents = maxComponents
         ImGui.BeginChildFrame(1, 0, visibleComponents * ImGui.GetFrameHeightWithSpacing())
     end
 
@@ -903,10 +1307,16 @@ local function drawFieldset(targetData, withInputs, maxComponents, withSeparator
         ImGui.Spacing()
         for _, action in ipairs(actions) do
             if action.type == 'button' then
+                if action.inline then
+                    ImGui.SameLine()
+                end
                 if ImGui.Button(action.label) then
                     action.callback(targetData)
                 end
             elseif action.type == 'checkbox' then
+                if action.inline then
+                    ImGui.SameLine()
+                end
                 local _, pressed = ImGui.Checkbox(action.label, action.state)
                 if pressed then
                     action.callback(targetData)
@@ -916,14 +1326,6 @@ local function drawFieldset(targetData, withInputs, maxComponents, withSeparator
     end
 end
 
--- GUI :: Projector --
-
-local projectionQueue = {}
-
-local function enqueueTargetProjection(target)
-    table.insert(projectionQueue, target)
-end
-
 -- GUI :: Inspector --
 
 local function drawInspectorContent(withInputs)
@@ -931,34 +1333,8 @@ local function drawInspectorContent(withInputs)
         drawFieldset(inspector.result, withInputs)
     else
         ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-        ImGui.TextWrapped('No target.')
+        ImGui.TextWrapped('No target')
         ImGui.PopStyleColor()
-    end
-end
-
--- GUI :: Lookup --
-
-local function drawLookupContent()
-    ImGui.TextWrapped('Lookup world nodes and spawned entities by their identities.')
-    ImGui.Spacing()
-    ImGui.SetNextItemWidth(viewStyle.windowWidth)
-    local query, queryChanged = ImGui.InputTextWithHint('##LookupQuery', 'Enter node reference or entity id or hash', viewState.lookupQuery, viewState.maxInputLen)
-    if queryChanged then
-        viewState.lookupQuery = sanitizeTextInput(query)
-    end
-
-    if lookup.result then
-        if not lookup.empty then
-            ImGui.Spacing()
-            ImGui.Separator()
-            ImGui.Spacing()
-            drawFieldset(lookup.result)
-        else
-            ImGui.Spacing()
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-            ImGui.TextWrapped('Nothing found.')
-            ImGui.PopStyleColor()
-        end
     end
 end
 
@@ -973,16 +1349,19 @@ local function drawScannerContent()
     ImGui.SetNextItemWidth(viewStyle.scannerDistanceWidth)
     local distance, distanceChanged = ImGui.InputFloat('##ScannerDistance', userState.scannerDistance, 0.5, 1.0, '%.1fm', ImGuiInputTextFlags.None)
     if distanceChanged then
-        userState.scannerDistance = math.max(1.0, math.min(50.0, distance))
+        userState.scannerDistance = clamp(distance, 0.5, 100.0)
     end
     ImGui.Spacing()
 
     if ImGui.Button('Scan world nodes', viewStyle.windowWidth, viewStyle.buttonHeight) then
-        scanTargets(userState.scannerDistance)
-        updateScanner(viewState.scannerFilter)
+        requestScan(userState.scannerDistance)
     end
 
-    if scanner.requested then
+    if scanner.finished then
+        if not userState.keepLastHoveredResultHighlighted then
+            resetHoveredResult()
+        end
+
         ImGui.Spacing()
         if #scanner.results > 0 then
             ImGui.Separator()
@@ -992,10 +1371,9 @@ local function drawScannerContent()
             ImGui.Text('Filter results:')
             ImGui.SameLine()
             ImGui.SetNextItemWidth(viewStyle.scannerFilterWidth)
-            local filter, filterChanged = ImGui.InputTextWithHint('##ScannerFilter', 'Node type or reference or resource', viewState.scannerFilter, viewState.maxInputLen)
+            local filter, filterChanged = ImGui.InputTextWithHint('##ScannerFilter', 'Node type or reference or resource', viewState.scannerFilter, viewData.maxInputLen)
             if filterChanged then
                 viewState.scannerFilter = sanitizeTextInput(filter)
-                updateScanner(viewState.scannerFilter)
             end
 
             ImGui.SameLine()
@@ -1010,11 +1388,12 @@ local function drawScannerContent()
             ImGui.Spacing()
 
             if #scanner.filtered > 0 then
+                ImGui.PushStyleVar(ImGuiStyleVar.IndentSpacing, 0)
                 ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0)
                 ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
                 ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
 
-                local visibleRows = math.max(14, math.min(18, #scanner.filtered))
+                local visibleRows = clamp(#scanner.filtered, 14, 18)
                 ImGui.BeginChildFrame(1, 0, visibleRows * ImGui.GetFrameHeightWithSpacing())
 
                 for _, result in ipairs(scanner.filtered) do
@@ -1035,21 +1414,47 @@ local function drawScannerContent()
                     end
                     ImGui.EndGroup()
                     if ImGui.IsItemHovered() then
-                        enqueueTargetProjection(result)
+                        setHoveredResult(result)
                     end
                 end
 
                 ImGui.EndChildFrame()
                 ImGui.PopStyleColor()
-                ImGui.PopStyleVar(2)
+                ImGui.PopStyleVar(3)
             else
                 ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-                ImGui.TextWrapped('No matches.')
+                ImGui.TextWrapped('No matches')
                 ImGui.PopStyleColor()
             end
         else
             ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-            ImGui.TextWrapped('Nothing found.')
+            ImGui.TextWrapped('Nothing found')
+            ImGui.PopStyleColor()
+        end
+    end
+end
+
+-- GUI :: Lookup --
+
+local function drawLookupContent()
+    ImGui.TextWrapped('Lookup world nodes and spawned entities by their identities.')
+    ImGui.Spacing()
+    ImGui.SetNextItemWidth(viewStyle.windowWidth)
+    local query, queryChanged = ImGui.InputTextWithHint('##LookupQuery', 'Enter node reference or entity id or hash', viewState.lookupQuery, viewData.maxInputLen)
+    if queryChanged then
+        viewState.lookupQuery = sanitizeTextInput(query)
+    end
+
+    if lookup.result then
+        if not lookup.empty then
+            ImGui.Spacing()
+            ImGui.Separator()
+            ImGui.Spacing()
+            drawFieldset(lookup.result)
+        else
+            ImGui.Spacing()
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+            ImGui.TextWrapped('Nothing found')
             ImGui.PopStyleColor()
         end
     end
@@ -1069,7 +1474,7 @@ local function drawWatcherContent()
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
         ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
 
-        local visibleRows = math.max(12, math.min(16, watcher.numTargets))
+        local visibleRows = clamp(watcher.numTargets, 12, 16)
         ImGui.BeginChildFrame(1, 0, visibleRows * ImGui.GetFrameHeightWithSpacing())
 
         for _, result in pairs(watcher.results) do
@@ -1084,51 +1489,370 @@ local function drawWatcherContent()
         ImGui.PopStyleVar(2)
     else
         ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-        ImGui.TextWrapped('No entities to watch.')
+        ImGui.TextWrapped('No entities to watch')
         ImGui.PopStyleColor()
     end
 end
 
--- GUI :: Windows --
+-- GUI :: Settings --
 
-local function getScreenDescriptor()
+local function drawSettingsContent()
+    local state, changed
+
+    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+    ImGui.SetWindowFontScale(0.85)
+    ImGui.Text('TARGET HIGHLIGHTING')
+    ImGui.SetWindowFontScale(1.0)
+    ImGui.PopStyleColor()
+    ImGui.Separator()
+    ImGui.Spacing()
+
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Highlight color:')
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsShortComboRowWidth - ImGui.GetCursorPosX())
+    state, changed = ImGui.Combo('##HighlightColor', ColorScheme.values[userState.highlightColor] - 1, viewData.colorSchemeOptions, #viewData.colorSchemeOptions)
+    if changed then
+        userState.highlightColor = ColorScheme.values[state + 1]
+        configureHighlight()
+    end
+    ImGui.EndGroup()
+
+    ImGui.Spacing()
+
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Show outline:')
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
+    state, changed = ImGui.Combo('##OutlineMode', OutlineMode.values[userState.outlineMode] - 1, viewData.outlineModeOptions, #viewData.outlineModeOptions)
+    if changed then
+        userState.outlineMode = OutlineMode.values[state + 1]
+    end
+    ImGui.EndGroup()
+
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Show marker:')
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
+    state, changed = ImGui.Combo('##MarkerMode', MarkerMode.values[userState.markerMode] - 1, viewData.markerModeOptions, #viewData.markerModeOptions)
+    if markerModeChanged then
+        userState.markerMode = MarkerMode.values[state + 1]
+    end
+    ImGui.EndGroup()
+
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Show bounding box:')
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
+    state, changed = ImGui.Combo('##BoundingBoxMode', BoundingBoxMode.values[userState.boundingBoxMode] - 1, viewData.boundingBoxModeOptions, #viewData.boundingBoxModeOptions)
+    if changed then
+        userState.boundingBoxMode = BoundingBoxMode.values[state + 1]
+    end
+    if ImGui.IsItemHovered() then
+        ImGui.SetTooltip('The bounding box may differ from the actual shape of the area,\nbut it helps to understand its general location and boundaries')
+    end
+    ImGui.EndGroup()
+
+    ImGui.Spacing()
+
+    state, changed = ImGui.Checkbox('Highlight inspected target', userState.highlightInspectorResult)
+    if changed then
+        userState.highlightInspectorResult = state
+    end
+
+    state, changed = ImGui.Checkbox('Highlight scanned target when hover over', userState.highlightScannerResult)
+    if changed then
+        userState.highlightScannerResult = state
+    end
+
+    ImGui.Indent(ImGui.GetFrameHeightWithSpacing())
+    if not userState.highlightScannerResult then
+        ImGui.BeginDisabled()
+    end
+    state, changed = ImGui.Checkbox('Keep last traget highlighted when hover out', userState.keepLastHoveredResultHighlighted)
+    if changed then
+        userState.keepLastHoveredResultHighlighted = state
+    end
+    if not userState.highlightScannerResult then
+        ImGui.EndDisabled()
+    end
+    ImGui.Unindent(ImGui.GetFrameHeightWithSpacing())
+
+    state, changed = ImGui.Checkbox('Highlight lookup target', userState.highlightLookupResult)
+    if changed then
+        userState.highlightLookupResult = state
+    end
+end
+
+-- GUI :: Drawing --
+
+local function getScreenDescriptor(camera)
     local screen = {}
     screen.width, screen.height = GetDisplayResolution()
+
     screen.centerX = screen.width / 2
     screen.centerY = screen.height / 2
+
+    screen[1] = { x = 0, y = 0 }
+    screen[2] = { x = screen.width - 1, y = 0 }
+    screen[3] = { x = screen.width - 1, y = screen.height - 1 }
+    screen[4] = { x = 0, y = screen.height }
+
+    screen.camera = camera
 
     return screen
 end
 
-local function drawProjectedPoint(screen, vertice, color, radius, thickness)
-    local projected = cameraSystem:ProjectPoint(vertice)
-    local pointX = screen.centerX + (projected.x * screen.centerX)
-    local pointY = screen.centerY - (projected.y * screen.centerY)
-    if thickness == true then
-        ImGui.ImDrawListAddCircleFilled(ImGui.GetWindowDrawList(), pointX, pointY, radius, color, -1)
+local function getScreenPoint(screen, point)
+    local projected = inspectionSystem:ProjectWorldPoint(point)
+
+    local result = {
+        x = projected.x,
+        y = -projected.y,
+        off = projected.w <= 0.0 or projected.z <= 0.0,
+    }
+
+    if projected.w > 0.0 then
+        result.x = result.x / projected.w
+        result.y = result.y / projected.w
+    end
+
+    result.x = screen.centerX + (result.x * screen.centerX)
+    result.y = screen.centerY + (result.y * screen.centerY)
+
+    return result
+end
+
+local function getScreenShape(screen, shape)
+    local projected = {}
+    for i = 1,#shape do
+        projected[i] = getScreenPoint(screen, shape[i])
+    end
+    return projected
+end
+
+local function isOffScreenPoint(point)
+    return point.off
+end
+
+local function isOffScreenShape(points)
+    for _, point in ipairs(points) do
+        if not isOffScreenPoint(point) then
+            return false
+        end
+    end
+    return true
+end
+
+local function drawPoint(point, color, radius, thickness)
+    if thickness == nil then
+        ImGui.ImDrawListAddCircleFilled(ImGui.GetWindowDrawList(), point.x, point.y, radius, color, -1)
     else
-        ImGui.ImDrawListAddCircle(ImGui.GetWindowDrawList(), pointX, pointY, radius, color, -1, thickness)
+        ImGui.ImDrawListAddCircle(ImGui.GetWindowDrawList(), point.x, point.y, radius, color, -1, thickness)
+    end
+end
+
+local function drawLine(line, color, thickness)
+    ImGui.ImDrawListAddLine(ImGui.GetWindowDrawList(),
+        line[1].x, line[1].y,
+        line[2].x, line[2].y,
+        color, thickness or 1)
+end
+
+local function drawQuad(quad, color, thickness)
+    if thickness == nil then
+        ImGui.ImDrawListAddQuadFilled(ImGui.GetWindowDrawList(),
+            quad[1].x, quad[1].y,
+            quad[2].x, quad[2].y,
+            quad[3].x, quad[3].y,
+            quad[4].x, quad[4].y,
+            color)
+    else
+        ImGui.ImDrawListAddQuad(ImGui.GetWindowDrawList(),
+            quad[1].x, quad[1].y,
+            quad[2].x, quad[2].y,
+            quad[3].x, quad[3].y,
+            quad[4].x, quad[4].y,
+            color, thickness)
+    end
+end
+
+local function drawText(position, color, size, text)
+    ImGui.ImDrawListAddText(ImGui.GetWindowDrawList(), size, position.x, position.y, color, tostring(text))
+end
+
+local function drawProjectedPoint(screen, point, color, radius, thickness)
+    local projected = getScreenPoint(screen, point)
+    if not isOffScreenPoint(projected) then
+        drawPoint(projected, color, radius, thickness)
+    end
+end
+
+local function drawProjectedLine(screen, line, color, thickness)
+    local projected = getScreenShape(screen, line)
+    if not isOffScreenShape(projected) then
+        drawLine(projected, color, thickness)
+    end
+end
+
+local function drawProjectedQuad(screen, quad, color, thickness)
+    local projected = getScreenShape(screen, quad)
+    if not isOffScreenShape(projected) then
+        drawQuad(projected, color, thickness)
+    end
+end
+
+local function drawProjectedText(screen, position, color, size, text)
+    local projected = getScreenPoint(screen, position)
+    if not isOffScreenPoint(projected) then
+        drawText(projected, color, size, text)
+    end
+end
+
+local function drawProjectedDistance(screen, position, offsetX, offsetY, fontSize, textColor)
+    local projected = getScreenPoint(screen, position)
+    if not isOffScreenPoint(projected) then
+        local distance = Vector4.Distance(screen.camera.position, position)
+        local formattedDistance = formatDistance(distance)
+        local textWidth, textHeight = ImGui.CalcTextSize(formattedDistance)
+        local fontRatio = fontSize / viewStyle.fontSize
+
+        if type(offsetX) == 'number' then
+            projected.x = projected.x + offsetX
+        else
+            projected.x = projected.x - (textWidth * fontRatio / 2.0)
+        end
+
+        if type(offsetY) == 'number' then
+            projected.y = projected.y + offsetY
+        else
+            projected.y = projected.y - (textHeight * fontRatio / 2.0)
+        end
+
+        drawText(projected, textColor, fontSize, formattedDistance)
+    end
+end
+
+local function drawProjectedMarker(screen, position, outerColor, innerColor, distanceColor)
+    drawProjectedPoint(screen, position, outerColor, 10, 2)
+    drawProjectedPoint(screen, position, innerColor, 5)
+    drawProjectedDistance(screen, position, true, -30, viewStyle.fontSize, distanceColor)
+end
+
+local function drawProjectedBox(screen, box, faceColor, edgeColor, verticeColor, frame, fill, fadeWithDistance)
+    local vertices = {
+        ToVector4{ x = box.Min.x, y = box.Min.y, z = box.Min.z, w = 1.0 },
+        ToVector4{ x = box.Min.x, y = box.Min.y, z = box.Max.z, w = 1.0 },
+        ToVector4{ x = box.Min.x, y = box.Max.y, z = box.Min.z, w = 1.0 },
+        ToVector4{ x = box.Min.x, y = box.Max.y, z = box.Max.z, w = 1.0 },
+        ToVector4{ x = box.Max.x, y = box.Min.y, z = box.Min.z, w = 1.0 },
+        ToVector4{ x = box.Max.x, y = box.Min.y, z = box.Max.z, w = 1.0 },
+        ToVector4{ x = box.Max.x, y = box.Max.y, z = box.Min.z, w = 1.0 },
+        ToVector4{ x = box.Max.x, y = box.Max.y, z = box.Max.z, w = 1.0 },
+    }
+
+    if fill then
+        local faces = {
+            { vertices[1], vertices[2], vertices[4], vertices[3] },
+            { vertices[2], vertices[4], vertices[8], vertices[6] },
+            { vertices[1], vertices[2], vertices[6], vertices[5] },
+            { vertices[1], vertices[3], vertices[7], vertices[5] },
+            { vertices[5], vertices[7], vertices[8], vertices[6] },
+            { vertices[3], vertices[4], vertices[8], vertices[7] },
+        }
+
+        for _, face in ipairs(faces) do
+            drawProjectedQuad(screen, face, faceColor)
+        end
+    end
+
+    if frame then
+        local edges = {
+            { vertices[1], vertices[2] },
+            { vertices[2], vertices[4] },
+            { vertices[4], vertices[3] },
+            { vertices[3], vertices[1] },
+            { vertices[5], vertices[6] },
+            { vertices[6], vertices[8] },
+            { vertices[8], vertices[7] },
+            { vertices[7], vertices[5] },
+            { vertices[1], vertices[5] },
+            { vertices[2], vertices[6] },
+            { vertices[3], vertices[7] },
+            { vertices[4], vertices[8] },
+        }
+
+        if fadeWithDistance then
+            local edgeOpacity = opacity(edgeColor)
+            for _, edge in ipairs(edges) do
+                local distance = Vector4.DistanceToEdge(screen.camera.position, edge[1], edge[2])
+                local distanceFactor = (clamp(distance, 10, 1010) - 10) / 1000
+                local edgeColorAdjusted = fade(edgeColor, edgeOpacity - 0x80 * distanceFactor)
+                drawProjectedLine(screen, edge, edgeColorAdjusted, 1)
+            end
+        else
+            for _, edge in ipairs(edges) do
+                drawProjectedLine(screen, edge, edgeColor, 1)
+            end
+        end
+
+        for _, vertice in ipairs(vertices) do
+            drawProjectedPoint(screen, vertice, verticeColor, 1)
+            drawProjectedDistance(screen, vertice, 4, -20, viewStyle.fontSize, verticeColor)
+        end
     end
 end
 
 local function drawProjections()
-    if #projectionQueue == 0 then
+    if next(highlight.projections) == nil then
         return
     end
 
-    local screen = getScreenDescriptor()
+    local camera = getCameraData()
+
+    if not camera then
+        return
+    end
+
+    local screen = getScreenDescriptor(camera)
 
     ImGui.SetNextWindowSize(screen.width, screen.height, ImGuiCond.Always)
     ImGui.SetNextWindowPos(0, 0, ImGuiCond.Always)
 
     if ImGui.Begin('Red Hot Tools Projection', true, viewStyle.projectionWindowFlags) then
-        for _, target in ipairs(projectionQueue) do
-            drawProjectedPoint(screen, target.worldPosition, 0xff00ff00, 8, 4)
+        for _, projection in pairs(highlight.projections) do
+            local target = projection.target
+
+            if projection.bounds and target.worldBounds then
+                local insideColor = fade(projection.color, 0x1D)
+                local faceColor = fade(projection.color, 0x0D)
+                local edgeColor = fade(projection.color, 0xF0)
+                local verticeColor = projection.color
+
+                if insideBox(camera.position, target.worldBounds) then
+                    drawQuad(screen, insideColor)
+                    drawProjectedBox(screen, target.worldBounds, faceColor, edgeColor, verticeColor, true, false, true)
+                else
+                    drawProjectedBox(screen, target.worldBounds, faceColor, edgeColor, verticeColor, true, true, true)
+                end
+            end
+
+            if projection.position and target.worldPosition then
+                local outerColor = fade(projection.color, 0x77)
+                local innerColor = projection.color
+                local distanceColor = projection.color
+
+                drawProjectedMarker(screen, target.worldPosition, outerColor, innerColor, distanceColor)
+            end
         end
     end
-
-    projectionQueue = {}
 end
+
+-- GUI :: Windows --
 
 local function drawInspectorWindow()
     ImGui.Begin('Red Hot Tools', viewStyle.overlayWindowFlags)
@@ -1224,9 +1948,12 @@ local function drawMainWindow()
         end
 
         if ImGui.BeginTabItem(' Scan ', tabFlags) then
+            userState.isScannerOpen = true
             ImGui.Spacing()
             drawScannerContent()
             ImGui.EndTabItem()
+        else
+            userState.isScannerOpen = false
         end
 
         tabFlags = ImGuiTabItemFlags.None
@@ -1255,6 +1982,12 @@ local function drawMainWindow()
             ImGui.EndTabItem()
         else
             userState.isWatcherOpen = false
+        end
+
+		if ImGui.BeginTabItem(' Settings ') then
+            ImGui.Spacing()
+            drawSettingsContent()
+            ImGui.EndTabItem()
         end
 
         viewState.isFirstOpen = false
@@ -1316,6 +2049,12 @@ registerHotkey('ToggleInspector', 'Toggle inspector window', function()
     end
 end)
 
+registerHotkey('ToggleNodeState', 'Toggle state of inspected node', function()
+    if not viewState.isConsoleOpen and userState.isInspectorOSD then
+        toggleNodeVisibility(inspector.target)
+    end
+end)
+
 -- Main --
 
 registerForEvent('onInit', function()
@@ -1323,19 +2062,26 @@ registerForEvent('onInit', function()
 
     if isPluginFound then
         initializeUserState()
+        configureHighlight()
         initializeInspector()
         initializeWatcher()
+        initializeViewData()
 
         Cron.Every(0.2, function()
-            if viewState.isConsoleOpen and userState.isInspectorOpen or userState.isInspectorOSD then
+            if viewState.isConsoleOpen then
+                if userState.isInspectorOpen then
+                    updateInspector()
+                elseif userState.isScannerOpen then
+                    updateScanner(viewState.scannerFilter)
+                elseif userState.isLookupOpen then
+                    updateLookup(viewState.lookupQuery)
+                elseif userState.isWatcherOpen then
+                    updateWatcher()
+                end
+            elseif userState.isInspectorOSD then
                 updateInspector()
             end
-            if viewState.isConsoleOpen and userState.isLookupOpen then
-                updateLookup(viewState.lookupQuery)
-            end
-            if viewState.isConsoleOpen and userState.isWatcherOpen then
-                updateWatcher()
-            end
+            updateHighlights()
         end)
     end
 end)
@@ -1351,7 +2097,7 @@ end)
 -- API --
 
 return {
-    RegisterPlugin = registerPlugin,
+    RegisterExtension = registerExtension,
     GetLookAtObject = getLookAtTarget,
     CollectTargetData = resolveTargetData,
     GetInspectorTarget = function()

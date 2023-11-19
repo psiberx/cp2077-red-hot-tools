@@ -59,7 +59,7 @@ local function exportStateData(t, max, depth, result)
 	end
 end
 
-function PersistentState.Initialize(filePath, dataRef)
+function PersistentState.Initialize(filePath, dataRef, dataSchema)
 	stateFilePath = filePath
 	stateDataRef = dataRef
 
@@ -69,6 +69,18 @@ function PersistentState.Initialize(filePath, dataRef)
             stateDataRef[k] = v
         end
 	end
+
+    for field, schema in pairs(dataSchema) do
+        if type(schema.type) == 'string' then
+            if type(stateDataRef[field]) ~= schema.type then
+                stateDataRef[field] = schema.default
+            end
+        elseif type(schema.type) == 'table' then
+            if schema.type[stateDataRef[field]] ~= stateDataRef[field] then
+                stateDataRef[field] = schema.default
+            end
+        end
+    end
 end
 
 function PersistentState.Flush()

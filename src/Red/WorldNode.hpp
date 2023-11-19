@@ -75,7 +75,7 @@ using RenderProxy = Core::OffsetPtr<0xB0, Red::SharedPtr<Red::RenderProxy>>;
 
 namespace Raw::WorldPhysicalDestructionNodeInstance
 {
-using RenderProxy = Core::OffsetPtr<0x1D8, Red::SharedPtr<Red::RenderProxy>>; // FIXME
+using RenderProxy = Core::OffsetPtr<0x1D8, Red::SharedPtr<Red::RenderProxy>>;
 }
 
 namespace Raw::WorldInstancedMeshNodeInstance
