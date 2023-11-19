@@ -82,6 +82,8 @@ local userStateSchema = {
     highlightScannerResult = { type = 'boolean', default = true },
     highlightLookupResult = { type = 'boolean', default = false },
     keepLastHoveredResultHighlighted = { type = 'boolean', default = true },
+    showMarkerDistance = { type = 'boolean', default = false },
+    showBoundingBoxDistances = { type = 'boolean', default = false },
 }
 
 local function initializeUserState()
@@ -845,7 +847,7 @@ local function filterTargets(filter)
     local filterEsc = filter:upper():gsub('([^%w])', '%%%1')
     local filterRe = filterEsc:gsub('%s+', '.* ') .. '.*'
 
-    local gsubFields = {
+    local partialMatchFields = {
         'nodeType',
         'nodeRef',
         'sectorPath',
@@ -856,16 +858,16 @@ local function filterTargets(filter)
         'recordID',
     }
 
-    local exactFields = {
+    local exactMatchFields = {
         'instanceIndex',
     }
 
     for _, result in ipairs(scanner.results) do
         local match = false
-        for _, field in ipairs(gsubFields) do
+        for _, field in ipairs(exactMatchFields) do
             if isNotEmpty(result[field]) then
-                local value = result[field]:upper()
-                if value:find(filterEsc) or value:find(filterRe) then
+                local value = tostring(result[field]):upper()
+                if value == filterExact then
                     table.insert(filtered, result)
                     match = true
                     break
@@ -873,10 +875,10 @@ local function filterTargets(filter)
             end
         end
         if not match then
-            for _, field in ipairs(exactFields) do
+            for _, field in ipairs(partialMatchFields) do
                 if isNotEmpty(result[field]) then
-                    local value = tostring(result[field]):upper()
-                    if value == filterExact then
+                    local value = result[field]:upper()
+                    if value:find(filterEsc) or value:find(filterRe) then
                         table.insert(filtered, result)
                         break
                     end
@@ -1542,6 +1544,11 @@ local function drawSettingsContent()
         userState.markerMode = MarkerMode.values[state + 1]
     end
     ImGui.EndGroup()
+    if ImGui.IsItemHovered() then
+        ImGui.SetTooltip(
+            'Shows marker at the center of a mesh or area,\n' ..
+            'or at the world position of a shapeless node.')
+    end
 
     ImGui.BeginGroup()
     ImGui.AlignTextToFramePadding()
@@ -1552,10 +1559,24 @@ local function drawSettingsContent()
     if changed then
         userState.boundingBoxMode = BoundingBoxMode.values[state + 1]
     end
-    if ImGui.IsItemHovered() then
-        ImGui.SetTooltip('The bounding box may differ from the actual shape of the area,\nbut it helps to understand its general location and boundaries')
-    end
     ImGui.EndGroup()
+    if ImGui.IsItemHovered() then
+        ImGui.SetTooltip(
+            'The bounding box may differ from the actual shape of the area,\n' ..
+            'but helps to understand its general location and boundaries.')
+    end
+
+    ImGui.Spacing()
+
+    state, changed = ImGui.Checkbox('Show distance to the marker', userState.showMarkerDistance)
+    if changed then
+        userState.showMarkerDistance = state
+    end
+
+    state, changed = ImGui.Checkbox('Show distances to the corners of bounding box', userState.showBoundingBoxDistances)
+    if changed then
+        userState.showBoundingBoxDistances = state
+    end
 
     ImGui.Spacing()
 
@@ -1573,7 +1594,7 @@ local function drawSettingsContent()
     if not userState.highlightScannerResult then
         ImGui.BeginDisabled()
     end
-    state, changed = ImGui.Checkbox('Keep last traget highlighted when hover out', userState.keepLastHoveredResultHighlighted)
+    state, changed = ImGui.Checkbox('Keep last target highlighted when hover out', userState.keepLastHoveredResultHighlighted)
     if changed then
         userState.keepLastHoveredResultHighlighted = state
     end
@@ -1740,7 +1761,10 @@ end
 local function drawProjectedMarker(screen, position, outerColor, innerColor, distanceColor)
     drawProjectedPoint(screen, position, outerColor, 10, 2)
     drawProjectedPoint(screen, position, innerColor, 5)
-    drawProjectedDistance(screen, position, true, -30, viewStyle.fontSize, distanceColor)
+
+    if userState.showMarkerDistance then
+        drawProjectedDistance(screen, position, true, -30, viewStyle.fontSize, distanceColor)
+    end
 end
 
 local function drawProjectedBox(screen, box, faceColor, edgeColor, verticeColor, frame, fill, fadeWithDistance)
@@ -1802,7 +1826,10 @@ local function drawProjectedBox(screen, box, faceColor, edgeColor, verticeColor,
 
         for _, vertice in ipairs(vertices) do
             drawProjectedPoint(screen, vertice, verticeColor, 1)
-            drawProjectedDistance(screen, vertice, 4, -20, viewStyle.fontSize, verticeColor)
+
+            if userState.showBoundingBoxDistances then
+                drawProjectedDistance(screen, vertice, 4, -20, viewStyle.fontSize, verticeColor)
+            end
         end
     end
 end
