@@ -775,16 +775,20 @@ local function selectInspectedResult(index)
 end
 
 local function cycleNextInspectedResult()
-    inspector.active = inspector.active + 1
-    if inspector.active > #inspector.results then
-        inspector.active = 1
+    if inspector.active then
+        inspector.active = inspector.active + 1
+        if inspector.active > #inspector.results then
+            inspector.active = 1
+        end
     end
 end
 
 local function cyclePrevInspectedResult()
-    inspector.active = inspector.active - 1
-    if inspector.active < 1 then
-        inspector.active = #inspector.results
+    if inspector.active then
+        inspector.active = inspector.active - 1
+        if inspector.active < 1 then
+            inspector.active = #inspector.results
+        end
     end
 end
 
