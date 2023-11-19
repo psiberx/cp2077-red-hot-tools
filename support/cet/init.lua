@@ -160,7 +160,7 @@ local function getCameraData(distance)
     }
 end
 
-local function getLookAtTarget(maxDistance)
+local function getLookAtTargets(maxDistance)
 	local camera = getCameraData(maxDistance or 100)
 
 	if not camera then
@@ -172,33 +172,25 @@ local function getLookAtTarget(maxDistance)
 
         local entity = targetingSystem:GetLookAtObject(camera.instigator, true, false)
         if IsDefined(entity) then
-            local target = {
+            table.insert(results, {
                 resolved = true,
                 entity = Ref.Weak(entity),
                 hash = inspectionSystem:GetObjectHash(entity),
-            }
-
-            local distance = Vector4.Distance(camera.position, ToVector4(entity:GetWorldPosition()))
-
-            table.insert(results, {
-                distance = distance,
-                target = target,
-                group = collisionGroups[2],
+                distance = Vector4.Distance(camera.position, ToVector4(entity:GetWorldPosition())),
+                collision = collisionGroups[2],
             })
         end
 
-        for _, group in ipairs(collisionGroups) do
-            local success, trace = spatialQuerySystem:SyncRaycastByCollisionGroup(camera.position, camera.destination, group.name, false, false)
+        for _, collision in ipairs(collisionGroups) do
+            local success, trace = spatialQuerySystem:SyncRaycastByCollisionGroup(camera.position, camera.destination, collision.name, false, false)
             if success then
                 local target = inspectionSystem:GetPhysicsTraceObject(trace)
                 if target.resolved then
                     local distance = Vector4.Distance(camera.position, ToVector4(trace.position))
-                    if distance > group.threshold then
-                        table.insert(results, {
-                            distance = distance,
-                            target = target,
-                            group = group,
-                        })
+                    if distance > collision.threshold then
+                        target.distance = distance
+                        target.collision = collision
+                        table.insert(results, target)
                     end
                 end
             end
@@ -212,15 +204,12 @@ local function getLookAtTarget(maxDistance)
 
         for i = 2, #results do
             local diff = nearest.distance - results[i].distance
-            if diff > results[i].group.tolerance then
+            if diff > results[i].collision.tolerance then
                 nearest = results[i]
             end
         end
 
-        nearest.target.collisionGroup = nearest.group.name
-        nearest.target.distance = nearest.distance
-
-        return nearest.target, nearest.group.name, nearest.distance
+        return { nearest }
 	end
 
     if userState.targetingMode == TargetingMode.StaticMeshBounds then
@@ -230,7 +219,15 @@ local function getLookAtTarget(maxDistance)
             return
         end
 
-        return results[1], collisionGroups[1].name, results[1].distance
+        while #results > 12 do
+            table.remove(results)
+        end
+
+        for _, result in ipairs(results) do
+            result.collision = collisionGroups[1]
+        end
+
+        return results
     end
 end
 
@@ -341,7 +338,7 @@ local function enableHighlight(target)
             target = target,
             color = highlight.color,
             position = showMarker,
-            bounds = showBoundindBox,
+            boundingBox = showBoundindBox,
         }
     else
         highlight.projections[target.hash] = nil
@@ -376,6 +373,13 @@ local function updateHighlights()
     highlight.pending = nil
 
     enableHighlight(highlight.target)
+end
+
+local function disableHighlights()
+    if highlight.target then
+        disableHighlight(highlight.target)
+        highlight.target = nil
+    end
 end
 
 -- App :: Resolving --
@@ -521,6 +525,13 @@ local function fillTargetNodeData(target, data)
     data.isVisibleNode = data.isNode and isNotEmpty(data.meshPath) or isNotEmpty(data.materialPath) or isNotEmpty(data.templatePath)
 end
 
+local function fillTargetGeomertyData(target, data)
+    data.collision = target.collision
+    data.distance = target.distance
+    data.position = target.position
+    data.boundingBox = target.boundingBox
+end
+
 local function fillTargetDescription(_, data)
     if isNotEmpty(data.nodeType) then
         local description = { data.nodeType }
@@ -550,6 +561,26 @@ local function fillTargetDescription(_, data)
     elseif isNotEmpty(data.entityType) then
         data.description = ('%s | %d'):format(data.entityType, data.entityID)
     end
+
+--     if isNotEmpty(data.nodeType) then
+--         local subs = {
+--             '^world',
+--             '^Compiled',
+--             '^Instanced',
+--             '^Generic',
+--             '^Static',
+--             '_Streamable$',
+--             'Node$',
+--             'Proxy',
+--         }
+--
+--         local nodeTypeAlias = data.nodeType
+--         for _, sub in ipairs(subs) do
+--             nodeTypeAlias = nodeTypeAlias:gsub(sub, '')
+--         end
+--
+--         data.nodeTypeAlias = nodeTypeAlias
+--     end
 end
 
 local function fillTargetHash(target, data)
@@ -592,6 +623,7 @@ local function resolveTargetData(target)
     local data = {}
     fillTargetEntityData(target, data)
     fillTargetNodeData(target, data)
+    fillTargetGeomertyData(target, data)
     fillTargetDescription(target, data)
     fillTargetHash(target, data)
     return data
@@ -599,52 +631,297 @@ end
 
 -- App :: Nodes --
 
-local function toggleNodeVisibility(target)
+local lastTarget
+
+local function canToggleNodeState(target)
+    return target.isVisibleNode or target.isCommunityNode or target.isSpawnerNode
+end
+
+local function toggleNodeState(target)
+    if not target or not canToggleNodeState(target) then
+        target = lastTarget
+        lastTarget = nil
+    end
+
     if target and IsDefined(target.nodeInstance) then
-        inspectionSystem:ToggleNodeVisibility(target.nodeInstance)
+        if target.isCommunityNode then
+            --
+        elseif target.isSpawnerNode then
+            --
+        elseif target.isVisibleNode then
+            inspectionSystem:ToggleNodeVisibility(target.nodeInstance)
+        end
+        lastTarget = target
     end
 end
 
 -- App :: Inspector --
 
 local inspector = {
-    target = nil,
-    result = nil,
+    targets = nil,
+    results = nil,
+    active = nil,
 }
 
-local function inspectTarget(target, collisionGroup, targetDistance)
-    if not target or not target.resolved then
-        inspector.target = nil
-        inspector.result = nil
+local function isSameTargets(setA, setB)
+    if #setA ~= #setB then
+        return false
+    end
+
+    local size = #setA
+    local hashesA = {}
+    local hashesB = {}
+
+    for i = 1,size do
+        table.insert(hashesA, setA[i].hash)
+        table.insert(hashesB, setB[i].hash)
+    end
+
+    table.sort(hashesA)
+    table.sort(hashesB)
+
+    for i = 1,size do
+        if hashesA[i] ~= hashesB[i] then
+            return false
+        end
+    end
+
+    return true
+end
+
+local function updateDistances(results, targets)
+    for _, target in ipairs(targets) do
+        for _, result in ipairs(results) do
+            if result.hash == target.hash then
+                result.distance = target.distance
+                break
+            end
+        end
+    end
+end
+
+local function inspectTargets(targets)
+    if not targets or #targets == 0 then
+        inspector.targets = {}
+        inspector.results = {}
+        inspector.active = nil
         return
     end
 
-    if inspector.target then
-        if inspector.target.hash == target.hash then
-            inspector.result.targetDistance = targetDistance
+    if inspector.targets then
+        if isSameTargets(inspector.targets, targets) then
+            updateDistances(inspector.results, targets)
             return
         end
     end
 
-    local data = resolveTargetData(target)
-    data.collisionGroup = collisionGroup.value
-    data.targetDistance = targetDistance
+    local results = {}
+    for _, target in ipairs(targets) do
+        table.insert(results, resolveTargetData(target))
+    end
 
-    inspector.target = target
-    inspector.result = data
+    local active = 1
+    if inspector.active and #inspector.results > 1 then
+         for index, result in ipairs(results) do
+             if result.hash == inspector.results[inspector.active].hash then
+                active = index
+                break
+             end
+         end
+    end
+
+    inspector.targets = targets
+    inspector.results = results
+    inspector.active = active
+end
+
+local function selectInspectedResult(index)
+    inspector.active = index
+    if inspector.active < 1 then
+        inspector.active = 1
+    elseif inspector.active > #inspector.results then
+        inspector.active = #inspector.results
+    end
+end
+
+local function cycleNextInspectedResult()
+    inspector.active = inspector.active + 1
+    if inspector.active > #inspector.results then
+        inspector.active = 1
+    end
+end
+
+local function cyclePrevInspectedResult()
+    inspector.active = inspector.active - 1
+    if inspector.active < 1 then
+        inspector.active = #inspector.results
+    end
 end
 
 local function initializeInspector()
-    for _, collisionGroup in ipairs(collisionGroups) do
-        collisionGroup.name = CName(collisionGroup.name)
+    for _, collision in ipairs(collisionGroups) do
+        collision.name = CName(collision.name)
     end
 end
 
 local function updateInspector()
-    inspectTarget(getLookAtTarget())
+    inspectTargets(getLookAtTargets())
 
-    if userState.highlightInspectorResult then
-        highlightTarget(inspector.result)
+    if userState.highlightInspectorResult and inspector.active then
+        highlightTarget(inspector.results[inspector.active])
+    end
+end
+
+-- App :: Scanner --
+
+local scanner = {
+    requested = false,
+    distance = 0,
+    finished = false,
+    results = {},
+    filter = nil,
+    filtered = {},
+    hovered = nil,
+}
+
+local function resolveTargetPosition(target)
+    local bounds
+    local position = target.transform.position
+
+    if not target.boundingBox.Min:IsXYZZero() then
+        bounds = target.boundingBox
+        position = Game['OperatorAdd;Vector4Vector4;Vector4'](bounds.Min, bounds:GetExtents())
+    end
+
+    return position, bounds, target.distance
+end
+
+local function requestScan(maxDistance)
+    scanner.distance = maxDistance
+    scanner.requested = true
+end
+
+local function selectScannedResult(result)
+    scanner.hovered = result
+end
+
+local function unselectScannedResult()
+    scanner.hovered = nil
+end
+
+local function scanTargets()
+    if not scanner.requested then
+        return
+    end
+
+    scanner.requested = false
+
+    local results = {}
+
+    for _, target in ipairs(inspectionSystem:GetStreamedWorldNodesInFrustum()) do
+        local position, bounds, distance = resolveTargetPosition(target)
+        if distance <= scanner.distance then
+            local data = resolveTargetData(target)
+            data.description = ('%s @ %.2fm'):format(data.description, distance)
+            data.distance = distance
+            data.position = position
+            data.boundingBox = bounds
+            table.insert(results, data)
+        end
+    end
+
+    if userState.pushAreaNodesToTheEnd then
+        table.sort(results, function(a, b)
+            if a.isAreaNode == b.isAreaNode then
+                return a.distance < b.distance
+            end
+            if a.isAreaNode then
+                return false
+            end
+            if b.isAreaNode then
+                return true
+            end
+        end)
+    else
+        table.sort(results, function(a, b)
+            return a.distance < b.distance
+        end)
+    end
+
+    scanner.results = results
+    scanner.filter = nil
+    scanner.filtered = results
+    scanner.hovered = nil
+    scanner.finished = true
+end
+
+local function filterTargets(filter)
+    if isEmpty(filter) then
+        scanner.filtered = scanner.results
+        scanner.filter = nil
+        return
+    end
+
+    if scanner.filter == filter then
+        return
+    end
+
+    local filtered = {}
+
+    local filterExact = filter:upper()
+    local filterEsc = filter:upper():gsub('([^%w])', '%%%1')
+    local filterRe = filterEsc:gsub('%s+', '.* ') .. '.*'
+
+    local partialMatchFields = {
+        'nodeType',
+        'nodeRef',
+        'sectorPath',
+        'meshPath',
+        'materialPath',
+        'effectPath',
+        'templatePath',
+        'recordID',
+    }
+
+    local exactMatchFields = {
+        'instanceIndex',
+    }
+
+    for _, result in ipairs(scanner.results) do
+        local match = false
+        for _, field in ipairs(exactMatchFields) do
+            if isNotEmpty(result[field]) then
+                local value = tostring(result[field]):upper()
+                if value == filterExact then
+                    table.insert(filtered, result)
+                    match = true
+                    break
+                end
+            end
+        end
+        if not match then
+            for _, field in ipairs(partialMatchFields) do
+                if isNotEmpty(result[field]) then
+                    local value = result[field]:upper()
+                    if value:find(filterEsc) or value:find(filterRe) then
+                        table.insert(filtered, result)
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    scanner.filter = filter
+    scanner.filtered = filtered
+end
+
+local function updateScanner(filter)
+    scanTargets()
+    filterTargets(filter)
+
+    if userState.highlightScannerResult then
+        highlightTarget(scanner.hovered)
     end
 end
 
@@ -759,159 +1036,6 @@ local function updateLookup(lookupQuery)
 
     if userState.highlightLookupResult then
         highlightTarget(lookup.result)
-    end
-end
-
--- App :: Scanner --
-
-local scanner = {
-    requested = false,
-    distance = 0,
-    finished = false,
-    results = {},
-    filter = nil,
-    filtered = {},
-    hovered = nil,
-}
-
-local function resolveTargetPosition(target)
-    local bounds
-    local position = target.transform.position
-
-    if not target.bounds.Min:IsXYZZero() then
-        bounds = target.bounds
-        position = Game['OperatorAdd;Vector4Vector4;Vector4'](target.bounds.Min, target.bounds:GetExtents())
-    end
-
-    return position, bounds, target.distance
-end
-
-local function requestScan(maxDistance)
-    scanner.distance = maxDistance
-    scanner.requested = true
-end
-
-local function resetHoveredResult()
-    scanner.hovered = nil
-end
-
-local function setHoveredResult(result)
-    scanner.hovered = result
-end
-
-local function scanTargets()
-    if not scanner.requested then
-        return
-    end
-
-    scanner.requested = false
-
-    local results = {}
-
-    for _, target in ipairs(inspectionSystem:GetStreamedWorldNodesInFrustum()) do
-        local position, bounds, distance = resolveTargetPosition(target)
-        if distance <= scanner.distance then
-            local data = resolveTargetData(target)
-            data.description = ('%s @ %.2fm'):format(data.description, distance)
-            data.targetDistance = distance
-            data.worldPosition = position
-            data.worldBounds = bounds
-            table.insert(results, data)
-        end
-    end
-
-    if userState.pushAreaNodesToTheEnd then
-        table.sort(results, function(a, b)
-            if a.isAreaNode == b.isAreaNode then
-                return a.targetDistance < b.targetDistance
-            end
-            if a.isAreaNode then
-                return false
-            end
-            if b.isAreaNode then
-                return true
-            end
-        end)
-    else
-        table.sort(results, function(a, b)
-            return a.targetDistance < b.targetDistance
-        end)
-    end
-
-    scanner.results = results
-    scanner.filter = nil
-    scanner.filtered = results
-    scanner.hovered = nil
-    scanner.finished = true
-end
-
-local function filterTargets(filter)
-    if isEmpty(filter) then
-        scanner.filtered = scanner.results
-        scanner.filter = nil
-        return
-    end
-
-    if scanner.filter == filter then
-        return
-    end
-
-    local filtered = {}
-
-    local filterExact = filter:upper()
-    local filterEsc = filter:upper():gsub('([^%w])', '%%%1')
-    local filterRe = filterEsc:gsub('%s+', '.* ') .. '.*'
-
-    local partialMatchFields = {
-        'nodeType',
-        'nodeRef',
-        'sectorPath',
-        'meshPath',
-        'materialPath',
-        'effectPath',
-        'templatePath',
-        'recordID',
-    }
-
-    local exactMatchFields = {
-        'instanceIndex',
-    }
-
-    for _, result in ipairs(scanner.results) do
-        local match = false
-        for _, field in ipairs(exactMatchFields) do
-            if isNotEmpty(result[field]) then
-                local value = tostring(result[field]):upper()
-                if value == filterExact then
-                    table.insert(filtered, result)
-                    match = true
-                    break
-                end
-            end
-        end
-        if not match then
-            for _, field in ipairs(partialMatchFields) do
-                if isNotEmpty(result[field]) then
-                    local value = result[field]:upper()
-                    if value:find(filterEsc) or value:find(filterRe) then
-                        table.insert(filtered, result)
-                        break
-                    end
-                end
-            end
-        end
-    end
-
-    scanner.filter = filter
-    scanner.filtered = filtered
-end
-
-local function updateScanner(filter)
-    scanTargets()
-    filterTargets(filter)
-
-    if userState.highlightScannerResult then
-        highlightTarget(scanner.hovered)
     end
 end
 
@@ -1089,7 +1213,7 @@ local function getTargetActions(target, isInputMode)
             table.insert(actions, {
                 type = 'button',
                 label = 'Toggle node',
-                callback = toggleNodeVisibility,
+                callback = toggleNodeState,
             })
         end
     end
@@ -1118,12 +1242,16 @@ end
 
 -- GUI :: Fieldsets --
 
+local function formatCollision(data)
+    return data.collision.name.value
+end
+
 local function formatDistance(data)
-    return ('%.2fm'):format(type(data) == 'number' and data or data.targetDistance)
+    return ('%.2fm'):format(type(data) == 'number' and data or data.distance)
 end
 
 local function useInlineDistance(data)
-    return isNotEmpty(data.collisionGroup) and '@'
+    return data.collision and '@'
 end
 
 --local function isValidNodeIndex(data)
@@ -1138,8 +1266,8 @@ end
 
 local objectSchema = {
     {
-        { name = 'collisionGroup', label = 'Collision:' },
-        { name = 'targetDistance', label = 'Distance:', format = formatDistance, inline = useInlineDistance },
+        { name = 'collision', label = 'Collision:', format = formatCollision },
+        { name = 'distance', label = 'Distance:', format = formatDistance, inline = useInlineDistance },
     },
     {
         { name = 'nodeType', label = 'Node Type:' },
@@ -1347,8 +1475,36 @@ end
 -- GUI :: Inspector --
 
 local function drawInspectorContent(isModal)
-    if inspector.target and inspector.result then
-        drawFieldset(inspector.result, not isModal)
+    if inspector.active then
+        if #inspector.results > 1 then
+            ImGui.Spacing()
+            ImGui.BeginGroup()
+            for index = 1,#inspector.results do
+                local isActive = (index == inspector.active)
+                ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 0)
+                if not isActive then
+                    ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 1)
+                    ImGui.PushStyleColor(ImGuiCol.Button, 0)
+                end
+                --local label = ('%d %s'):format(index, inspector.results[index].nodeTypeAlias)
+                local label = (' %d '):format(index)
+                if ImGui.Button(label) then
+                    selectInspectedResult(index)
+                end
+                if not isActive then
+                    ImGui.PopStyleVar()
+                    ImGui.PopStyleColor()
+                end
+                ImGui.PopStyleVar()
+                if ImGui.IsItemHovered() then
+                    ImGui.SetTooltip(inspector.results[index].nodeType)
+                end
+                ImGui.SameLine()
+            end
+            ImGui.EndGroup()
+            ImGui.Spacing()
+        end
+        drawFieldset(inspector.results[inspector.active], not isModal)
     else
         ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
         ImGui.TextWrapped('No target')
@@ -1377,7 +1533,7 @@ local function drawScannerContent()
 
     if scanner.finished then
         if not userState.keepLastHoveredResultHighlighted then
-            resetHoveredResult()
+            unselectScannedResult()
         end
 
         ImGui.Spacing()
@@ -1432,7 +1588,7 @@ local function drawScannerContent()
                     end
                     ImGui.EndGroup()
                     if ImGui.IsItemHovered() then
-                        setHoveredResult(result)
+                        selectScannedResult(result)
                     end
                 end
 
@@ -1973,26 +2129,26 @@ local function drawProjections()
         for _, projection in pairs(highlight.projections) do
             local target = projection.target
 
-            if projection.bounds and target.worldBounds then
+            if projection.boundingBox and target.boundingBox then
                 local insideColor = fade(projection.color, 0x1D)
                 local faceColor = fade(projection.color, 0x0D)
                 local edgeColor = fade(projection.color, 0xF0)
                 local verticeColor = projection.color
 
-                if insideBox(camera.position, target.worldBounds) then
+                if insideBox(camera.position, target.boundingBox) then
                     drawQuad(screen, insideColor)
-                    drawProjectedBox(screen, target.worldBounds, faceColor, edgeColor, verticeColor, true, false, true)
+                    drawProjectedBox(screen, target.boundingBox, faceColor, edgeColor, verticeColor, true, false, true)
                 else
-                    drawProjectedBox(screen, target.worldBounds, faceColor, edgeColor, verticeColor, true, true, true)
+                    drawProjectedBox(screen, target.boundingBox, faceColor, edgeColor, verticeColor, true, true, true)
                 end
             end
 
-            if projection.position and target.worldPosition then
+            if projection.position and target.position then
                 local outerColor = fade(projection.color, 0x77)
                 local innerColor = projection.color
                 local distanceColor = projection.color
 
-                drawProjectedMarker(screen, target.worldPosition, outerColor, innerColor, distanceColor)
+                drawProjectedMarker(screen, target.position, outerColor, innerColor, distanceColor)
             end
         end
     end
@@ -2088,19 +2244,33 @@ end)
 registerHotkey('ToggleInspector', 'Toggle inspector window', function()
     if not viewState.isConsoleOpen then
         userState.showOnScreenDisplay = not userState.showOnScreenDisplay
-
         if userState.showOnScreenDisplay then
             userState.activeTool = Feature.Inspect
             viewState.isFirstOpen = true
         end
-
         saveUserState()
     end
 end)
 
-registerHotkey('ToggleNodeState', 'Toggle state of inspected node', function()
+registerHotkey('NextInspectorResult', 'Select next inspected target', function()
     if not viewState.isConsoleOpen and userState.showOnScreenDisplay then
-        toggleNodeVisibility(inspector.target)
+        cycleNextInspectedResult()
+    end
+end)
+
+registerHotkey('PrevInspectorResult', 'Select previous inspected target', function()
+    if not viewState.isConsoleOpen and userState.showOnScreenDisplay then
+        cyclePrevInspectedResult()
+    end
+end)
+
+registerHotkey('ToggleInspectorNodeState', 'Toggle state of inspected target', function()
+    if not viewState.isConsoleOpen and userState.showOnScreenDisplay then
+        if inspector.active then
+            toggleNodeState(inspector.results[inspector.active])
+        else
+            toggleNodeState()
+        end
     end
 end)
 
@@ -2163,6 +2333,7 @@ registerForEvent('onUpdate', function(delta)
 end)
 
 registerForEvent('onShutdown', function()
+    disableHighlights()
     saveUserState()
 end)
 
@@ -2170,10 +2341,13 @@ end)
 
 return {
     RegisterExtension = registerExtension,
-    GetLookAtObject = getLookAtTarget,
+    getLookAtTargets = getLookAtTargets,
     CollectTargetData = resolveTargetData,
     GetInspectorTarget = function()
-        return inspector.result
+        return inspector.active and inspector.results[inspector.active] or nil
+    end,
+    GetInspectorTargets = function()
+        return inspector.results
     end,
     GetScannerTargets = function()
         return scanner.results

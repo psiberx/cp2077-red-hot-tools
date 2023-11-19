@@ -36,7 +36,7 @@ struct WorldNodeRuntimeSceneData
     Red::WeakHandle<Red::worldINodeInstance> nodeInstance;
     Red::WeakHandle<Red::worldNode> nodeDefinition;
     Red::Transform transform;
-    Red::Box bounds;
+    Red::Box boundingBox;
     float distance;
     uint64_t hash;
     bool resolved;
@@ -140,7 +140,7 @@ RTTI_DEFINE_CLASS(App::WorldNodeRuntimeSceneData, {
     RTTI_PROPERTY(nodeInstance);
     RTTI_PROPERTY(nodeDefinition);
     RTTI_PROPERTY(transform);
-    RTTI_PROPERTY(bounds);
+    RTTI_PROPERTY(boundingBox);
     RTTI_PROPERTY(distance);
     RTTI_PROPERTY(resolved);
     RTTI_PROPERTY(hash);
