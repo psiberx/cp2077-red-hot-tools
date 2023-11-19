@@ -23,6 +23,8 @@
 #include <RED4ext/Scripting/Natives/Generated/Box.hpp>
 #include <RED4ext/Scripting/Natives/Generated/CMesh.hpp>
 #include <RED4ext/Scripting/Natives/Generated/Transform.hpp>
+#include <RED4ext/Scripting/Natives/Generated/community/CommunityTemplateData.hpp>
+#include <RED4ext/Scripting/Natives/Generated/community/SpawnEntry.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ent/ColliderComponent.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ent/ComponentsStorage.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ent/Entity.hpp>
@@ -32,6 +34,7 @@
 #include <RED4ext/Scripting/Natives/Generated/ent/RenderHighlightEvent.hpp>
 #include <RED4ext/Scripting/Natives/Generated/game/EntityStubComponentPS.hpp>
 #include <RED4ext/Scripting/Natives/Generated/game/ICameraSystem.hpp>
+#include <RED4ext/Scripting/Natives/Generated/game/ICommunitySystem.hpp>
 #include <RED4ext/Scripting/Natives/Generated/game/IEntityStubSystem.hpp>
 #include <RED4ext/Scripting/Natives/Generated/game/IGameSystem.hpp>
 #include <RED4ext/Scripting/Natives/Generated/game/ScriptableSystem.hpp>
@@ -49,6 +52,7 @@
 #include <RED4ext/Scripting/Natives/Generated/world/GlobalNodeRef.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/INodeInstance.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/IRuntimeSystem.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/InstancedDestructibleMeshNodeInstance.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/InstancedMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/InstancedMeshNodeInstance.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/MeshNode.hpp>

@@ -76,6 +76,7 @@ local userStateSchema = {
     activeTool = { type = Feature, default = Feature.Inspect },
     showOnScreenDisplay = { type = 'boolean', default = false },
     scannerDistance = { type = 'number', default = 5.0 },
+    scannerFilter = { type = 'string', default = '' },
     highlightColor = { type = ColorScheme, default = ColorScheme.Red },
     outlineMode = { type = OutlineMode, default = OutlineMode.ForSupportedObjects },
     markerMode = { type = MarkerMode, default = MarkerMode.WhenOutlineIsUnsupported },
@@ -133,6 +134,20 @@ local collisionGroups = {
     --{ name = 'NPCCollision', threshold = 0.0, tolerance = 0.0 },
 }
 
+local extendedCollisionGroups = {
+    { name = 'Static+' },
+    { name = 'Dynamic+' },
+}
+
+local function initializeTargeting()
+    for _, collision in ipairs(collisionGroups) do
+        collision.name = StringToName(collision.name)
+    end
+    for _, collision in ipairs(extendedCollisionGroups) do
+        collision.name = StringToName(collision.name)
+    end
+end
+
 local function getCameraData(distance)
 	local player = GetPlayer()
 
@@ -177,7 +192,7 @@ local function getLookAtTargets(maxDistance)
                 entity = Ref.Weak(entity),
                 hash = inspectionSystem:GetObjectHash(entity),
                 distance = Vector4.Distance(camera.position, ToVector4(entity:GetWorldPosition())),
-                collision = collisionGroups[2],
+                collision = extendedCollisionGroups[2],
             })
         end
 
@@ -224,7 +239,7 @@ local function getLookAtTargets(maxDistance)
         end
 
         for _, result in ipairs(results) do
-            result.collision = collisionGroups[1]
+            result.collision = extendedCollisionGroups[1]
         end
 
         return results
@@ -252,7 +267,7 @@ local shimmer = {
 local colorMapping = {
     [ColorScheme.Green] = 0xFF32FF1D,
     [ColorScheme.Red] = 0xFF050FFF,
-    [ColorScheme.Yellow] = 0xFFF0B537,
+    [ColorScheme.Yellow] = 0xFF37B5F0,
     [ColorScheme.White] = 0xFFFFFFFF,
     [ColorScheme.Shimmer] = 0xFF0090FF,
 }
@@ -265,7 +280,7 @@ local outlineMapping = {
     [ColorScheme.Shimmer] = 0,
 }
 
-local function configureHighlight()
+local function initializeHighlighting()
     highlight.color = colorMapping[userState.highlightColor]
     highlight.outline = outlineMapping[userState.highlightColor]
 
@@ -337,8 +352,8 @@ local function enableHighlight(target)
         highlight.projections[target.hash] = {
             target = target,
             color = highlight.color,
-            position = showMarker,
-            boundingBox = showBoundindBox,
+            showMarker = showMarker,
+            showBoundindBox = showBoundindBox,
         }
     else
         highlight.projections[target.hash] = nil
@@ -354,18 +369,23 @@ local function highlightTarget(target)
     highlight.pending = target
 end
 
+local function disableHighlights()
+    if highlight.target then
+        disableHighlight(highlight.target)
+        highlight.target = nil
+    end
+    highlight.projections = {}
+end
+
 local function updateHighlights()
     if not highlight.pending then
-        if highlight.target then
-            disableHighlight(highlight.target)
-            highlight.target = nil
-        end
+        disableHighlights()
         return
     end
 
     if highlight.target then
         if highlight.target.hash ~= highlight.pending.hash then
-            disableHighlight(highlight.target)
+            disableHighlights()
         end
     end
 
@@ -373,13 +393,6 @@ local function updateHighlights()
     highlight.pending = nil
 
     enableHighlight(highlight.target)
-end
-
-local function disableHighlights()
-    if highlight.target then
-        disableHighlight(highlight.target)
-        highlight.target = nil
-    end
 end
 
 -- App :: Resolving --
@@ -521,15 +534,24 @@ local function fillTargetNodeData(target, data)
 
     data.isNode = IsDefined(data.nodeInstance) or IsDefined(data.nodeDefinition) or isNotEmpty(data.nodeID)
     data.isAreaNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldAreaShapeNode')
+    data.isTerrainNode = data.isNode and (inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldGenericProxyMeshNode')
+        or inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldTerrainProxyMeshNode'))
+    data.isAreaOrTerrainNode = data.isAreaNode or data.isTerrainNode
     data.isEntityNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldEntityNode')
-    data.isVisibleNode = data.isNode and isNotEmpty(data.meshPath) or isNotEmpty(data.materialPath) or isNotEmpty(data.templatePath)
+    data.isCommunityNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldCompiledCommunityAreaNode')
+    data.isSpawnerNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldPopulationSpawnerNode')
+    data.isVisibleNode = data.isNode and (isNotEmpty(data.meshPath) or isNotEmpty(data.materialPath) or isNotEmpty(data.templatePath))
 end
 
 local function fillTargetGeomertyData(target, data)
     data.collision = target.collision
     data.distance = target.distance
     data.position = target.position
-    data.boundingBox = target.boundingBox
+
+    if target.boundingBox and not target.boundingBox.Min:IsXYZZero() then
+        data.boundingBox = target.boundingBox
+        data.position = Game['OperatorAdd;Vector4Vector4;Vector4'](data.boundingBox.Min, data.boundingBox:GetExtents())
+    end
 end
 
 local function fillTargetDescription(_, data)
@@ -560,6 +582,10 @@ local function fillTargetDescription(_, data)
         data.description = table.concat(description, ' | ')
     elseif isNotEmpty(data.entityType) then
         data.description = ('%s | %d'):format(data.entityType, data.entityID)
+    end
+
+    if isNotEmpty(data.description) and data.distance then
+        data.description = ('%s @ %.2fm'):format(data.description, data.distance)
     end
 
 --     if isNotEmpty(data.nodeType) then
@@ -634,7 +660,8 @@ end
 local lastTarget
 
 local function canToggleNodeState(target)
-    return target.isVisibleNode or target.isCommunityNode or target.isSpawnerNode
+    return target and IsDefined(target.nodeInstance) and target.isVisibleNode
+    --[[or target.isCommunityNode or target.isSpawnerNode]]
 end
 
 local function toggleNodeState(target)
@@ -644,13 +671,16 @@ local function toggleNodeState(target)
     end
 
     if target and IsDefined(target.nodeInstance) then
-        if target.isCommunityNode then
-            --
-        elseif target.isSpawnerNode then
-            --
-        elseif target.isVisibleNode then
-            inspectionSystem:ToggleNodeVisibility(target.nodeInstance)
-        end
+        --if target.isCommunityNode then
+        --    local nodeRef = CreateEntityReference(target.nodeRef, {}).reference, GlobalNodeID.GetRoot()
+        --    inspectionSystem:ToggleCommunity(nodeRef)
+        --elseif target.isSpawnerNode then
+        --    local nodeRef = CreateEntityReference(target.nodeRef, {}).reference, GlobalNodeID.GetRoot()
+        --    inspectionSystem:ToggleSpawner(nodeRef)
+        --elseif target.isVisibleNode then
+        --    inspectionSystem:ToggleNodeVisibility(target.nodeInstance)
+        --end
+        inspectionSystem:ToggleNodeVisibility(target.nodeInstance)
         lastTarget = target
     end
 end
@@ -758,12 +788,6 @@ local function cyclePrevInspectedResult()
     end
 end
 
-local function initializeInspector()
-    for _, collision in ipairs(collisionGroups) do
-        collision.name = CName(collision.name)
-    end
-end
-
 local function updateInspector()
     inspectTargets(getLookAtTargets())
 
@@ -776,28 +800,15 @@ end
 
 local scanner = {
     requested = false,
-    distance = 0,
     finished = false,
     results = {},
+    distance = 0,
     filter = nil,
     filtered = {},
     hovered = nil,
 }
 
-local function resolveTargetPosition(target)
-    local bounds
-    local position = target.transform.position
-
-    if not target.boundingBox.Min:IsXYZZero() then
-        bounds = target.boundingBox
-        position = Game['OperatorAdd;Vector4Vector4;Vector4'](bounds.Min, bounds:GetExtents())
-    end
-
-    return position, bounds, target.distance
-end
-
-local function requestScan(maxDistance)
-    scanner.distance = maxDistance
+local function requestScan()
     scanner.requested = true
 end
 
@@ -819,26 +830,21 @@ local function scanTargets()
     local results = {}
 
     for _, target in ipairs(inspectionSystem:GetStreamedWorldNodesInFrustum()) do
-        local position, bounds, distance = resolveTargetPosition(target)
-        if distance <= scanner.distance then
-            local data = resolveTargetData(target)
-            data.description = ('%s @ %.2fm'):format(data.description, distance)
-            data.distance = distance
-            data.position = position
-            data.boundingBox = bounds
-            table.insert(results, data)
+        local data = resolveTargetData(target)
+        if data.distance <= 100 then
+            table.insert(results, resolveTargetData(target))
         end
     end
 
     if userState.pushAreaNodesToTheEnd then
         table.sort(results, function(a, b)
-            if a.isAreaNode == b.isAreaNode then
+            if a.isAreaOrTerrainNode == b.isAreaOrTerrainNode then
                 return a.distance < b.distance
             end
-            if a.isAreaNode then
+            if a.isAreaOrTerrainNode then
                 return false
             end
-            if b.isAreaNode then
+            if b.isAreaOrTerrainNode then
                 return true
             end
         end)
@@ -855,14 +861,8 @@ local function scanTargets()
     scanner.finished = true
 end
 
-local function filterTargets(filter)
-    if isEmpty(filter) then
-        scanner.filtered = scanner.results
-        scanner.filter = nil
-        return
-    end
-
-    if scanner.filter == filter then
+local function filterTargets(maxDistance, filter)
+    if scanner.filter == filter and scanner.distance == maxDistance then
         return
     end
 
@@ -888,37 +888,42 @@ local function filterTargets(filter)
     }
 
     for _, result in ipairs(scanner.results) do
-        local match = false
-        for _, field in ipairs(exactMatchFields) do
-            if isNotEmpty(result[field]) then
-                local value = tostring(result[field]):upper()
-                if value == filterExact then
-                    table.insert(filtered, result)
-                    match = true
-                    break
+        if result.distance <= maxDistance then
+            local match = false
+
+            for _, field in ipairs(exactMatchFields) do
+                if isNotEmpty(result[field]) then
+                    local value = tostring(result[field]):upper()
+                    if value == filterExact then
+                        table.insert(filtered, result)
+                        match = true
+                        break
+                    end
                 end
             end
-        end
-        if not match then
-            for _, field in ipairs(partialMatchFields) do
-                if isNotEmpty(result[field]) then
-                    local value = result[field]:upper()
-                    if value:find(filterEsc) or value:find(filterRe) then
-                        table.insert(filtered, result)
-                        break
+
+            if not match then
+                for _, field in ipairs(partialMatchFields) do
+                    if isNotEmpty(result[field]) then
+                        local value = result[field]:upper()
+                        if value:find(filterEsc) or value:find(filterRe) then
+                            table.insert(filtered, result)
+                            break
+                        end
                     end
                 end
             end
         end
     end
 
+    scanner.distance = maxDistance
     scanner.filter = filter
     scanner.filtered = filtered
 end
 
-local function updateScanner(filter)
+local function updateScanner(distance, filter)
     scanTargets()
-    filterTargets(filter)
+    filterTargets(distance, filter)
 
     if userState.highlightScannerResult then
         highlightTarget(scanner.hovered)
@@ -1124,8 +1129,9 @@ local viewData = {
 }
 
 local viewStyle = {
-    labelTextColor = 0xFFA5A19B, -- #9F9F9F
+    labelTextColor = 0xFF9F9F9F, --0xFFA5A19B
     mutedTextColor = 0xFFA5A19B,
+    hintTextColor = 0x66FFFFFF,
     dangerTextColor = 0xFF6666FF,
     disabledButtonColor = 0xFF4F4F4F,
 }
@@ -1175,9 +1181,9 @@ local function initializeViewStyle()
 
         viewStyle.buttonHeight = 21 * viewStyle.viewScale
 
-        viewStyle.scannerDistanceWidth = 110 * viewStyle.viewScale
-        viewStyle.scannerFilterWidth = 170 * viewStyle.viewScale
-        viewStyle.scannerStatsWidth = ImGui.CalcTextSize('000 / 000') * viewStyle.viewScale
+        viewStyle.scannerDistanceWidth = 90 * viewStyle.viewScale
+        viewStyle.scannerFilterWidth = 120 * viewStyle.viewScale
+        viewStyle.scannerStatsWidth = ImGui.CalcTextSize('0000 / 0000') * viewStyle.viewScale
 
         viewStyle.settingsShortComboRowWidth = 160 * viewStyle.viewScale
         viewStyle.settingsLongComboRowWidth = 240 * viewStyle.viewScale
@@ -1205,14 +1211,25 @@ end
 
 -- GUI :: Actions --
 
+local function getToggleNodeActionName(target)
+    --if target.isCommunityNode then
+    --    return 'Toggle community'
+    --elseif target.isSpawnerNode then
+    --    return 'Toggle spawner'
+    --else
+    --    return 'Toggle node'
+    --end
+    return 'Toggle node visibility'
+end
+
 local function getTargetActions(target, isInputMode)
     local actions = {}
 
     if isInputMode then
-        if IsDefined(target.nodeInstance) and target.isVisibleNode then
+        if canToggleNodeState(target) then
             table.insert(actions, {
                 type = 'button',
-                label = 'Toggle node',
+                label = getToggleNodeActionName(target),
                 callback = toggleNodeState,
             })
         end
@@ -1517,18 +1534,9 @@ end
 local function drawScannerContent()
     ImGui.TextWrapped('Search for non-collision, hidden and unreachable world nodes.')
     ImGui.Spacing()
-    ImGui.AlignTextToFramePadding()
-    ImGui.Text('Scanning depth:')
-    ImGui.SameLine()
-    ImGui.SetNextItemWidth(viewStyle.scannerDistanceWidth)
-    local distance, distanceChanged = ImGui.InputFloat('##ScannerDistance', userState.scannerDistance, 0.5, 1.0, '%.1fm', ImGuiInputTextFlags.None)
-    if distanceChanged then
-        userState.scannerDistance = clamp(distance, 0.5, 100.0)
-    end
-    ImGui.Spacing()
 
     if ImGui.Button('Scan world nodes', viewStyle.windowWidth, viewStyle.buttonHeight) then
-        requestScan(userState.scannerDistance)
+        requestScan()
     end
 
     if scanner.finished then
@@ -1542,23 +1550,53 @@ local function drawScannerContent()
             ImGui.Spacing()
 
             ImGui.AlignTextToFramePadding()
-            ImGui.Text('Filter results:')
+            ImGui.Text('Filter:')
             ImGui.SameLine()
             ImGui.SetNextItemWidth(viewStyle.scannerFilterWidth)
-            local filter, filterChanged = ImGui.InputTextWithHint('##ScannerFilter', 'Node type or reference or resource', viewState.scannerFilter, viewData.maxInputLen)
+            ImGui.PushStyleColor(ImGuiCol.TextDisabled, viewStyle.hintTextColor)
+            local filter, filterChanged = ImGui.InputTextWithHint('##ScannerFilter', 'Node type or properties', userState.scannerFilter, viewData.maxInputLen)
             if filterChanged then
-                viewState.scannerFilter = sanitizeTextInput(filter)
+                userState.scannerFilter = sanitizeTextInput(filter)
+            end
+            ImGui.PopStyleColor()
+            ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, 0)
+            local isEmptyFilter = isEmpty(userState.scannerFilter)
+            if isEmptyFilter then
+                ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.hintTextColor)
+            end
+            ImGui.SameLine()
+            if ImGui.Button(' x ') then
+                userState.scannerFilter = ''
+            end
+            if isEmptyFilter then
+                ImGui.PopStyleColor()
+            end
+            ImGui.PopStyleVar()
+            ImGui.SameLine()
+            ImGui.AlignTextToFramePadding()
+            ImGui.Text('Distance:')
+            ImGui.SameLine()
+            ImGui.SetNextItemWidth(viewStyle.scannerDistanceWidth)
+            local distance, distanceChanged = ImGui.InputFloat('##ScannerDistance', userState.scannerDistance, 0.5, 1.0, '%.1fm', ImGuiInputTextFlags.None)
+            if distanceChanged then
+                userState.scannerDistance = clamp(distance, 0.5, 100)
             end
 
+            ImGui.Spacing()
+
+            --ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+            ImGui.AlignTextToFramePadding()
+            ImGui.Text('Showing:')
             ImGui.SameLine()
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-            ImGui.SetNextItemWidth(viewStyle.scannerStatsWidth)
             ImGui.Text(('%d / %d'):format(#scanner.filtered, #scanner.results))
-            ImGui.PopStyleColor()
+            --ImGui.PopStyleColor()
             ImGui.SameLine()
             local expandlAll = ImGui.Button('Expand all')
             ImGui.SameLine()
             local collapseAll = ImGui.Button('Collapse all')
+
+            ImGui.Spacing()
+            ImGui.Separator()
             ImGui.Spacing()
 
             if #scanner.filtered > 0 then
@@ -1614,10 +1652,12 @@ local function drawLookupContent()
     ImGui.TextWrapped('Lookup world nodes and spawned entities by their identities.')
     ImGui.Spacing()
     ImGui.SetNextItemWidth(viewStyle.windowWidth)
+    ImGui.PushStyleColor(ImGuiCol.TextDisabled, viewStyle.hintTextColor)
     local query, queryChanged = ImGui.InputTextWithHint('##LookupQuery', 'Enter node reference or entity id or hash', viewState.lookupQuery, viewData.maxInputLen)
     if queryChanged then
         viewState.lookupQuery = sanitizeTextInput(query)
     end
+    ImGui.PopStyleColor()
 
     if lookup.result then
         if not lookup.empty then
@@ -1750,6 +1790,22 @@ local function drawSettingsContent()
         userState.targetingMode = TargetingMode.values[state + 1]
     end
     ImGui.EndGroup()
+    if ImGui.IsItemHovered() then
+        ImGui.BeginTooltip()
+        local cursorY = ImGui.GetCursorPosY()
+        ImGui.Dummy(220 * viewStyle.viewScale, 0)
+        ImGui.SetCursorPosY(cursorY)
+        ImGui.TextWrapped(
+            viewData.targetingModeOptions[1] ..
+            ': Uses the same ray casting method and physical data as during normal gameplay, ' ..
+            'pixel accurate but cannot target non-collision meshes and decals.')
+        ImGui.SetNextItemWidth(200)
+        ImGui.TextWrapped(
+            viewData.targetingModeOptions[2] ..
+            ': Uses alternative ray casting method based on static bounding boxes of world nodes, ' ..
+            'ignores transparency and generally less accurate but can target non-collision meshes and decals.')
+        ImGui.EndTooltip()
+    end
 
     ImGui.Spacing()
 
@@ -1786,7 +1842,7 @@ local function drawSettingsContent()
     end
     ImGui.Unindent(ImGui.GetFrameHeightWithSpacing())
 
-    state, changed = ImGui.Checkbox('Put all area nodes at the end of the results', userState.pushAreaNodesToTheEnd)
+    state, changed = ImGui.Checkbox('Put area and terrain nodes at the end of the results', userState.pushAreaNodesToTheEnd)
     if changed then
         userState.pushAreaNodesToTheEnd = state
     end
@@ -1824,7 +1880,7 @@ local function drawSettingsContent()
     state, changed = ImGui.Combo('##HighlightColor', ColorScheme.values[userState.highlightColor] - 1, viewData.colorSchemeOptions, #viewData.colorSchemeOptions)
     if changed then
         userState.highlightColor = ColorScheme.values[state + 1]
-        configureHighlight()
+        initializeHighlighting()
     end
     ImGui.EndGroup()
 
@@ -2129,7 +2185,7 @@ local function drawProjections()
         for _, projection in pairs(highlight.projections) do
             local target = projection.target
 
-            if projection.boundingBox and target.boundingBox then
+            if projection.showBoundindBox and target.boundingBox then
                 local insideColor = fade(projection.color, 0x1D)
                 local faceColor = fade(projection.color, 0x0D)
                 local edgeColor = fade(projection.color, 0xF0)
@@ -2143,7 +2199,7 @@ local function drawProjections()
                 end
             end
 
-            if projection.position and target.position then
+            if projection.showMarker and target.position then
                 local outerColor = fade(projection.color, 0x77)
                 local innerColor = projection.color
                 local distanceColor = projection.color
@@ -2292,7 +2348,7 @@ registerHotkey('CycleHighlightColor', 'Cycle highlight colors', function()
             nextColorIndex = 1
         end
         userState.highlightColor = ColorScheme.values[nextColorIndex]
-        configureHighlight()
+        initializeHighlighting()
         saveUserState()
     end
 end)
@@ -2304,8 +2360,8 @@ registerForEvent('onInit', function()
 
     if isPluginFound then
         initializeUserState()
-        configureHighlight()
-        initializeInspector()
+        initializeHighlighting()
+        initializeTargeting()
         initializeWatcher()
         initializeViewData()
 
@@ -2314,7 +2370,7 @@ registerForEvent('onInit', function()
                 if userState.activeTool == Feature.Inspect then
                     updateInspector()
                 elseif userState.activeTool == Feature.Scan then
-                    updateScanner(viewState.scannerFilter)
+                    updateScanner(userState.scannerDistance, userState.scannerFilter)
                 elseif userState.activeTool == Feature.Lookup then
                     updateLookup(viewState.lookupQuery)
                 elseif userState.activeTool == Feature.Watch then

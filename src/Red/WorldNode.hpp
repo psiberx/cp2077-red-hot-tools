@@ -78,6 +78,12 @@ namespace Raw::WorldPhysicalDestructionNodeInstance
 using RenderProxy = Core::OffsetPtr<0x1D8, Red::SharedPtr<Red::RenderProxy>>;
 }
 
+namespace Raw::WorldInstancedDestructibleMeshNodeInstance
+{
+// using Mesh = Core::OffsetPtr<0x170, Red::Handle<Red::CMesh>>;
+// using RenderProxy = Core::OffsetPtr<0x190, Red::SharedPtr<Red::RenderProxy>>;
+}
+
 namespace Raw::WorldInstancedMeshNodeInstance
 {
 using RenderProxies = Core::OffsetPtr<0xE8, Red::DynArray<Red::SharedPtr<Red::RenderProxy>>>;

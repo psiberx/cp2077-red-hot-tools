@@ -35,7 +35,8 @@ struct WorldNodeRuntimeSceneData
 {
     Red::WeakHandle<Red::worldINodeInstance> nodeInstance;
     Red::WeakHandle<Red::worldNode> nodeDefinition;
-    Red::Transform transform;
+    Red::Vector4 position;
+    Red::Quaternion orientation;
     Red::Box boundingBox;
     float distance;
     uint64_t hash;
@@ -139,7 +140,8 @@ RTTI_DEFINE_CLASS(App::WorldNodeStaticData, {
 RTTI_DEFINE_CLASS(App::WorldNodeRuntimeSceneData, {
     RTTI_PROPERTY(nodeInstance);
     RTTI_PROPERTY(nodeDefinition);
-    RTTI_PROPERTY(transform);
+    RTTI_PROPERTY(position);
+    RTTI_PROPERTY(orientation);
     RTTI_PROPERTY(boundingBox);
     RTTI_PROPERTY(distance);
     RTTI_PROPERTY(resolved);

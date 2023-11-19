@@ -168,11 +168,13 @@ void App::InspectionSystem::UpdateStreamedNodes()
 
 void App::InspectionSystem::UpdateFrustumNodes()
 {
+#ifndef NDEBUG
     std::chrono::duration<double, std::milli> initDuration{};
     std::chrono::duration<double, std::milli> resolveDuration{};
     std::chrono::duration<double, std::milli> raycastDuration{};
     std::chrono::duration<double, std::milli> commitDuration{};
     const auto updateStart = std::chrono::steady_clock::now();
+#endif
 
     Red::DynArray<WorldNodeRuntimeSceneData> frustumNodes{};
     Core::Vector<uint32_t> targetedNodeIndexes{};
@@ -187,7 +189,9 @@ void App::InspectionSystem::UpdateFrustumNodes()
 
     const Red::Vector4 cameraInverseDirection{1.0f / cameraForward.X, 1.0f / cameraForward.Y, 1.0f / cameraForward.Z};
 
+#ifndef NDEBUG
     initDuration = std::chrono::steady_clock::now() - updateStart;
+#endif
 
     {
         std::shared_lock _(m_streamedNodesLock);
@@ -198,10 +202,9 @@ void App::InspectionSystem::UpdateFrustumNodes()
 
             const auto& transform = streamedNode.nodeSetup->transform;
 
-            if (streamedNode.nodeDefinition.instance->GetType()->GetName() == "worldCompiledCommunityAreaNode_Streamable")
-                __nop();
-
+#ifndef NDEBUG
             const auto resolveStart = std::chrono::steady_clock::now();
+#endif
 
             Red::FrustumResult frustumResult{};
             Red::Box boundingBox{};
@@ -225,12 +228,16 @@ void App::InspectionSystem::UpdateFrustumNodes()
                 frustumResult = cameraFrustum.Test(dummyBox);
             }
 
+#ifndef NDEBUG
             resolveDuration += std::chrono::steady_clock::now() - resolveStart;
+#endif
 
             if (frustumResult == Red::FrustumResult::Outside)
                 continue;
 
+#ifndef NDEBUG
             const auto raycastStart = std::chrono::steady_clock::now();
+#endif
 
             float distance;
             if (Red::IsValidBox(boundingBox) && !Red::IsZeroBox(boundingBox))
@@ -253,14 +260,20 @@ void App::InspectionSystem::UpdateFrustumNodes()
                 }
             }
 
+#ifndef NDEBUG
             raycastDuration += std::chrono::steady_clock::now() - raycastStart;
+#endif
 
+            const auto instanceHash = reinterpret_cast<uint64_t>(streamedNode.nodeInstance.instance);
             frustumNodes.PushBack({streamedNode.nodeInstance, streamedNode.nodeDefinition,
-                                   transform, boundingBox, distance, hash, true});
+                                   transform.position, transform.orientation, boundingBox,
+                                   distance, instanceHash, true});
         }
     }
 
+#ifndef NDEBUG
     const auto commitStart = std::chrono::steady_clock::now();
+#endif
 
     std::sort(targetedNodeIndexes.begin(), targetedNodeIndexes.end(),
               [&frustumNodes](uint32_t a, uint32_t b)
@@ -279,6 +292,7 @@ void App::InspectionSystem::UpdateFrustumNodes()
         }
     }
 
+#ifndef NDEBUG
     commitDuration = std::chrono::steady_clock::now() - commitStart;
 
     const std::chrono::duration<double, std::milli> updateDuration = std::chrono::steady_clock::now() - updateStart;
@@ -288,6 +302,7 @@ void App::InspectionSystem::UpdateFrustumNodes()
                      updateDuration.count(), initDuration.count(),
                      resolveDuration.count(), raycastDuration.count(),
                      commitDuration.count());
+#endif
 }
 
 Red::CString App::InspectionSystem::ResolveResourcePath(uint64_t aResourceHash)
@@ -382,7 +397,7 @@ App::WorldNodeRuntimeSceneData App::InspectionSystem::FindStreamedWorldNode(uint
     if (!nodeInstanceWeak)
         return {};
 
-    return {nodeInstanceWeak, nodeDefinitionWeak, setup->transform};
+    return {nodeInstanceWeak, nodeDefinitionWeak, setup->transform.position, setup->transform.orientation};
 }
 
 Red::DynArray<App::WorldNodeRuntimeSceneData> App::InspectionSystem::GetStreamedWorldNodesInFrustum()
@@ -419,10 +434,10 @@ bool App::InspectionSystem::UpdateNodeVisibility(const Red::Handle<Red::worldINo
         return true;
     }
 
-    if (Red::IsInstanceOf<Red::worldMeshNodeInstance>(aNodeInstance))
-    {
-        return SetRenderProxyVisibility<Raw::WorldMeshNodeInstance::RenderProxy>(aNodeInstance, aToggle, aVisible);
-    }
+    // if (Red::IsInstanceOf<Red::worldInstancedDestructibleMeshNodeInstance>(aNodeInstance))
+    // {
+    //     return SetRenderProxyVisibility<Raw::WorldInstancedDestructibleMeshNodeInstance::RenderProxy>(aNodeInstance, aToggle, aVisible);
+    // }
 
     if (Red::IsInstanceOf<Red::worldMeshNodeInstance>(aNodeInstance))
     {
@@ -519,10 +534,10 @@ bool App::InspectionSystem::ApplyHighlightEffect(const Red::Handle<Red::ISeriali
                                        aEffect->opacity,
                                        true};
 
-        if (Red::IsInstanceOf<Red::worldMeshNodeInstance>(nodeInstance))
-        {
-            return SetRenderProxyHighlightEffect<Raw::WorldMeshNodeInstance::RenderProxy>(nodeInstance, aEffect);
-        }
+        // if (Red::IsInstanceOf<Red::worldInstancedDestructibleMeshNodeInstance>(nodeInstance))
+        // {
+        //     return SetRenderProxyHighlightEffect<Raw::WorldInstancedDestructibleMeshNodeInstance::RenderProxy>(nodeInstance, aEffect);
+        // }
 
         if (Red::IsInstanceOf<Red::worldMeshNodeInstance>(nodeInstance))
         {
@@ -647,10 +662,12 @@ App::PhysicsTraceResultObject App::InspectionSystem::GetPhysicsTraceObject(Red::
             {
                 result.nodeInstance = nodeInstance;
                 result.nodeDefinition = Raw::WorldNodeInstance::Node::Ref(nodeInstance);
+                result.hash = reinterpret_cast<uint64_t>(nodeInstance.instance);
             }
             else if (auto& entity = Red::Cast<Red::entEntity>(object))
             {
                 result.entity = entity;
+                result.hash = reinterpret_cast<uint64_t>(entity.instance);
 
                 const auto& entityID = Raw::Entity::EntityID::Ref(entity.instance);
                 if (entityID.IsStatic())
@@ -660,11 +677,15 @@ App::PhysicsTraceResultObject App::InspectionSystem::GetPhysicsTraceObject(Red::
                     {
                         result.nodeInstance = nodeInstance;
                         result.nodeDefinition = Raw::WorldNodeInstance::Node::Ref(nodeInstance);
+                        result.hash = reinterpret_cast<uint64_t>(nodeInstance.instance);
                     }
                 }
             }
+            else
+            {
+                result.hash = reinterpret_cast<uint64_t>(object.instance);
+            }
 
-            result.hash = reinterpret_cast<uint64_t>(object.instance);
             result.resolved = true;
             break;
         }
