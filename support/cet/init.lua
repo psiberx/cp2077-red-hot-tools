@@ -135,18 +135,18 @@ local collisionGroups = {
     --{ name = 'NPCCollision', threshold = 0.0, tolerance = 0.0 },
 }
 
---local extendedCollisionGroups = {
---    { name = 'Static+' },
---    { name = 'Dynamic+' },
---}
+local extendedCollisionGroups = {
+    { name = 'Static+' },
+    { name = 'Dynamic+' },
+}
 
 local function initializeTargeting()
     for _, collision in ipairs(collisionGroups) do
         collision.name = StringToName(collision.name)
     end
-    --for _, collision in ipairs(extendedCollisionGroups) do
-    --    collision.name = StringToName(collision.name)
-    --end
+    for _, collision in ipairs(extendedCollisionGroups) do
+        collision.name = StringToName(collision.name)
+    end
 end
 
 local function getCameraData(distance)
@@ -193,7 +193,7 @@ local function getLookAtTargets(maxDistance)
                 entity = Ref.Weak(entity),
                 hash = inspectionSystem:GetObjectHash(entity),
                 distance = Vector4.Distance(camera.position, ToVector4(entity:GetWorldPosition())),
-                --collision = extendedCollisionGroups[2],
+                collision = extendedCollisionGroups[2],
             })
         end
 
@@ -238,10 +238,6 @@ local function getLookAtTargets(maxDistance)
         while #results > userState.maxStaticMeshTargets do
             table.remove(results)
         end
-
-        --for _, result in ipairs(results) do
-        --    result.collision = extendedCollisionGroups[1]
-        --end
 
         return results
     end
@@ -589,25 +585,25 @@ local function fillTargetDescription(_, data)
     --    data.description = ('%s @ %.2fm'):format(data.description, data.distance)
     --end
 
---     if isNotEmpty(data.nodeType) then
---         local subs = {
---             '^world',
---             '^Compiled',
---             '^Instanced',
---             '^Generic',
---             '^Static',
---             '_Streamable$',
---             'Node$',
---             'Proxy',
---         }
---
---         local nodeTypeAlias = data.nodeType
---         for _, sub in ipairs(subs) do
---             nodeTypeAlias = nodeTypeAlias:gsub(sub, '')
---         end
---
---         data.nodeTypeAlias = nodeTypeAlias
---     end
+     --if isNotEmpty(data.nodeType) then
+     --    local subs = {
+     --        '^world',
+     --        '^Compiled',
+     --        '^Instanced',
+     --        '^Generic',
+     --        '^Static',
+     --        '_Streamable$',
+     --        'Node$',
+     --        'Proxy',
+     --    }
+     --
+     --    local nodeTypeAlias = data.nodeType
+     --    for _, sub in ipairs(subs) do
+     --        nodeTypeAlias = nodeTypeAlias:gsub(sub, '')
+     --    end
+     --
+     --    data.nodeTypeAlias = nodeTypeAlias
+     --end
 end
 
 local function fillTargetHash(target, data)
@@ -1500,12 +1496,16 @@ end
 -- GUI :: Inspector --
 
 local function drawInspectorContent(isModal)
-    --ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
-    --ImGui.Text('Targeting:')
-    --ImGui.PopStyleColor()
-    --ImGui.SameLine()
     ImGui.Text(viewData.targetingModeOptions[TargetingMode.values[userState.targetingMode]])
     if inspector.active then
+        if inspector.results[inspector.active].collision then
+            ImGui.SameLine()
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
+            ImGui.Text('/')
+            ImGui.PopStyleColor()
+            ImGui.SameLine()
+            ImGui.Text(inspector.results[inspector.active].collision.name.value)
+        end
         if inspector.results[inspector.active].distance then
             ImGui.SameLine()
             ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
@@ -1513,18 +1513,6 @@ local function drawInspectorContent(isModal)
             ImGui.PopStyleColor()
             ImGui.SameLine()
             ImGui.Text(formatDistance(inspector.results[inspector.active].distance))
-        end
-        if inspector.results[inspector.active].collision then
-            ImGui.SameLine()
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
-            ImGui.Text('[')
-            ImGui.PopStyleColor()
-            ImGui.SameLine()
-            ImGui.Text(inspector.results[inspector.active].collision.name.value)
-            ImGui.SameLine()
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
-            ImGui.Text(']')
-            ImGui.PopStyleColor()
         end
         if #inspector.results > 1 then
             ImGui.Spacing()
