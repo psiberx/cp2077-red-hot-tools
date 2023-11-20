@@ -84,6 +84,7 @@ local userStateSchema = {
     showMarkerDistance = { type = 'boolean', default = false },
     showBoundingBoxDistances = { type = 'boolean', default = false },
     targetingMode = { type = TargetingMode, default = TargetingMode.GamePhysics },
+    maxStaticMeshTargets = { type = 'number', default = 8 },
     highlightInspectorResult = { type = 'boolean', default = true },
     highlightScannerResult = { type = 'boolean', default = true },
     highlightLookupResult = { type = 'boolean', default = false },
@@ -134,18 +135,18 @@ local collisionGroups = {
     --{ name = 'NPCCollision', threshold = 0.0, tolerance = 0.0 },
 }
 
-local extendedCollisionGroups = {
-    { name = 'Static+' },
-    { name = 'Dynamic+' },
-}
+--local extendedCollisionGroups = {
+--    { name = 'Static+' },
+--    { name = 'Dynamic+' },
+--}
 
 local function initializeTargeting()
     for _, collision in ipairs(collisionGroups) do
         collision.name = StringToName(collision.name)
     end
-    for _, collision in ipairs(extendedCollisionGroups) do
-        collision.name = StringToName(collision.name)
-    end
+    --for _, collision in ipairs(extendedCollisionGroups) do
+    --    collision.name = StringToName(collision.name)
+    --end
 end
 
 local function getCameraData(distance)
@@ -192,7 +193,7 @@ local function getLookAtTargets(maxDistance)
                 entity = Ref.Weak(entity),
                 hash = inspectionSystem:GetObjectHash(entity),
                 distance = Vector4.Distance(camera.position, ToVector4(entity:GetWorldPosition())),
-                collision = extendedCollisionGroups[2],
+                --collision = extendedCollisionGroups[2],
             })
         end
 
@@ -234,13 +235,13 @@ local function getLookAtTargets(maxDistance)
             return
         end
 
-        while #results > 12 do
+        while #results > userState.maxStaticMeshTargets do
             table.remove(results)
         end
 
-        for _, result in ipairs(results) do
-            result.collision = extendedCollisionGroups[1]
-        end
+        --for _, result in ipairs(results) do
+        --    result.collision = extendedCollisionGroups[1]
+        --end
 
         return results
     end
@@ -584,9 +585,9 @@ local function fillTargetDescription(_, data)
         data.description = ('%s | %d'):format(data.entityType, data.entityID)
     end
 
-    if isNotEmpty(data.description) and data.distance then
-        data.description = ('%s @ %.2fm'):format(data.description, data.distance)
-    end
+    --if isNotEmpty(data.description) and data.distance then
+    --    data.description = ('%s @ %.2fm'):format(data.description, data.distance)
+    --end
 
 --     if isNotEmpty(data.nodeType) then
 --         local subs = {
@@ -816,8 +817,8 @@ local function requestScan()
     scanner.requested = true
 end
 
-local function selectScannedResult(result)
-    scanner.hovered = result
+local function selectScannedResult(index)
+    scanner.hovered = index
 end
 
 local function unselectScannedResult()
@@ -929,8 +930,8 @@ local function updateScanner(distance, filter)
     scanTargets()
     filterTargets(distance, filter)
 
-    if userState.highlightScannerResult then
-        highlightTarget(scanner.hovered)
+    if userState.highlightScannerResult and scanner.hovered then
+        highlightTarget(scanner.results[scanner.hovered])
     end
 end
 
@@ -1140,11 +1141,11 @@ local viewStyle = {
     disabledButtonColor = 0xFF4F4F4F,
 }
 
-local function buildComboOptions(values)
+local function buildComboOptions(values, capitalize)
     local options = {}
     for index, value in ipairs(values) do
         options[index] = value:gsub('([a-z])([A-Z])', function(l, u)
-            return l .. ' ' .. u:lower()
+            return l .. ' ' .. (capitalize and u or u:lower())
         end)
     end
     return options
@@ -1155,7 +1156,7 @@ local function initializeViewData()
     viewData.outlineModeOptions = buildComboOptions(OutlineMode.values)
     viewData.markerModeOptions = buildComboOptions(MarkerMode.values)
     viewData.boundingBoxModeOptions = buildComboOptions(BoundingBoxMode.values)
-    viewData.targetingModeOptions = buildComboOptions(TargetingMode.values)
+    viewData.targetingModeOptions = buildComboOptions(TargetingMode.values, true)
 end
 
 local function initializeViewStyle()
@@ -1185,11 +1186,14 @@ local function initializeViewStyle()
 
         viewStyle.buttonHeight = 21 * viewStyle.viewScale
 
-        viewStyle.scannerDistanceWidth = 90 * viewStyle.viewScale
         viewStyle.scannerFilterWidth = 120 * viewStyle.viewScale
         viewStyle.scannerStatsWidth = ImGui.CalcTextSize('0000 / 0000') * viewStyle.viewScale
 
+        viewStyle.settingsShortInputWidth = 80 * viewStyle.viewScale
+        viewStyle.settingsMiddleInputWidth = 90 * viewStyle.viewScale
+
         viewStyle.settingsShortComboRowWidth = 160 * viewStyle.viewScale
+        viewStyle.settingsMiddleComboRowWidth = 210 * viewStyle.viewScale
         viewStyle.settingsLongComboRowWidth = 240 * viewStyle.viewScale
     end
 end
@@ -1263,17 +1267,17 @@ end
 
 -- GUI :: Fieldsets --
 
-local function formatCollision(data)
-    return data.collision.name.value
-end
+--local function formatCollision(data)
+--    return data.collision.name.value
+--end
 
 local function formatDistance(data)
-    return ('%.2fm'):format(type(data) == 'number' and data or data.distance)
+    return ('%.2fm'):format(type(data) == 'table' and data.distance or data)
 end
 
-local function useInlineDistance(data)
-    return data.collision and '@'
-end
+--local function useInlineDistance(data)
+--    return data.collision and '@'
+--end
 
 --local function isValidNodeIndex(data)
 --    return type(data.nodeIndex) == 'number' and data.nodeIndex >= 0
@@ -1285,11 +1289,11 @@ local function isValidInstanceIndex(data)
         and type(data.instanceCount) == 'number' and data.instanceCount > 0
 end
 
-local objectSchema = {
-    {
-        { name = 'collision', label = 'Collision:', format = formatCollision },
-        { name = 'distance', label = 'Distance:', format = formatDistance, inline = useInlineDistance },
-    },
+local resultSchema = {
+    --{
+    --    { name = 'collision', label = 'Collision:', format = formatCollision },
+    --    { name = 'distance', label = 'Distance:', format = formatDistance, inline = useInlineDistance },
+    --},
     {
         { name = 'nodeType', label = 'Node Type:' },
         { name = 'nodeID', label = 'Node ID:', format = '%u' },
@@ -1428,7 +1432,7 @@ local function drawFieldset(targetData, withInputs, maxComponents, withSeparator
     ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
 
     local isFirstGroup = true
-    for _, groupSchema in ipairs(objectSchema) do
+    for _, groupSchema in ipairs(resultSchema) do
         local isFirstField = true
         for _, field in ipairs(groupSchema) do
             if isVisibleField(field, targetData) then
@@ -1496,7 +1500,32 @@ end
 -- GUI :: Inspector --
 
 local function drawInspectorContent(isModal)
+    --ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
+    --ImGui.Text('Targeting:')
+    --ImGui.PopStyleColor()
+    --ImGui.SameLine()
+    ImGui.Text(viewData.targetingModeOptions[TargetingMode.values[userState.targetingMode]])
     if inspector.active then
+        if inspector.results[inspector.active].distance then
+            ImGui.SameLine()
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
+            ImGui.Text('@')
+            ImGui.PopStyleColor()
+            ImGui.SameLine()
+            ImGui.Text(formatDistance(inspector.results[inspector.active].distance))
+        end
+        if inspector.results[inspector.active].collision then
+            ImGui.SameLine()
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
+            ImGui.Text('[')
+            ImGui.PopStyleColor()
+            ImGui.SameLine()
+            ImGui.Text(inspector.results[inspector.active].collision.name.value)
+            ImGui.SameLine()
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
+            ImGui.Text(']')
+            ImGui.PopStyleColor()
+        end
         if #inspector.results > 1 then
             ImGui.Spacing()
             ImGui.BeginGroup()
@@ -1523,10 +1552,16 @@ local function drawInspectorContent(isModal)
                 ImGui.SameLine()
             end
             ImGui.EndGroup()
-            ImGui.Spacing()
+
         end
+        ImGui.Spacing()
+        ImGui.Separator()
+        ImGui.Spacing()
         drawFieldset(inspector.results[inspector.active], not isModal)
     else
+        ImGui.Spacing()
+        ImGui.Separator()
+        ImGui.Spacing()
         ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
         ImGui.TextWrapped('No target')
         ImGui.PopStyleColor()
@@ -1580,7 +1615,7 @@ local function drawScannerContent()
             ImGui.AlignTextToFramePadding()
             ImGui.Text('Distance:')
             ImGui.SameLine()
-            ImGui.SetNextItemWidth(viewStyle.scannerDistanceWidth)
+            ImGui.SetNextItemWidth(viewStyle.settingsMiddleInputWidth)
             local distance, distanceChanged = ImGui.InputFloat('##ScannerDistance', userState.scannerDistance, 0.5, 1.0, '%.1fm', ImGuiInputTextFlags.None)
             if distanceChanged then
                 userState.scannerDistance = clamp(distance, 0.5, 100)
@@ -1612,7 +1647,7 @@ local function drawScannerContent()
                 local visibleRows = clamp(#scanner.filtered, 14, 18)
                 ImGui.BeginChildFrame(1, 0, visibleRows * ImGui.GetFrameHeightWithSpacing())
 
-                for _, result in ipairs(scanner.filtered) do
+                for index, result in ipairs(scanner.filtered) do
                     ImGui.BeginGroup()
                     if expandlAll then
                         ImGui.SetNextItemOpen(true)
@@ -1620,7 +1655,13 @@ local function drawScannerContent()
                         ImGui.SetNextItemOpen(false)
                     end
                     local resultID = tostring(result.hash)
-                    if ImGui.TreeNodeEx(result.description .. '##' .. resultID, ImGuiTreeNodeFlags.SpanFullWidth) then
+                    local nodeFlags = ImGuiTreeNodeFlags.SpanFullWidth
+                    if userState.keepLastHoveredResultHighlighted then
+                        if index == scanner.hovered then
+                            nodeFlags = nodeFlags + ImGuiTreeNodeFlags.Selected
+                        end
+                    end
+                    if ImGui.TreeNodeEx(result.description .. '##' .. resultID, nodeFlags) then
                         ImGui.PopStyleColor()
                         ImGui.PopStyleVar()
                         drawFieldset(result, true, -1, false)
@@ -1630,7 +1671,7 @@ local function drawScannerContent()
                     end
                     ImGui.EndGroup()
                     if ImGui.IsItemHovered() then
-                        selectScannedResult(result)
+                        selectScannedResult(index)
                     end
                 end
 
@@ -1788,7 +1829,7 @@ local function drawSettingsContent()
     ImGui.AlignTextToFramePadding()
     ImGui.Text('Targeting mode:')
     ImGui.SameLine()
-    ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
+    ImGui.SetNextItemWidth(viewStyle.settingsMiddleComboRowWidth - ImGui.GetCursorPosX())
     state, changed = ImGui.Combo('##TargetingMode', TargetingMode.values[userState.targetingMode] - 1, viewData.targetingModeOptions, #viewData.targetingModeOptions)
     if changed then
         userState.targetingMode = TargetingMode.values[state + 1]
@@ -1799,16 +1840,25 @@ local function drawSettingsContent()
         local cursorY = ImGui.GetCursorPosY()
         ImGui.Dummy(220 * viewStyle.viewScale, 0)
         ImGui.SetCursorPosY(cursorY)
+        ImGui.Text(viewData.targetingModeOptions[1])
         ImGui.TextWrapped(
-            viewData.targetingModeOptions[1] ..
-            ': Uses the same ray casting method and physical data as during normal gameplay, ' ..
+            'Uses the same ray casting method and physical data as during normal gameplay, ' ..
             'pixel accurate but cannot target non-collision meshes and decals.')
-        ImGui.SetNextItemWidth(200)
+        ImGui.Separator()
+        ImGui.Text(viewData.targetingModeOptions[2])
         ImGui.TextWrapped(
-            viewData.targetingModeOptions[2] ..
-            ': Uses alternative ray casting method based on static bounding boxes of world nodes, ' ..
+            'Uses alternative ray casting method based on static bounding boxes of world nodes, ' ..
             'ignores transparency and generally less accurate but can target non-collision meshes and decals.')
         ImGui.EndTooltip()
+    end
+
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Static mesh targets:')
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsShortInputWidth)
+    state, changed = ImGui.InputInt('##StaticMeshTargets', userState.maxStaticMeshTargets, 1, 10, ImGuiInputTextFlags.None)
+    if changed then
+        userState.maxStaticMeshTargets = clamp(state, 1, 16)
     end
 
     ImGui.Spacing()

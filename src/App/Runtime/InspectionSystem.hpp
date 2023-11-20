@@ -48,8 +48,8 @@ class InspectionSystem
     , public INodeInstanceWatcher
 {
 public:
-    static constexpr auto FrustumUpdateFreq = 0.25f;
-    static constexpr auto FrustumMaxDistance = 200.0f;
+    static constexpr auto FrustumUpdateFreq = 0.2f;
+    static constexpr auto FrustumMaxDistance = 100.0f;
     static constexpr auto RayCastingMaxDistance = 100.0f;
 
     InspectionSystem() = default;
