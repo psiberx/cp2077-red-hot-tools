@@ -67,7 +67,7 @@ end
 local Feature = enum('None', 'Inspect', 'Scan', 'Lookup', 'Watch', 'Reload')
 local ColorScheme = enum('Green', 'Red', 'Yellow', 'White', 'Shimmer')
 local OutlineMode = enum('ForSupportedObjects', 'Never')
-local MarkerMode = enum('Always', 'WhenOutlineIsUnsupported', 'Never')
+local MarkerMode = enum('Always', 'ForStaticMeshes', 'WhenOutlineIsUnsupported', 'Never')
 local BoundingBoxMode = enum('ForAreaNodes', 'Never')
 local TargetingMode = enum('GamePhysics', 'StaticMeshBounds')
 
@@ -79,9 +79,9 @@ local userStateSchema = {
     scannerFilter = { type = 'string', default = '' },
     highlightColor = { type = ColorScheme, default = ColorScheme.Red },
     outlineMode = { type = OutlineMode, default = OutlineMode.ForSupportedObjects },
-    markerMode = { type = MarkerMode, default = MarkerMode.WhenOutlineIsUnsupported },
+    markerMode = { type = MarkerMode, default = MarkerMode.ForStaticMeshes },
     boundingBoxMode = { type = BoundingBoxMode, default = BoundingBoxMode.Never },
-    showMarkerDistance = { type = 'boolean', default = false },
+    showMarkerDistance = { type = 'boolean', default = true },
     showBoundingBoxDistances = { type = 'boolean', default = false },
     targetingMode = { type = TargetingMode, default = TargetingMode.GamePhysics },
     maxStaticMeshTargets = { type = 'number', default = 8 },
@@ -262,11 +262,11 @@ local shimmer = {
 }
 
 local colorMapping = {
-    [ColorScheme.Green] = 0xFF32FF1D,
+    [ColorScheme.Green] = 0xFF58F235,
     [ColorScheme.Red] = 0xFF050FFF,
-    [ColorScheme.Yellow] = 0xFF37B5F0,
+    [ColorScheme.Yellow] = 0xFF62E8FC,
     [ColorScheme.White] = 0xFFFFFFFF,
-    [ColorScheme.Shimmer] = 0xFF0090FF,
+    [ColorScheme.Shimmer] = 0xFF0060FF,
 }
 
 local outlineMapping = {
@@ -297,6 +297,10 @@ local function applyHighlightEffect(target, enabled)
 
     if IsDefined(target.entity) then
         return inspectionSystem:ApplyHighlightEffect(target.entity, effect)
+    end
+
+    if IsDefined(target.parentInstance) then
+        return inspectionSystem:ApplyHighlightEffect(target.parentInstance, effect)
     end
 
     if IsDefined(target.nodeInstance) then
@@ -333,10 +337,14 @@ local function enableHighlight(target)
         end
     end
 
+    highlight.projections = {}
+
     local showMarker = false
     if userState.markerMode == MarkerMode.Always then
         showMarker = true
-    elseif userState.markerMode == MarkerMode.WhenOutlineIsUnsupported and not isOutlineActive then
+    elseif userState.markerMode == MarkerMode.ForStaticMeshes and userState.targetingMode == TargetingMode.StaticMeshBounds then
+        showMarker = true
+    elseif userState.markerMode == MarkerMode.WhenOutlineIsUnsupported and (not isOutlineActive or target.isProxyMeshNode) then
         showMarker = true
     end
 
@@ -352,18 +360,20 @@ local function enableHighlight(target)
             showMarker = showMarker,
             showBoundindBox = showBoundindBox,
         }
-    else
-        highlight.projections[target.hash] = nil
     end
 end
 
 local function disableHighlight(target)
     applyHighlightEffect(target, false)
-    highlight.projections[target.hash] = nil
+    highlight.projections = {}
 end
 
 local function highlightTarget(target)
-    highlight.pending = target
+    if target and target.hash then
+        highlight.pending = target
+    else
+        highlight.pending = nil
+    end
 end
 
 local function disableHighlights()
@@ -371,7 +381,6 @@ local function disableHighlights()
         disableHighlight(highlight.target)
         highlight.target = nil
     end
-    highlight.projections = {}
 end
 
 local function updateHighlights()
@@ -476,8 +485,9 @@ local function fillTargetNodeData(target, data)
         data.instanceCount = sectorData.instanceCount
         data.nodeIndex = sectorData.nodeIndex
         data.nodeCount = sectorData.nodeCount
-        data.nodeID = sectorData.nodeID
         data.nodeType = sectorData.nodeType.value
+        data.nodeID = sectorData.nodeID
+        data.parentID = sectorData.parentID
     end
 
     if IsDefined(target.nodeDefinition) then
@@ -526,10 +536,18 @@ local function fillTargetNodeData(target, data)
         data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(target.nodeID)
     end
 
+    if isNotEmpty(data.parentID) then
+        data.parentRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.parentID)
+        if isNotEmpty(data.parentRef) then
+            data.parentInstance = inspectionSystem:FindStreamedWorldNode(data.parentID).nodeInstance
+        end
+    end
+
     data.nodeDefinition = target.nodeDefinition
     data.nodeInstance = target.nodeInstance
 
     data.isNode = IsDefined(data.nodeInstance) or IsDefined(data.nodeDefinition) or isNotEmpty(data.nodeID)
+    data.isProxyMeshNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldPrefabProxyMeshNode')
     data.isAreaNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldAreaShapeNode')
     data.isTerrainNode = data.isNode and (inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldGenericProxyMeshNode')
         or inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldTerrainProxyMeshNode'))
@@ -667,18 +685,14 @@ local function toggleNodeState(target)
         lastTarget = nil
     end
 
-    if target and IsDefined(target.nodeInstance) then
-        --if target.isCommunityNode then
-        --    local nodeRef = CreateEntityReference(target.nodeRef, {}).reference, GlobalNodeID.GetRoot()
-        --    inspectionSystem:ToggleCommunity(nodeRef)
-        --elseif target.isSpawnerNode then
-        --    local nodeRef = CreateEntityReference(target.nodeRef, {}).reference, GlobalNodeID.GetRoot()
-        --    inspectionSystem:ToggleSpawner(nodeRef)
-        --elseif target.isVisibleNode then
-        --    inspectionSystem:ToggleNodeVisibility(target.nodeInstance)
-        --end
-        inspectionSystem:ToggleNodeVisibility(target.nodeInstance)
-        lastTarget = target
+    if target then
+        if IsDefined(target.parentInstance) then
+            inspectionSystem:ToggleNodeVisibility(target.parentInstance)
+            lastTarget = target
+        elseif IsDefined(target.nodeInstance) then
+            inspectionSystem:ToggleNodeVisibility(target.nodeInstance)
+            lastTarget = target
+        end
     end
 end
 
@@ -855,6 +869,10 @@ local function scanTargets()
         end)
     end
 
+    for index, result in ipairs(results) do
+        result.index = index
+    end
+
     scanner.results = results
     scanner.filter = nil
     scanner.filtered = results
@@ -876,6 +894,7 @@ local function filterTargets(maxDistance, filter)
     local partialMatchFields = {
         'nodeType',
         'nodeRef',
+        'parentRef',
         'sectorPath',
         'meshPath',
         'materialPath',
@@ -940,7 +959,7 @@ local lookup = {
 }
 
 local function parseLookupHash(lookupQuery)
-    local lookupHex = lookupQuery:match('^0x([0-9A-F]+)$') or lookupQuery:match('^([0-9A-F]+)$')
+    local lookupHex = lookupQuery:match('^0x([0-9A-F]+)$')
     if lookupHex ~= nil then
         return loadstring('return 0x' .. lookupHex .. 'ULL', '')()
     end
@@ -1294,6 +1313,7 @@ local resultSchema = {
         { name = 'nodeType', label = 'Node Type:' },
         { name = 'nodeID', label = 'Node ID:', format = '%u' },
         { name = 'nodeRef', label = 'Node Ref:', wrap = true },
+        { name = 'parentRef', label = 'Parent Ref:', wrap = true },
         --{ name = 'nodeIndex', label = 'Node Index:', format = '%d', validate = isValidNodeIndex },
         --{ name = 'nodeCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
         { name = 'instanceIndex', label = 'Node Instance:', format = '%d', validate = isValidInstanceIndex },
@@ -1547,11 +1567,11 @@ local function drawInspectorContent(isModal)
         ImGui.Spacing()
         drawFieldset(inspector.results[inspector.active], not isModal)
     else
-        ImGui.Spacing()
-        ImGui.Separator()
-        ImGui.Spacing()
-        ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-        ImGui.TextWrapped('No target')
+        ImGui.SameLine()
+        ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
+        ImGui.Text('@')
+        ImGui.SameLine()
+        ImGui.Text('No target')
         ImGui.PopStyleColor()
     end
 end
@@ -1635,7 +1655,7 @@ local function drawScannerContent()
                 local visibleRows = clamp(#scanner.filtered, 14, 18)
                 ImGui.BeginChildFrame(1, 0, visibleRows * ImGui.GetFrameHeightWithSpacing())
 
-                for index, result in ipairs(scanner.filtered) do
+                for _, result in ipairs(scanner.filtered) do
                     ImGui.BeginGroup()
                     if expandlAll then
                         ImGui.SetNextItemOpen(true)
@@ -1645,7 +1665,7 @@ local function drawScannerContent()
                     local resultID = tostring(result.hash)
                     local nodeFlags = ImGuiTreeNodeFlags.SpanFullWidth
                     if userState.keepLastHoveredResultHighlighted then
-                        if index == scanner.hovered then
+                        if result.index == scanner.hovered then
                             nodeFlags = nodeFlags + ImGuiTreeNodeFlags.Selected
                         end
                     end
@@ -1659,7 +1679,7 @@ local function drawScannerContent()
                     end
                     ImGui.EndGroup()
                     if ImGui.IsItemHovered() then
-                        selectScannedResult(index)
+                        selectScannedResult(result.index)
                     end
                 end
 
@@ -2107,7 +2127,7 @@ local function drawProjectedText(screen, position, color, size, text)
     end
 end
 
-local function drawProjectedDistance(screen, position, offsetX, offsetY, fontSize, textColor)
+local function drawProjectedDistance(screen, position, offsetX, offsetY, textColor, fontSize, fontBold)
     local projected = getScreenPoint(screen, position)
     if not isOffScreenPoint(projected) then
         local distance = Vector4.Distance(screen.camera.position, position)
@@ -2128,15 +2148,19 @@ local function drawProjectedDistance(screen, position, offsetX, offsetY, fontSiz
         end
 
         drawText(projected, textColor, fontSize, formattedDistance)
+
+        if fontBold then
+            drawText(projected, textColor, fontSize, formattedDistance)
+        end
     end
 end
 
 local function drawProjectedMarker(screen, position, outerColor, innerColor, distanceColor)
-    drawProjectedPoint(screen, position, outerColor, 10, 2)
+    drawProjectedPoint(screen, position, outerColor, 10, 3)
     drawProjectedPoint(screen, position, innerColor, 5)
 
     if userState.showMarkerDistance then
-        drawProjectedDistance(screen, position, true, -30, viewStyle.fontSize, distanceColor)
+        drawProjectedDistance(screen, position, true, -32, distanceColor, viewStyle.fontSize, true)
     end
 end
 
@@ -2242,7 +2266,7 @@ local function drawProjections()
             end
 
             if projection.showMarker and target.position then
-                local outerColor = fade(projection.color, 0x77)
+                local outerColor = projection.color -- fade(projection.color, 0x77)
                 local innerColor = projection.color
                 local distanceColor = projection.color
 

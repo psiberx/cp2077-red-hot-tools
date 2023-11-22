@@ -84,11 +84,13 @@ function PersistentState.Initialize(filePath, dataRef, dataSchema)
 end
 
 function PersistentState.Flush()
-	local stateFile = io.open(stateFilePath, 'w')
-	if stateFile ~= nil then
-		stateFile:write('return ' .. exportStateData(stateDataRef))
-		stateFile:close()
-	end
+	if stateFilePath then
+        local stateFile = io.open(stateFilePath, 'w')
+        if stateFile ~= nil then
+            stateFile:write('return ' .. exportStateData(stateDataRef))
+            stateFile:close()
+        end
+    end
 end
 
 return PersistentState

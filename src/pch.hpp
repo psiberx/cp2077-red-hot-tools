@@ -66,6 +66,8 @@
 #include <RED4ext/Scripting/Natives/Generated/world/StaticDecalNodeInstance.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/StreamingSector.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/TerrainMeshNodeInstance.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/EntityProxyMeshNode.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/PrefabProxyMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/TerrainProxyMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/ScriptGameInstance.hpp>
 

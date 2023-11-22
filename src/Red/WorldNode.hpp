@@ -12,6 +12,20 @@ struct WorldNodeRegistryEntry
     uint32_t next;
 };
 #pragma pack(pop)
+
+struct WorldNodeInstanceNodeState
+{
+    uint16_t isInitializing : 1; // 00
+    uint16_t isInitialized : 1;  // 01
+    uint16_t isAttaching : 1;    // 02
+    uint16_t isDetaching : 1;    // 03
+    uint16_t b04 : 1;            // 04
+    uint16_t isAttached : 1;     // 05
+    uint16_t b06 : 1;            // 06
+    uint16_t b07 : 1;            // 07
+    uint16_t b09 : 1;            // 08
+    uint16_t isVisible : 1;      // 09
+};
 }
 
 namespace Raw::WorldNode
@@ -35,11 +49,16 @@ namespace Raw::WorldNodeInstance
 using Transform = Core::OffsetPtr<0x30, Red::Transform>;
 using Scale = Core::OffsetPtr<0x50, Red::Vector3>;
 using Node = Core::OffsetPtr<0x60, Red::Handle<Red::worldNode>>;
-using Flags = Core::OffsetPtr<0x89, uint8_t>;
+using State = Core::OffsetPtr<0x88, Red::WorldNodeInstanceNodeState>;
+
+inline bool IsAttached(Red::worldINodeInstance* aNodeInstance)
+{
+    return State::Ref(aNodeInstance).isAttached;
+}
 
 inline bool IsVisible(Red::worldINodeInstance* aNodeInstance)
 {
-    return Flags::Ref(aNodeInstance) & 2;
+    return State::Ref(aNodeInstance).isVisible;
 }
 
 constexpr auto Initialize = Core::RawFunc<

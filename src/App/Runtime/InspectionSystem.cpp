@@ -68,18 +68,15 @@ void App::InspectionSystem::OnNodeStreamedIn(uint64_t aNodeHash,
                                              Red::worldINodeInstance* aNodeInstance,
                                              Red::CompiledNodeInstanceSetupInfo* aNodeSetup)
 {
-    std::unique_lock _(m_pendingNodesLock);
-    m_pendingNodes.push_back({true, aNodeHash, Red::AsWeakHandle(aNodeInstance),
-                              Red::AsWeakHandle(aNodeDefinition), aNodeSetup});
+    std::unique_lock _(m_pendingRequestsLock);
+    m_pendingRequests.push_back({true, aNodeHash, Red::AsWeakHandle(aNodeInstance),
+                                 Red::AsWeakHandle(aNodeDefinition), aNodeSetup});
 }
 
 void App::InspectionSystem::OnNodeStreamedOut(uint64_t aNodeHash)
 {
-    // std::unique_lock _(m_streamedNodesLock);
-    // m_streamedNodes.erase(aNodeHash);
-
-    std::unique_lock _(m_pendingNodesLock);
-    m_pendingNodes.push_back({false, aNodeHash});
+    std::unique_lock _(m_pendingRequestsLock);
+    m_pendingRequests.push_back({false, aNodeHash});
 }
 
 void App::InspectionSystem::UpdateStreamedNodes()
@@ -88,28 +85,38 @@ void App::InspectionSystem::UpdateStreamedNodes()
     const auto updateStart = std::chrono::steady_clock::now();
 #endif
 
-    Core::Vector<WorldNodeStreamingRequest> pendingNodes;
+    Core::Vector<WorldNodeStreamingRequest> pendingRequests;
+    Core::Vector<WorldNodeStreamingRequest> postponedRequests;
     {
-        std::unique_lock _(m_pendingNodesLock);
-        pendingNodes = std::move(m_pendingNodes);
+        std::unique_lock requestLock(m_pendingRequestsLock);
+        pendingRequests = std::move(m_pendingRequests);
     }
 
-    std::unique_lock _(m_streamedNodesLock);
-    for (const auto& [streaming, nodeHash, nodeInstanceWeak, nodeDefinitionWeak, nodeSetup] : pendingNodes)
+    if (pendingRequests.empty())
+        return;
+
+    std::unique_lock updateLock(m_streamedNodesLock);
+    for (const auto& request : pendingRequests)
     {
-        if (!streaming)
+        if (!request.streaming)
         {
-            m_streamedNodes.erase(nodeHash);
+            m_streamedNodes.erase(request.hash);
             continue;
         }
 
-        auto nodeInstance = nodeInstanceWeak.Lock();
-        auto nodeDefinition = nodeDefinitionWeak.Lock();
+        auto nodeInstance = request.nodeInstance.Lock();
+        auto nodeDefinition = request.nodeDefinition.Lock();
 
         if (!nodeInstance || !nodeDefinition)
             continue;
 
-        WorldNodeStaticSceneData streamedNode{nodeInstanceWeak, nodeDefinitionWeak, nodeSetup};
+        if (!Raw::WorldNodeInstance::IsAttached(nodeInstance))
+        {
+            postponedRequests.push_back(request);
+            continue;
+        }
+
+        WorldNodeStaticSceneData streamedNode{request.nodeInstance, request.nodeDefinition, request.nodeSetup};
 
         auto& transform = Raw::WorldNodeInstance::Transform::Ref(nodeInstance);
         auto& scale = Raw::WorldNodeInstance::Scale::Ref(nodeInstance);
@@ -128,18 +135,15 @@ void App::InspectionSystem::UpdateStreamedNodes()
                 streamedNode.isStaticMesh = !Red::IsInstanceOf<Red::worldTerrainProxyMeshNode>(nodeDefinition) &&
                                             !Red::IsInstanceOf<Red::worldRoadProxyMeshNode>(nodeDefinition);
             }
-        }
-        else if (Red::IsInstanceOf<Red::worldInstancedMeshNode>(nodeDefinition))
-        {
-            for (const auto& instanceBox : Raw::WorldInstancedMeshNode::Bounds::Ref(nodeDefinition))
+            else
             {
-                streamedNode.boundingBoxes.push_back(instanceBox);
-                streamedNode.isStaticMesh = true;
+                postponedRequests.push_back(request);
+                continue;
             }
         }
         else if (Red::IsInstanceOf<Red::worldStaticDecalNode>(nodeDefinition) ||
-                 Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition) ||
-                 Red::IsInstanceOf<Red::worldBendedMeshNode>(nodeDefinition))
+                 Red::IsInstanceOf<Red::worldBendedMeshNode>(nodeDefinition) ||
+                 Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition))
         {
             Red::Box boundingBox{};
             Raw::WorldNode::GetBoundingBox(nodeDefinition, boundingBox);
@@ -150,20 +154,46 @@ void App::InspectionSystem::UpdateStreamedNodes()
                 Red::TransformBox(boundingBox, transform);
 
                 streamedNode.boundingBoxes.push_back(boundingBox);
-                streamedNode.isStaticMesh = Red::IsInstanceOf<Red::worldStaticDecalNode>(nodeDefinition);
+                streamedNode.isStaticMesh = !Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition);
+            }
+            else
+            {
+                postponedRequests.push_back(request);
+                continue;
             }
         }
-        // else if (Red::IsInstanceOf<Red::worldEntityNode>(aNodeDefinition))
-        // {
-        // }
+        else if (Red::IsInstanceOf<Red::worldInstancedMeshNode>(nodeDefinition))
+        {
+            auto& instanceBoxes = Raw::WorldInstancedMeshNode::Bounds::Ref(nodeDefinition);
+            if (instanceBoxes.size > 0)
+            {
+                for (const auto& instanceBox : instanceBoxes)
+                {
+                    streamedNode.boundingBoxes.push_back(instanceBox);
+                    streamedNode.isStaticMesh = true;
+                }
+            }
+            else
+            {
+                postponedRequests.push_back(request);
+                continue;
+            }
+        }
 
-        m_streamedNodes.emplace(nodeHash, std::move(streamedNode));
+        m_streamedNodes.emplace(request.hash, std::move(streamedNode));
     }
 
 #ifndef NDEBUG
     const std::chrono::duration<double, std::milli> updateDuration = std::chrono::steady_clock::now() - updateStart;
-    Core::Log::Debug("UpdateStreamedNodes streamed={} requests={} time={:.3f}ms", m_streamedNodes.size(), pendingNodes.size(), updateDuration.count());
+    Core::Log::Debug("UpdateStreamedNodes streamed={} requests={} postponed={} time={:.3f}ms",
+                     m_streamedNodes.size(), pendingRequests.size(), postponedRequests.size(), updateDuration.count());
 #endif
+
+    if (!postponedRequests.empty())
+    {
+        std::unique_lock requestLock(m_pendingRequestsLock);
+        m_pendingRequests.insert(m_pendingRequests.end(), postponedRequests.begin(), postponedRequests.end());
+    }
 }
 
 void App::InspectionSystem::UpdateFrustumNodes()

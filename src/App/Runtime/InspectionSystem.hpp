@@ -109,8 +109,8 @@ private:
     Red::worldNodeInstanceRegistry* m_nodeRegistry;
     Red::gameICameraSystem* m_cameraSystem;
 
-    std::shared_mutex m_pendingNodesLock;
-    Core::Vector<WorldNodeStreamingRequest> m_pendingNodes;
+    std::shared_mutex m_pendingRequestsLock;
+    Core::Vector<WorldNodeStreamingRequest> m_pendingRequests;
 
     std::shared_mutex m_streamedNodesLock;
     Core::Map<uint64_t, WorldNodeStaticSceneData> m_streamedNodes;
@@ -133,8 +133,9 @@ RTTI_DEFINE_CLASS(App::WorldNodeStaticData, {
     RTTI_PROPERTY(instanceCount);
     RTTI_PROPERTY(nodeIndex);
     RTTI_PROPERTY(nodeCount);
-    RTTI_PROPERTY(nodeID);
     RTTI_PROPERTY(nodeType);
+    RTTI_PROPERTY(nodeID);
+    RTTI_PROPERTY(parentID);
 });
 
 RTTI_DEFINE_CLASS(App::WorldNodeRuntimeSceneData, {

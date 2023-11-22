@@ -14,7 +14,7 @@ struct __declspec(align(0x10)) CompiledNodeInstanceSetupInfo
     Vector3 unk44;                     // 44
     worldNode* node;                   // 50
     uint64_t globalNodeID;             // 58
-    uint64_t unk60;                    // 60
+    uint64_t proxyNodeID;              // 60
     ResourcePath unk68;                // 68
     float secondaryRefPointDistance;   // 70
     float streamingDistance;           // 74

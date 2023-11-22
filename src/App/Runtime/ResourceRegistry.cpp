@@ -64,18 +64,22 @@ void App::ResourceRegistry::OnStreamingSectorPrepare(Red::worldStreamingSector* 
         nodeData.instanceCount = instanceCount;
         nodeData.nodeIndex = nodeSetup.nodeIndex;
         nodeData.nodeCount = nodeCount;
-        nodeData.nodeID = nodeSetup.globalNodeID;
         nodeData.nodeType = nodeSetup.node->GetType()->GetName();
+        nodeData.nodeID = nodeSetup.globalNodeID;
 
-        if (nodeSetup.globalNodeID)
+        if (nodeData.nodeID)
         {
-            s_nodeRefToStaticDataMap[nodeSetup.globalNodeID] = nodeData;
+            s_nodeRefToStaticDataMap[nodeData.nodeID] = nodeData;
         }
 
         if (auto communityNode = Red::Cast<Red::worldCompiledCommunityAreaNode>(nodeSetup.node))
         {
             nodeData.nodeID = communityNode->sourceObjectId.hash;
             s_nodeRefToStaticDataMap[nodeData.nodeID] = nodeData;
+        }
+        else if (auto proxyMeshNode = Red::Cast<Red::worldEntityProxyMeshNode>(nodeSetup.node))
+        {
+            nodeData.parentID = proxyMeshNode->ownerGlobalId.hash;
         }
 
         s_nodeSetupToRuntimeDataMap[&nodeSetup] = {&nodeSetup, {}, Red::AsWeakHandle(nodeSetup.node)};

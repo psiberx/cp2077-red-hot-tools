@@ -17,6 +17,7 @@ struct WorldNodeStaticData
     int32_t nodeIndex{-1};
     uint32_t nodeCount{0};
     uint64_t nodeID{0};
+    uint64_t parentID{0};
     Red::CName nodeType;
 };
 
