@@ -69,14 +69,15 @@ local ColorScheme = enum('Green', 'Red', 'Yellow', 'White', 'Shimmer')
 local OutlineMode = enum('ForSupportedObjects', 'Never')
 local MarkerMode = enum('Always', 'ForStaticMeshes', 'WhenOutlineIsUnsupported', 'Never')
 local BoundingBoxMode = enum('ForAreaNodes', 'Never')
-local TargetingMode = enum('GamePhysics', 'StaticMeshBounds')
+local TargetingMode = enum('GamePhysics', 'StaticBounds')
 
 local userState = {}
 local userStateSchema = {
     activeTool = { type = Feature, default = Feature.Inspect },
     showOnScreenDisplay = { type = 'boolean', default = false },
-    scannerDistance = { type = 'number', default = 5.0 },
     scannerFilter = { type = 'string', default = '' },
+    scannerGroup = { type = 'string', default = '' },
+    scannerDistance = { type = 'number', default = 25.0 },
     highlightColor = { type = ColorScheme, default = ColorScheme.Red },
     outlineMode = { type = OutlineMode, default = OutlineMode.ForSupportedObjects },
     markerMode = { type = MarkerMode, default = MarkerMode.ForStaticMeshes },
@@ -89,7 +90,6 @@ local userStateSchema = {
     highlightScannerResult = { type = 'boolean', default = true },
     highlightLookupResult = { type = 'boolean', default = false },
     keepLastHoveredResultHighlighted = { type = 'boolean', default = true },
-    pushAreaNodesToTheEnd = { type = 'boolean', default = true },
 }
 
 local function initializeUserState()
@@ -140,10 +140,15 @@ local extendedCollisionGroups = {
     { name = 'Dynamic+' },
 }
 
+local frustumMaxDistance = 100
+
 local function initializeTargeting()
+    frustumMaxDistance = inspectionSystem:GetFrustumMaxDistance()
+
     for _, collision in ipairs(collisionGroups) do
         collision.name = StringToName(collision.name)
     end
+
     for _, collision in ipairs(extendedCollisionGroups) do
         collision.name = StringToName(collision.name)
     end
@@ -177,7 +182,7 @@ local function getCameraData(distance)
 end
 
 local function getLookAtTargets(maxDistance)
-	local camera = getCameraData(maxDistance or 100)
+	local camera = getCameraData(maxDistance or frustumMaxDistance)
 
 	if not camera then
         return
@@ -228,7 +233,7 @@ local function getLookAtTargets(maxDistance)
         return { nearest }
 	end
 
-    if userState.targetingMode == TargetingMode.StaticMeshBounds then
+    if userState.targetingMode == TargetingMode.StaticBounds then
         local results = inspectionSystem:GetStreamedWorldNodesInCrosshair()
 
         if #results == 0 then
@@ -342,7 +347,7 @@ local function enableHighlight(target)
     local showMarker = false
     if userState.markerMode == MarkerMode.Always then
         showMarker = true
-    elseif userState.markerMode == MarkerMode.ForStaticMeshes and userState.targetingMode == TargetingMode.StaticMeshBounds then
+    elseif userState.markerMode == MarkerMode.ForStaticMeshes and userState.targetingMode == TargetingMode.StaticBounds then
         showMarker = true
     elseif userState.markerMode == MarkerMode.WhenOutlineIsUnsupported and (not isOutlineActive or target.isProxyMeshNode) then
         showMarker = true
@@ -402,6 +407,131 @@ local function updateHighlights()
 end
 
 -- App :: Resolving --
+
+local nodeGroupMapping = {
+    ['gameCyberspaceBoundaryNode'] = 'Boundaries',
+    ['gameDynamicEventNode'] = 'Maps',
+    ['gameEffectTriggerNode'] = 'Effects',
+    ['gameKillTriggerNode'] = 'Boundaries',
+    ['gameWorldBoundaryNode'] = 'Boundaries',
+    ['MinimapDataNode'] = 'Maps',
+    ['worldAcousticPortalNode'] = 'Audio',
+    ['worldAcousticSectorNode'] = 'Audio',
+    ['worldAcousticsOutdoornessAreaNode'] = 'Audio',
+    ['worldAcousticZoneNode'] = 'Audio',
+    ['worldAdvertisementNode'] = 'Meshes',
+    ['worldAIDirectorSpawnAreaNode'] = 'AI',
+    ['worldAIDirectorSpawnNode'] = 'AI',
+    ['worldAISpotNode'] = 'AI',
+    ['worldAmbientAreaNode'] = 'Audio',
+    ['worldAmbientPaletteExclusionAreaNode'] = 'Audio',
+    ['worldAreaProxyMeshNode'] = 'Other',
+    ['worldAreaShapeNode'] = 'Other',
+    ['worldAudioAttractAreaNode'] = 'Scene',
+    ['worldAudioSignpostTriggerNode'] = 'Audio',
+    ['worldAudioTagNode'] = 'Audio',
+    ['worldBakedDestructionNode'] = 'Meshes',
+    ['worldBendedMeshNode'] = 'Meshes',
+    ['worldBuildingProxyMeshNode'] = 'Meshes',
+    ['worldCableMeshNode'] = 'Meshes',
+    ['worldClothMeshNode'] = 'Meshes',
+    ['worldCollisionAreaNode'] = 'Collisions',
+    ['worldCollisionNode'] = 'Collisions',
+    ['worldCommunityRegistryNode'] = 'Population',
+    ['worldCompiledCommunityAreaNode'] = 'Population',
+    ['worldCompiledCommunityAreaNode_Streamable'] = 'Population',
+    ['worldCompiledCrowdParkingSpaceNode'] = 'Population',
+    ['worldCompiledSmartObjectsNode'] = 'AI',
+    ['worldCrowdNullAreaNode'] = 'Population',
+    ['worldCrowdParkingSpaceNode'] = 'Population',
+    ['worldCrowdPortalNode'] = 'Population',
+    ['worldCurvePathNode'] = 'Other',
+    ['worldDecorationMeshNode'] = 'Meshes',
+    ['worldDecorationProxyMeshNode'] = 'Meshes',
+    ['worldDestructibleEntityProxyMeshNode'] = 'Meshes',
+    ['worldDestructibleProxyMeshNode'] = 'Meshes',
+    ['worldDeviceNode'] = 'Entities',
+    ['worldDistantGINode'] = 'Lighting',
+    ['worldDistantLightsNode'] = 'Lighting',
+    ['worldDynamicMeshNode'] = 'Meshes',
+    ['worldEffectNode'] = 'Effects',
+    ['worldEntityNode'] = 'Entities',
+    ['worldEntityProxyMeshNode'] = 'Entities',
+    ['worldFoliageDestructionNode'] = 'Meshes',
+    ['worldFoliageNode'] = 'Meshes',
+    ['worldGenericProxyMeshNode'] = 'Meshes',
+    ['worldGeometryShapeNode'] = 'Other',
+    ['worldGINode'] = 'Lighting',
+    ['worldGIShapeNode'] = 'Lighting',
+    ['worldGISpaceNode'] = 'Lighting',
+    ['worldGuardAreaNode'] = 'AI',
+    ['worldInstancedDestructibleMeshNode'] = 'Meshes',
+    ['worldInstancedMeshNode'] = 'Meshes',
+    ['worldInstancedOccluderNode'] = 'Culling',
+    ['worldInterestingConversationsAreaNode'] = 'Scene',
+    ['worldInteriorAreaNode'] = 'Areas',
+    ['worldInteriorMapNode'] = 'Maps',
+    ['worldInvalidProxyMeshNode'] = 'Meshes',
+    ['worldLightChannelShapeNode'] = 'Lighting',
+    ['worldLightChannelVolumeNode'] = 'Lighting',
+    ['worldLocationAreaNode'] = 'Maps',
+    ['worldMeshNode'] = 'Meshes',
+    ['worldMinimapConfigAreaNode'] = 'Maps',
+    ['worldMinimapModeOverrideAreaNode'] = 'Maps',
+    ['worldMirrorNode'] = 'Culling',
+    ['worldNavigationConfigAreaNode'] = 'Navigation',
+    ['worldNavigationDeniedAreaNode'] = 'Navigation',
+    ['worldNavigationNode'] = 'Navigation',
+    ['worldOffMeshConnectionNode'] = 'Navigation',
+    ['worldOffMeshSmartObjectNode'] = 'Navigation',
+    ['worldPatrolSplineNode'] = 'Navigation',
+    ['worldPerformanceAreaNode'] = 'Other',
+    ['worldPhysicalDestructionNode'] = 'Meshes',
+    ['worldPhysicalFractureFieldNode'] = 'Physics',
+    ['worldPhysicalImpulseAreaNode'] = 'Physics',
+    ['worldPhysicalTriggerAreaNode'] = 'Physics',
+    ['worldPopulationSpawnerNode'] = 'Population',
+    ['worldPrefabNode'] = 'Other',
+    ['worldPrefabProxyMeshNode'] = 'Meshes',
+    ['worldPreventionFreeAreaNode'] = 'Areas',
+    ['worldQuestProxyMeshNode'] = 'Meshes',
+    ['worldRaceSplineNode'] = 'Navigation',
+    ['worldReflectionProbeNode'] = 'Lighting',
+    ['worldRoadProxyMeshNode'] = 'Meshes',
+    ['worldRotatingMeshNode'] = 'Meshes',
+    ['worldSaveSanitizationForbiddenAreaNode'] = 'Areas',
+    ['worldSceneRecordingContentObserverNode'] = 'Other',
+    ['worldSmartObjectNode'] = 'AI',
+    ['worldSocketNode'] = 'Other',
+    ['worldSpeedSplineNode'] = 'Navigation',
+    ['worldSplineNode'] = 'Other',
+    ['worldStaticDecalNode'] = 'Meshes',
+    ['worldStaticFogVolumeNode'] = 'Lighting',
+    ['worldStaticGpsLocationEntranceMarkerNode'] = 'Maps',
+    ['worldStaticLightNode'] = 'Lighting',
+    ['worldStaticMarkerNode'] = 'Maps',
+    ['worldStaticMeshNode'] = 'Meshes',
+    ['worldStaticOccluderMeshNode'] = 'Culling',
+    ['worldStaticParticleNode'] = 'Particles',
+    ['worldStaticQuestMarkerNode'] = 'Maps',
+    ['worldStaticSoundEmitterNode'] = 'Audio',
+    ['worldStaticStickerNode'] = 'Other',
+    ['worldStaticVectorFieldNode'] = 'Particles',
+    ['worldTerrainCollisionNode'] = 'Collisions',
+    ['worldTerrainMeshNode'] = 'Terrain',
+    ['worldTerrainProxyMeshNode'] = 'Terrain',
+    ['worldTrafficCollisionGroupNode'] = 'Navigation',
+    ['worldTrafficCompiledNode'] = 'Navigation',
+    ['worldTrafficPersistentNode'] = 'Navigation',
+    ['worldTrafficSourceNode'] = 'Navigation',
+    ['worldTrafficSplineNode'] = 'Navigation',
+    ['worldTrafficSpotNode'] = 'Navigation',
+    ['worldTriggerAreaNode'] = 'Areas',
+    ['worldVehicleForbiddenAreaNode'] = 'Areas',
+    ['worldWaterNullAreaNode'] = 'Water',
+    ['worldWaterPatchNode'] = 'Water',
+    ['worldWaterPatchProxyMeshNode'] = 'Water',
+}
 
 local function resolveComponents(entity)
     local components = {}
@@ -547,15 +677,15 @@ local function fillTargetNodeData(target, data)
     data.nodeInstance = target.nodeInstance
 
     data.isNode = IsDefined(data.nodeInstance) or IsDefined(data.nodeDefinition) or isNotEmpty(data.nodeID)
-    data.isProxyMeshNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldPrefabProxyMeshNode')
     data.isAreaNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldAreaShapeNode')
-    data.isTerrainNode = data.isNode and (inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldGenericProxyMeshNode')
-        or inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldTerrainProxyMeshNode'))
-    data.isAreaOrTerrainNode = data.isAreaNode or data.isTerrainNode
-    data.isEntityNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldEntityNode')
+    data.isProxyMeshNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldPrefabProxyMeshNode')
     data.isCommunityNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldCompiledCommunityAreaNode')
     data.isSpawnerNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldPopulationSpawnerNode')
     data.isVisibleNode = data.isNode and (isNotEmpty(data.meshPath) or isNotEmpty(data.materialPath) or isNotEmpty(data.templatePath))
+
+    if isNotEmpty(data.nodeType) then
+        data.nodeGroup = nodeGroupMapping[data.nodeType]
+    end
 end
 
 local function fillTargetGeomertyData(target, data)
@@ -661,13 +791,15 @@ end
 
 local function resolveTargetData(target)
     expandTarget(target)
-    local data = {}
-    fillTargetEntityData(target, data)
-    fillTargetNodeData(target, data)
-    fillTargetGeomertyData(target, data)
-    fillTargetDescription(target, data)
-    fillTargetHash(target, data)
-    return data
+
+    local result = {}
+    fillTargetEntityData(target, result)
+    fillTargetNodeData(target, result)
+    fillTargetGeomertyData(target, result)
+    fillTargetDescription(target, result)
+    fillTargetHash(target, result)
+
+    return result
 end
 
 -- App :: Nodes --
@@ -676,7 +808,6 @@ local lastTarget
 
 local function canToggleNodeState(target)
     return target and IsDefined(target.nodeInstance) and target.isVisibleNode
-    --[[or target.isCommunityNode or target.isSpawnerNode]]
 end
 
 local function toggleNodeState(target)
@@ -758,7 +889,10 @@ local function inspectTargets(targets)
 
     local results = {}
     for _, target in ipairs(targets) do
-        table.insert(results, resolveTargetData(target))
+        local result = resolveTargetData(target)
+        if result then
+            table.insert(results, result)
+        end
     end
 
     local active = 1
@@ -818,7 +952,8 @@ local scanner = {
     finished = false,
     results = {},
     distance = 0,
-    filter = nil,
+    group = '',
+    term = nil,
     filtered = {},
     hovered = nil,
 }
@@ -845,105 +980,118 @@ local function scanTargets()
     local results = {}
 
     for _, target in ipairs(inspectionSystem:GetStreamedWorldNodesInFrustum()) do
-        local data = resolveTargetData(target)
-        if data.distance <= 100 then
-            table.insert(results, resolveTargetData(target))
+        local result = resolveTargetData(target)
+        if result then
+            table.insert(results, result)
         end
     end
 
-    if userState.pushAreaNodesToTheEnd then
-        table.sort(results, function(a, b)
-            if a.isAreaOrTerrainNode == b.isAreaOrTerrainNode then
-                return a.distance < b.distance
-            end
-            if a.isAreaOrTerrainNode then
-                return false
-            end
-            if b.isAreaOrTerrainNode then
-                return true
-            end
-        end)
-    else
-        table.sort(results, function(a, b)
-            return a.distance < b.distance
-        end)
-    end
+    table.sort(results, function(a, b)
+        return a.distance < b.distance
+    end)
 
     for index, result in ipairs(results) do
         result.index = index
     end
 
     scanner.results = results
-    scanner.filter = nil
+    scanner.term = nil
     scanner.filtered = results
     scanner.hovered = nil
     scanner.finished = true
 end
 
-local function filterTargets(maxDistance, filter)
-    if scanner.filter == filter and scanner.distance == maxDistance then
-        return
+local function filterTargetByDistance(target, distance)
+    return isEmpty(distance) or target.distance <= distance
+end
+
+local function filterTargetByGroup(target, group)
+    return isEmpty(group) or target.nodeGroup == group
+end
+
+local partialMatchFields = {
+    'nodeType',
+    'nodeRef',
+    'parentRef',
+    'sectorPath',
+    'meshPath',
+    'materialPath',
+    'effectPath',
+    'templatePath',
+    'recordID',
+}
+
+local exactMatchFields = {
+    'instanceIndex',
+}
+
+local function buildQuery(term)
+    if isEmpty(term) then
+        return nil
     end
 
-    local filtered = {}
+    local exact = term:upper()
+    local escaped = exact:gsub('([^%w])', '%%%1')
+    local wildcard = escaped:gsub('%s+', '.* ') .. '.*'
 
-    local filterExact = filter:upper()
-    local filterEsc = filter:upper():gsub('([^%w])', '%%%1')
-    local filterRe = filterEsc:gsub('%s+', '.* ') .. '.*'
-
-    local partialMatchFields = {
-        'nodeType',
-        'nodeRef',
-        'parentRef',
-        'sectorPath',
-        'meshPath',
-        'materialPath',
-        'effectPath',
-        'templatePath',
-        'recordID',
+    return {
+        exact = exact,
+        escaped = escaped,
+        wildcard = wildcard,
     }
+end
 
-    local exactMatchFields = {
-        'instanceIndex',
-    }
+local function filterTargetByQuery(target, query)
+    if isEmpty(query) then
+        return true
+    end
 
-    for _, result in ipairs(scanner.results) do
-        if result.distance <= maxDistance then
-            local match = false
-
-            for _, field in ipairs(exactMatchFields) do
-                if isNotEmpty(result[field]) then
-                    local value = tostring(result[field]):upper()
-                    if value == filterExact then
-                        table.insert(filtered, result)
-                        match = true
-                        break
-                    end
-                end
-            end
-
-            if not match then
-                for _, field in ipairs(partialMatchFields) do
-                    if isNotEmpty(result[field]) then
-                        local value = result[field]:upper()
-                        if value:find(filterEsc) or value:find(filterRe) then
-                            table.insert(filtered, result)
-                            break
-                        end
-                    end
-                end
+    for _, field in ipairs(exactMatchFields) do
+        if isNotEmpty(target[field]) then
+            local value = tostring(target[field]):upper()
+            if value == query.exact then
+                return true
             end
         end
     end
 
+    for _, field in ipairs(partialMatchFields) do
+        if isNotEmpty(target[field]) then
+            local value = target[field]:upper()
+            if value:find(query.escaped) or value:find(query.wildcard) then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+local function filterTargets(maxDistance, group, term)
+    if scanner.group == group and scanner.term == term and scanner.distance == maxDistance then
+        return
+    end
+
+    local filtered = {}
+    local query = buildQuery(term)
+
+    for _, result in ipairs(scanner.results) do
+        if filterTargetByDistance(result, maxDistance)
+        and filterTargetByGroup(result, group)
+        and filterTargetByQuery(result, query) then
+            table.insert(filtered, result)
+        end
+    end
+
     scanner.distance = maxDistance
-    scanner.filter = filter
+    scanner.group = group
+    scanner.term = term
     scanner.filtered = filtered
 end
 
-local function updateScanner(distance, filter)
+local function updateScanner(distance, group, filter)
     scanTargets()
-    filterTargets(distance, filter)
+    filterTargets(distance, group, filter)
 
     if userState.highlightScannerResult and scanner.hovered then
         highlightTarget(scanner.results[scanner.hovered])
@@ -1029,7 +1177,7 @@ local function lookupTarget(lookupQuery)
         end
     end
 
-    local data = resolveTargetData(target)
+    local data = resolveTargetData(target) or {}
 
     if isNotEmpty(target.resourceHash) then
         data.resolvedPath = inspectionSystem:ResolveResourcePath(target.resourceHash)
@@ -1166,12 +1314,34 @@ local function buildComboOptions(values, capitalize)
     return options
 end
 
+local function buildMappingOptions(mapping, first)
+    local options = {}
+    for _, group in pairs(mapping) do
+        if not options[group] then
+            table.insert(options, group)
+            options[group] = group
+        end
+    end
+
+    table.sort(options)
+    table.insert(options, 1, first)
+
+    for index, group in ipairs(options) do
+        options[group] = index
+    end
+
+    options[''] = 1
+
+    return options
+end
+
 local function initializeViewData()
     viewData.colorSchemeOptions = buildComboOptions(ColorScheme.values)
     viewData.outlineModeOptions = buildComboOptions(OutlineMode.values)
     viewData.markerModeOptions = buildComboOptions(MarkerMode.values)
     viewData.boundingBoxModeOptions = buildComboOptions(BoundingBoxMode.values)
     viewData.targetingModeOptions = buildComboOptions(TargetingMode.values, true)
+    viewData.nodeGroupOptions = buildMappingOptions(nodeGroupMapping, 'All')
 end
 
 local function initializeViewStyle()
@@ -1179,11 +1349,11 @@ local function initializeViewStyle()
         viewStyle.fontSize = ImGui.GetFontSize()
         viewStyle.viewScale = viewStyle.fontSize / 13
 
-        viewStyle.windowWidth = 400 * viewStyle.viewScale
-        viewStyle.windowHeight = 0
-
         viewStyle.windowPaddingX = 8 * viewStyle.viewScale
         viewStyle.windowPaddingY = viewStyle.windowPaddingX
+
+        viewStyle.windowWidth = 400 * viewStyle.viewScale
+        viewStyle.windowHeight = 0
 
         viewStyle.windowX = GetDisplayResolution() - viewStyle.windowWidth - viewStyle.windowPaddingX * 2 - 5
         viewStyle.windowY = 5
@@ -1201,12 +1371,13 @@ local function initializeViewStyle()
 
         viewStyle.buttonHeight = 21 * viewStyle.viewScale
 
-        viewStyle.scannerFilterWidth = 120 * viewStyle.viewScale
+        viewStyle.scannerFilterWidth = 95 * viewStyle.viewScale
+        viewStyle.scannerGroupWidth = 75 * viewStyle.viewScale
+        viewStyle.scannerDistanceWidth = 85 * viewStyle.viewScale
         viewStyle.scannerStatsWidth = ImGui.CalcTextSize('0000 / 0000') * viewStyle.viewScale
 
         viewStyle.settingsShortInputWidth = 80 * viewStyle.viewScale
         viewStyle.settingsMiddleInputWidth = 90 * viewStyle.viewScale
-
         viewStyle.settingsShortComboRowWidth = 160 * viewStyle.viewScale
         viewStyle.settingsMiddleComboRowWidth = 210 * viewStyle.viewScale
         viewStyle.settingsLongComboRowWidth = 240 * viewStyle.viewScale
@@ -1235,13 +1406,6 @@ end
 -- GUI :: Actions --
 
 local function getToggleNodeActionName(target)
-    --if target.isCommunityNode then
-    --    return 'Toggle community'
-    --elseif target.isSpawnerNode then
-    --    return 'Toggle spawner'
-    --else
-    --    return 'Toggle node'
-    --end
     return 'Toggle node visibility'
 end
 
@@ -1596,12 +1760,23 @@ local function drawScannerContent()
             ImGui.Separator()
             ImGui.Spacing()
 
+            --ImGui.SameLine()
+            ImGui.AlignTextToFramePadding()
+            ImGui.Text('Group:')
+            ImGui.SameLine()
+            ImGui.SetNextItemWidth(viewStyle.scannerGroupWidth)
+            local groupIndex, groupChanged = ImGui.Combo('##ScannerGroup', viewData.nodeGroupOptions[userState.scannerGroup] - 1, viewData.nodeGroupOptions, #viewData.nodeGroupOptions)
+            if groupChanged then
+                userState.scannerGroup = groupIndex ~= 0 and viewData.nodeGroupOptions[groupIndex + 1] or ''
+            end
+
+            ImGui.SameLine()
             ImGui.AlignTextToFramePadding()
             ImGui.Text('Filter:')
             ImGui.SameLine()
             ImGui.SetNextItemWidth(viewStyle.scannerFilterWidth)
             ImGui.PushStyleColor(ImGuiCol.TextDisabled, viewStyle.hintTextColor)
-            local filter, filterChanged = ImGui.InputTextWithHint('##ScannerFilter', 'Node type or properties', userState.scannerFilter, viewData.maxInputLen)
+            local filter, filterChanged = ImGui.InputTextWithHint('##ScannerFilter', '', userState.scannerFilter, viewData.maxInputLen)
             if filterChanged then
                 userState.scannerFilter = sanitizeTextInput(filter)
             end
@@ -1619,14 +1794,15 @@ local function drawScannerContent()
                 ImGui.PopStyleColor()
             end
             ImGui.PopStyleVar()
+
             ImGui.SameLine()
             ImGui.AlignTextToFramePadding()
             ImGui.Text('Distance:')
             ImGui.SameLine()
-            ImGui.SetNextItemWidth(viewStyle.settingsMiddleInputWidth)
+            ImGui.SetNextItemWidth(viewStyle.windowWidth + viewStyle.windowPaddingX - ImGui.GetCursorPosX())
             local distance, distanceChanged = ImGui.InputFloat('##ScannerDistance', userState.scannerDistance, 0.5, 1.0, '%.1fm', ImGuiInputTextFlags.None)
             if distanceChanged then
-                userState.scannerDistance = clamp(distance, 0.5, 100)
+                userState.scannerDistance = clamp(distance, 0.5, frustumMaxDistance)
             end
 
             ImGui.Spacing()
@@ -1891,7 +2067,7 @@ local function drawSettingsContent()
         userState.highlightScannerResult = state
     end
 
-    ImGui.Indent(ImGui.GetFrameHeightWithSpacing())
+    --ImGui.Indent(ImGui.GetFrameHeightWithSpacing())
     if not userState.highlightScannerResult then
         ImGui.BeginDisabled()
     end
@@ -1902,12 +2078,7 @@ local function drawSettingsContent()
     if not userState.highlightScannerResult then
         ImGui.EndDisabled()
     end
-    ImGui.Unindent(ImGui.GetFrameHeightWithSpacing())
-
-    state, changed = ImGui.Checkbox('Put area and terrain nodes at the end of the results', userState.pushAreaNodesToTheEnd)
-    if changed then
-        userState.pushAreaNodesToTheEnd = state
-    end
+    --ImGui.Unindent(ImGui.GetFrameHeightWithSpacing())
 
     ImGui.Spacing()
     ImGui.Spacing()
@@ -2436,7 +2607,7 @@ registerForEvent('onInit', function()
                 if userState.activeTool == Feature.Inspect then
                     updateInspector()
                 elseif userState.activeTool == Feature.Scan then
-                    updateScanner(userState.scannerDistance, userState.scannerFilter)
+                    updateScanner(userState.scannerDistance, userState.scannerGroup, userState.scannerFilter)
                 elseif userState.activeTool == Feature.Lookup then
                     updateLookup(viewState.lookupQuery)
                 elseif userState.activeTool == Feature.Watch then

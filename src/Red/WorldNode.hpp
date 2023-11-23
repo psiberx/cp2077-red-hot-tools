@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Red/Rendering.hpp"
+#include "Red/StreamingSector.hpp"
 
 namespace Red
 {
@@ -47,8 +48,10 @@ using Bounds = Core::OffsetPtr<0x50, Red::DynArray<Red::Box>>;
 namespace Raw::WorldNodeInstance
 {
 using Transform = Core::OffsetPtr<0x30, Red::Transform>;
+using Transform = Core::OffsetPtr<0x30, Red::Transform>;
 using Scale = Core::OffsetPtr<0x50, Red::Vector3>;
 using Node = Core::OffsetPtr<0x60, Red::Handle<Red::worldNode>>;
+using SetupInfo = Core::OffsetPtr<0x70, Red::CompiledNodeInstanceSetupInfo**>;
 using State = Core::OffsetPtr<0x88, Red::WorldNodeInstanceNodeState>;
 
 inline bool IsAttached(Red::worldINodeInstance* aNodeInstance)
@@ -64,6 +67,14 @@ inline bool IsVisible(Red::worldINodeInstance* aNodeInstance)
 constexpr auto Initialize = Core::RawFunc<
     /* addr = */ 0x1401B96A4 - Red::Addresses::ImageBase, // FIXME
     /* type = */ bool (*)(Red::worldINodeInstance*, Red::CompiledNodeInstanceSetupInfo*, void*)>();
+
+constexpr auto Attach = Core::RawFunc<
+    /* addr = */ 0x14057FAD0 - Red::Addresses::ImageBase, // FIXME
+    /* type = */ bool (*)(Red::worldINodeInstance*, void*)>();
+
+constexpr auto Detach = Core::RawFunc<
+    /* addr = */ 0x1404B201C - Red::Addresses::ImageBase, // FIXME
+    /* type = */ bool (*)(Red::worldINodeInstance*, void*)>();
 
 constexpr auto SetVisibility = Core::RawFunc<
     /* addr = */ 0x140783E28 - Red::Addresses::ImageBase, // FIXME

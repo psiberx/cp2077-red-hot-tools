@@ -64,9 +64,12 @@ protected:
     static void OnStreamingSectorDestruct(Red::worldStreamingSector* aSector);
     static void OnNodeInstanceInitialize(Red::worldINodeInstance* aNodeInstance,
                                          Red::CompiledNodeInstanceSetupInfo* aNodeSetup, void*);
+    static void OnNodeInstanceAttach(Red::worldINodeInstance* aNodeInstance, void*);
+    static void OnNodeInstanceDetach(Red::worldINodeInstance* aNodeInstance, void*);
 
-    WorldNodeStaticData GetNodeStaticData(Red::CompiledNodeInstanceSetupInfo* aNodeSetup);
-    WorldNodeInstanceData GetNodeRuntimeData(Red::CompiledNodeInstanceSetupInfo* aNodeSetup);
+    static WorldNodeStaticData GetNodeStaticData(Red::CompiledNodeInstanceSetupInfo* aNodeSetup);
+    static WorldNodeInstanceData GetNodeRuntimeData(Red::CompiledNodeInstanceSetupInfo* aNodeSetup);
+    static Red::CompiledNodeInstanceSetupInfo* GetNodeSetupInfo(Red::worldINodeInstance* aNodeInstance);
 
     inline static std::shared_mutex s_resourcePathLock;
     inline static Core::Map<Red::ResourcePath, std::string> s_resourcePathMap;

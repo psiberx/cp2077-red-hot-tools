@@ -29,6 +29,8 @@ void App::ResourceRegistry::OnBootstrap()
     HookAfter<Raw::StreamingSector::Prepare>(&OnStreamingSectorPrepare);
     HookBefore<Raw::StreamingSector::Destruct>(&OnStreamingSectorDestruct);
     HookAfter<Raw::WorldNodeInstance::Initialize>(&OnNodeInstanceInitialize);
+    HookAfter<Raw::WorldNodeInstance::Attach>(&OnNodeInstanceAttach);
+    HookBefore<Raw::WorldNodeInstance::Detach>(&OnNodeInstanceDetach);
 }
 
 void App::ResourceRegistry::OnCreateResourcePath(Red::ResourcePath* aPath, const Red::StringView* aPathStr)
@@ -94,20 +96,17 @@ void App::ResourceRegistry::OnStreamingSectorDestruct(Red::worldStreamingSector*
     size_t erased = 0;
     for (auto& nodeSetup : buffer.nodeSetups)
     {
-        if (auto& nodeInstance = s_nodeSetupToRuntimeDataMap[&nodeSetup].nodeInstance)
+        if (auto nodeInstance = s_nodeSetupToRuntimeDataMap[&nodeSetup].nodeInstance.instance)
         {
-            s_nodeInstanceToNodeSetupMap.erase(nodeInstance.instance);
+            const auto& currentNodeSetup = s_nodeInstanceToNodeSetupMap.find(nodeInstance);
+            if (currentNodeSetup != s_nodeInstanceToNodeSetupMap.end() && currentNodeSetup.value() == &nodeSetup)
+            {
+                s_nodeInstanceToNodeSetupMap.erase(currentNodeSetup);
+            }
         }
 
-        for (const auto& watcher : s_watchers)
-        {
-            watcher->OnNodeStreamedOut(reinterpret_cast<uint64_t>(&nodeSetup));
-        }
-
-        s_nodeSetupToStaticDataMap.erase(&nodeSetup);
+        erased += s_nodeSetupToStaticDataMap.erase(&nodeSetup);
         s_nodeSetupToRuntimeDataMap.erase(&nodeSetup);
-
-        ++erased;
     }
 
 #ifndef NDEBUG
@@ -121,10 +120,33 @@ void App::ResourceRegistry::OnNodeInstanceInitialize(Red::worldINodeInstance* aN
     std::unique_lock _(s_nodeInstanceDataLock);
     s_nodeSetupToRuntimeDataMap[aNodeSetup].nodeInstance = Red::AsWeakHandle(aNodeInstance);
     s_nodeInstanceToNodeSetupMap[aNodeInstance] = aNodeSetup;
+}
 
-    for (const auto& watcher : s_watchers)
+void App::ResourceRegistry::OnNodeInstanceAttach(Red::worldINodeInstance* aNodeInstance, void*)
+{
+    if (s_watchers.empty())
+        return;
+
+    if (auto setupInfo = GetNodeSetupInfo(aNodeInstance))
     {
-        watcher->OnNodeStreamedIn(reinterpret_cast<uint64_t>(aNodeSetup), aNodeSetup->node, aNodeInstance, aNodeSetup);
+        for (const auto& watcher : s_watchers)
+        {
+            watcher->OnNodeStreamedIn(reinterpret_cast<uint64_t>(setupInfo), setupInfo->node, aNodeInstance, setupInfo);
+        }
+    }
+}
+
+void App::ResourceRegistry::OnNodeInstanceDetach(Red::worldINodeInstance* aNodeInstance, void*)
+{
+    if (s_watchers.empty())
+        return;
+
+    if (auto setupInfo = GetNodeSetupInfo(aNodeInstance))
+    {
+        for (const auto& watcher : s_watchers)
+        {
+            watcher->OnNodeStreamedOut(reinterpret_cast<uint64_t>(setupInfo));
+        }
     }
 }
 
@@ -211,6 +233,17 @@ App::WorldNodeInstanceData App::ResourceRegistry::GetNodeRuntimeData(
         return {};
 
     return GetNodeRuntimeData(it.value());
+}
+
+Red::CompiledNodeInstanceSetupInfo* App::ResourceRegistry::GetNodeSetupInfo(Red::worldINodeInstance* aNodeInstance)
+{
+    std::shared_lock _(s_nodeInstanceDataLock);
+    const auto& it = s_nodeInstanceToNodeSetupMap.find(aNodeInstance);
+
+    if (it == s_nodeInstanceToNodeSetupMap.end())
+        return nullptr;
+
+    return it.value();
 }
 
 Core::Vector<App::WorldNodeInstanceData> App::ResourceRegistry::GetAllStreamedNodes()

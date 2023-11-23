@@ -48,9 +48,9 @@ class InspectionSystem
     , public INodeInstanceWatcher
 {
 public:
-    static constexpr auto FrustumUpdateFreq = 0.2f;
-    static constexpr auto FrustumMaxDistance = 100.0f;
-    static constexpr auto RayCastingMaxDistance = 100.0f;
+    static constexpr auto FrustumUpdateFreq = 0.1f;
+    static constexpr auto FrustumMaxDistance = 120.0f;
+    static constexpr auto RayCastingMaxDistance = 120.0f;
 
     InspectionSystem() = default;
 
@@ -70,6 +70,7 @@ public:
     WorldNodeRuntimeSceneData FindStreamedWorldNode(uint64_t aNodeID);
     Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedWorldNodesInFrustum();
     Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedWorldNodesInCrosshair();
+    int32_t GetFrustumMaxDistance();
 
     bool SetNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aVisible);
     bool ToggleNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance);
@@ -110,7 +111,7 @@ private:
     Red::gameICameraSystem* m_cameraSystem;
 
     std::shared_mutex m_pendingRequestsLock;
-    Core::Vector<WorldNodeStreamingRequest> m_pendingRequests;
+    Core::Map<uint64_t, WorldNodeStreamingRequest> m_pendingRequests;
 
     std::shared_mutex m_streamedNodesLock;
     Core::Map<uint64_t, WorldNodeStaticSceneData> m_streamedNodes;
@@ -167,6 +168,7 @@ RTTI_DEFINE_CLASS(App::InspectionSystem, {
     RTTI_METHOD(FindStreamedWorldNode);
     RTTI_METHOD(GetStreamedWorldNodesInFrustum);
     RTTI_METHOD(GetStreamedWorldNodesInCrosshair);
+    RTTI_METHOD(GetFrustumMaxDistance);
     RTTI_METHOD(SetNodeVisibility);
     RTTI_METHOD(ToggleNodeVisibility);
     RTTI_METHOD(ApplyHighlightEffect);

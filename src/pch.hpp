@@ -46,8 +46,10 @@
 #include <RED4ext/Scripting/Natives/Generated/world/CompiledCommunityAreaNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/EntityNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/EntityNodeInstance.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/EntityProxyMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/FoliageNodeInstance.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/GenericProxyMeshNode.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/GeometryShapeNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/GlobalNodeID.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/GlobalNodeRef.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/INodeInstance.hpp>
@@ -60,14 +62,13 @@
 #include <RED4ext/Scripting/Natives/Generated/world/Node.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/NodeInstanceRegistry.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/PhysicalDestructionNodeInstance.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/PrefabProxyMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/RoadProxyMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/RuntimeSystemNodeStreaming.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/StaticDecalNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/StaticDecalNodeInstance.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/StreamingSector.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/TerrainMeshNodeInstance.hpp>
-#include <RED4ext/Scripting/Natives/Generated/world/EntityProxyMeshNode.hpp>
-#include <RED4ext/Scripting/Natives/Generated/world/PrefabProxyMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/TerrainProxyMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/ScriptGameInstance.hpp>
 

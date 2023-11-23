@@ -69,14 +69,14 @@ void App::InspectionSystem::OnNodeStreamedIn(uint64_t aNodeHash,
                                              Red::CompiledNodeInstanceSetupInfo* aNodeSetup)
 {
     std::unique_lock _(m_pendingRequestsLock);
-    m_pendingRequests.push_back({true, aNodeHash, Red::AsWeakHandle(aNodeInstance),
-                                 Red::AsWeakHandle(aNodeDefinition), aNodeSetup});
+    m_pendingRequests[aNodeHash] = {true, aNodeHash, Red::AsWeakHandle(aNodeInstance),
+                                    Red::AsWeakHandle(aNodeDefinition), aNodeSetup};
 }
 
 void App::InspectionSystem::OnNodeStreamedOut(uint64_t aNodeHash)
 {
     std::unique_lock _(m_pendingRequestsLock);
-    m_pendingRequests.push_back({false, aNodeHash});
+    m_pendingRequests[aNodeHash] = {false, aNodeHash};
 }
 
 void App::InspectionSystem::UpdateStreamedNodes()
@@ -85,8 +85,8 @@ void App::InspectionSystem::UpdateStreamedNodes()
     const auto updateStart = std::chrono::steady_clock::now();
 #endif
 
-    Core::Vector<WorldNodeStreamingRequest> pendingRequests;
-    Core::Vector<WorldNodeStreamingRequest> postponedRequests;
+    Core::Map<uint64_t, WorldNodeStreamingRequest> pendingRequests;
+    Core::Map<uint64_t, WorldNodeStreamingRequest> postponedRequests;
     {
         std::unique_lock requestLock(m_pendingRequestsLock);
         pendingRequests = std::move(m_pendingRequests);
@@ -96,7 +96,7 @@ void App::InspectionSystem::UpdateStreamedNodes()
         return;
 
     std::unique_lock updateLock(m_streamedNodesLock);
-    for (const auto& request : pendingRequests)
+    for (const auto& [hash, request] : pendingRequests)
     {
         if (!request.streaming)
         {
@@ -108,11 +108,14 @@ void App::InspectionSystem::UpdateStreamedNodes()
         auto nodeDefinition = request.nodeDefinition.Lock();
 
         if (!nodeInstance || !nodeDefinition)
+        {
+            postponedRequests[hash] = request;
             continue;
+        }
 
         if (!Raw::WorldNodeInstance::IsAttached(nodeInstance))
         {
-            postponedRequests.push_back(request);
+            postponedRequests[hash] = request;
             continue;
         }
 
@@ -137,15 +140,16 @@ void App::InspectionSystem::UpdateStreamedNodes()
             }
             else
             {
-                postponedRequests.push_back(request);
+                postponedRequests[hash] = request;
                 continue;
             }
         }
         else if (Red::IsInstanceOf<Red::worldStaticDecalNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldBendedMeshNode>(nodeDefinition) ||
-                 Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition))
+                 Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition) ||
+                 Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition))
         {
-            Red::Box boundingBox{};
+            Red::Box boundingBox{{1.0}, {-1.0}};
             Raw::WorldNode::GetBoundingBox(nodeDefinition, boundingBox);
 
             if (Red::IsValidBox(boundingBox))
@@ -154,11 +158,12 @@ void App::InspectionSystem::UpdateStreamedNodes()
                 Red::TransformBox(boundingBox, transform);
 
                 streamedNode.boundingBoxes.push_back(boundingBox);
-                streamedNode.isStaticMesh = !Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition);
+                streamedNode.isStaticMesh = !Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition) &&
+                                            !Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition);
             }
             else
             {
-                postponedRequests.push_back(request);
+                postponedRequests[hash] = request;
                 continue;
             }
         }
@@ -175,7 +180,7 @@ void App::InspectionSystem::UpdateStreamedNodes()
             }
             else
             {
-                postponedRequests.push_back(request);
+                postponedRequests[hash] = request;
                 continue;
             }
         }
@@ -192,7 +197,10 @@ void App::InspectionSystem::UpdateStreamedNodes()
     if (!postponedRequests.empty())
     {
         std::unique_lock requestLock(m_pendingRequestsLock);
-        m_pendingRequests.insert(m_pendingRequests.end(), postponedRequests.begin(), postponedRequests.end());
+        for (const auto& request : postponedRequests)
+        {
+            m_pendingRequests.insert(request);
+        }
     }
 }
 
@@ -237,7 +245,7 @@ void App::InspectionSystem::UpdateFrustumNodes()
 #endif
 
             Red::FrustumResult frustumResult{};
-            Red::Box boundingBox{};
+            Red::Box boundingBox{{1.0}, {-1.0}};
 
             if (!streamedNode.boundingBoxes.empty())
             {
@@ -252,10 +260,7 @@ void App::InspectionSystem::UpdateFrustumNodes()
             }
             else
             {
-                Red::Box dummyBox{{-0.1, -0.1, -0.1, 1.0}, {0.1, 0.1, 0.1, 1.0}};
-                Red::TransformBox(dummyBox, transform);
-
-                frustumResult = cameraFrustum.Test(dummyBox);
+                frustumResult = cameraFrustum.Test(transform.position);
             }
 
 #ifndef NDEBUG
@@ -270,7 +275,7 @@ void App::InspectionSystem::UpdateFrustumNodes()
 #endif
 
             float distance;
-            if (Red::IsValidBox(boundingBox) && !Red::IsZeroBox(boundingBox))
+            if (Red::IsValidBox(boundingBox))
             {
                 distance = Red::Distance(cameraPosition, boundingBox);
             }
@@ -282,7 +287,8 @@ void App::InspectionSystem::UpdateFrustumNodes()
             if (distance > FrustumMaxDistance)
                 continue;
 
-            if (streamedNode.isStaticMesh && distance >= 0.001 && distance <= RayCastingMaxDistance)
+            if (streamedNode.isStaticMesh && Red::IsValidBox(boundingBox) &&
+                distance >= 0.0001 && distance <= RayCastingMaxDistance)
             {
                 if (Red::Intersect(cameraPosition, cameraInverseDirection, boundingBox))
                 {
@@ -440,6 +446,11 @@ Red::DynArray<App::WorldNodeRuntimeSceneData> App::InspectionSystem::GetStreamed
 {
     std::shared_lock _(m_frustumNodesLock);
     return m_targetedNodes;
+}
+
+int32_t App::InspectionSystem::GetFrustumMaxDistance()
+{
+    return FrustumMaxDistance;
 }
 
 bool App::InspectionSystem::SetNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aVisible)
