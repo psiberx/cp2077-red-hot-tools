@@ -48,7 +48,6 @@ using Bounds = Core::OffsetPtr<0x50, Red::DynArray<Red::Box>>;
 namespace Raw::WorldNodeInstance
 {
 using Transform = Core::OffsetPtr<0x30, Red::Transform>;
-using Transform = Core::OffsetPtr<0x30, Red::Transform>;
 using Scale = Core::OffsetPtr<0x50, Red::Vector3>;
 using Node = Core::OffsetPtr<0x60, Red::Handle<Red::worldNode>>;
 using SetupInfo = Core::OffsetPtr<0x70, Red::CompiledNodeInstanceSetupInfo**>;
