@@ -42,6 +42,7 @@ end
 -- App --
 
 local isPluginFound = false
+local isArchiveXLFound = false
 local isTweakXLFound = false
 
 local cameraSystem
@@ -51,6 +52,7 @@ local inspectionSystem
 
 local function initializeEnvironment()
     isPluginFound = type(RedHotTools) == 'userdata'
+    isArchiveXLFound = type(ArchiveXL) == 'userdata'
     isTweakXLFound = type(TweakXL) == 'userdata'
 
     cameraSystem = Game.GetCameraSystem()
@@ -1970,6 +1972,22 @@ local function drawHotReloadContent()
     ImGui.Spacing()
     --]]
 
+    if isArchiveXLFound then
+        ImGui.Text('Archives')
+        ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+        ImGui.TextWrapped('Hot load extensions from archive/pc/mod and mods/*/archives.')
+        ImGui.PopStyleColor()
+        ImGui.Spacing()
+
+        if ImGui.Button('Reload extensions', viewStyle.windowWidth, viewStyle.buttonHeight) then
+            ArchiveXL.Reload()
+        end
+
+        ImGui.Spacing()
+        ImGui.Separator()
+        ImGui.Spacing()
+    end
+
     ImGui.Text('Scripts')
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
     ImGui.TextWrapped('Hot load scripts from r6/scripts.')
@@ -1992,7 +2010,7 @@ local function drawHotReloadContent()
         ImGui.Spacing()
 
         if ImGui.Button('Reload tweaks', viewStyle.windowWidth, viewStyle.buttonHeight) then
-            RedHotTools.ReloadTweaks()
+            TweakXL.Reload()
         end
     end
 end
@@ -2396,7 +2414,7 @@ local function drawProjectedBox(screen, box, faceColor, edgeColor, verticeColor,
             drawProjectedPoint(screen, vertice, verticeColor, 1)
 
             if userState.showBoundingBoxDistances then
-                drawProjectedDistance(screen, vertice, 4, -20, viewStyle.fontSize, verticeColor)
+                drawProjectedDistance(screen, vertice, 4, -20, verticeColor, viewStyle.fontSize)
             end
         end
     end

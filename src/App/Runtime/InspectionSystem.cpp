@@ -260,7 +260,10 @@ void App::InspectionSystem::UpdateFrustumNodes()
             }
             else
             {
-                frustumResult = cameraFrustum.Test(transform.position);
+                Red::Box dummyBox{{-0.05, -0.05, -0.05, 1.0}, {0.05, 0.05, 0.05, 1.0}};
+                Red::TransformBox(dummyBox, transform);
+
+                frustumResult = cameraFrustum.Test(dummyBox);
             }
 
 #ifndef NDEBUG
