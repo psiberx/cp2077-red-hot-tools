@@ -269,7 +269,7 @@ local shimmer = {
 }
 
 local colorMapping = {
-    [ColorScheme.Green] = 0xFF58F235,
+    [ColorScheme.Green] = 0xFF32FF1D,
     [ColorScheme.Red] = 0xFF050FFF,
     [ColorScheme.Yellow] = 0xFF62E8FC,
     [ColorScheme.White] = 0xFFFFFFFF,
@@ -1290,12 +1290,13 @@ end
 local viewState = {
     isFirstOpen = true,
     isConsoleOpen = false,
+    isWindowOpen = true,
     scannerFilter = '',
     lookupQuery = '',
 }
 
 local viewData = {
-    maxInputLen = 256,
+    maxInputLen = 512,
 }
 
 local viewStyle = {
@@ -2468,50 +2469,65 @@ end
 -- GUI :: Windows --
 
 local function drawInspectorWindow()
+    ImGui.SetNextWindowPos(viewStyle.windowX, viewStyle.windowY, ImGuiCond.FirstUseEver)
+    ImGui.SetNextWindowSize(viewStyle.windowWidth + viewStyle.windowPaddingX * 2 - 1, viewStyle.windowHeight)
+    ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, viewStyle.windowPaddingX, viewStyle.windowPaddingY)
+
     ImGui.Begin('Red Hot Tools', viewStyle.overlayWindowFlags)
     ImGui.SetCursorPosY(ImGui.GetCursorPosY() - 2)
     drawInspectorContent(true)
     ImGui.End()
+
+    ImGui.PopStyleVar()
 end
 
 local function drawMainWindow()
+    ImGui.SetNextWindowPos(viewStyle.windowX, viewStyle.windowY, ImGuiCond.FirstUseEver)
+    ImGui.SetNextWindowSize(viewStyle.windowWidth + viewStyle.windowPaddingX * 2 - 1, viewStyle.windowHeight)
+    ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, viewStyle.windowPaddingX, viewStyle.windowPaddingY)
+
     if ImGui.Begin('Red Hot Tools', viewStyle.mainWindowFlags) then
-        ImGui.BeginTabBar('Red Hot Tools TabBar')
+        viewState.isWindowOpen = not ImGui.IsWindowCollapsed()
+        if viewState.isWindowOpen then
+            ImGui.BeginTabBar('Red Hot Tools TabBar')
 
-        local activeTool
-        local toolTabs = {
-            { id = Feature.Inspect, draw = drawInspectorContent },
-            { id = Feature.Scan, draw = drawScannerContent },
-            { id = Feature.Lookup, draw = drawLookupContent },
-            { id = Feature.Watch, draw = drawWatcherContent },
-            { id = Feature.Reload, draw = drawHotReloadContent },
-        }
+            local activeTool
+            local toolTabs = {
+                { id = Feature.Inspect, draw = drawInspectorContent },
+                { id = Feature.Scan, draw = drawScannerContent },
+                { id = Feature.Lookup, draw = drawLookupContent },
+                { id = Feature.Watch, draw = drawWatcherContent },
+                { id = Feature.Reload, draw = drawHotReloadContent },
+            }
 
-        for _, toolTab in ipairs(toolTabs) do
-            local tabLabel = ' ' .. toolTab.id .. ' '
-            local tabFlags = ImGuiTabItemFlags.None
-            if viewState.isFirstOpen and userState.activeTool == toolTab.id then
-                tabFlags = ImGuiTabItemFlags.SetSelected
+            for _, toolTab in ipairs(toolTabs) do
+                local tabLabel = ' ' .. toolTab.id .. ' '
+                local tabFlags = ImGuiTabItemFlags.None
+                if viewState.isFirstOpen and userState.activeTool == toolTab.id then
+                    tabFlags = ImGuiTabItemFlags.SetSelected
+                end
+
+                if ImGui.BeginTabItem(tabLabel, tabFlags) then
+                    activeTool = toolTab.id
+                    ImGui.Spacing()
+                    toolTab.draw()
+                    ImGui.EndTabItem()
+                end
             end
 
-            if ImGui.BeginTabItem(tabLabel, tabFlags) then
-                activeTool = toolTab.id
+            if ImGui.BeginTabItem(' Settings ') then
                 ImGui.Spacing()
-                toolTab.draw()
+                drawSettingsContent()
                 ImGui.EndTabItem()
             end
-        end
 
-		if ImGui.BeginTabItem(' Settings ') then
-            ImGui.Spacing()
-            drawSettingsContent()
-            ImGui.EndTabItem()
+            userState.activeTool = activeTool
+            viewState.isFirstOpen = false
         end
-
-        userState.activeTool = activeTool
-        viewState.isFirstOpen = false
     end
     ImGui.End()
+
+    ImGui.PopStyleVar()
 end
 
 -- GUI :: Events --
@@ -2535,19 +2551,16 @@ registerForEvent('onDraw', function()
     end
 
     initializeViewStyle()
-    drawProjections()
-
-    ImGui.SetNextWindowPos(viewStyle.windowX, viewStyle.windowY, ImGuiCond.FirstUseEver)
-    ImGui.SetNextWindowSize(viewStyle.windowWidth + viewStyle.windowPaddingX * 2 - 1, viewStyle.windowHeight)
-    ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, viewStyle.windowPaddingX, viewStyle.windowPaddingY)
 
     if viewState.isConsoleOpen then
+        if viewState.isWindowOpen then
+            drawProjections()
+        end
         drawMainWindow()
     elseif userState.showOnScreenDisplay then
+        drawProjections()
         drawInspectorWindow()
     end
-
-    ImGui.PopStyleVar()
 end)
 
 -- Bindings --
@@ -2622,14 +2635,16 @@ registerForEvent('onInit', function()
 
         Cron.Every(0.2, function()
             if viewState.isConsoleOpen then
-                if userState.activeTool == Feature.Inspect then
-                    updateInspector()
-                elseif userState.activeTool == Feature.Scan then
-                    updateScanner(userState.scannerDistance, userState.scannerGroup, userState.scannerFilter)
-                elseif userState.activeTool == Feature.Lookup then
-                    updateLookup(viewState.lookupQuery)
-                elseif userState.activeTool == Feature.Watch then
-                    updateWatcher()
+                if viewState.isWindowOpen then
+                    if userState.activeTool == Feature.Inspect then
+                        updateInspector()
+                    elseif userState.activeTool == Feature.Scan then
+                        updateScanner(userState.scannerDistance, userState.scannerGroup, userState.scannerFilter)
+                    elseif userState.activeTool == Feature.Lookup then
+                        updateLookup(viewState.lookupQuery)
+                    elseif userState.activeTool == Feature.Watch then
+                        updateWatcher()
+                    end
                 end
             elseif userState.showOnScreenDisplay then
                 updateInspector()
