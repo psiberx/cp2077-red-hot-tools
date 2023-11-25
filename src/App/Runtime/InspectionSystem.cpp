@@ -146,6 +146,7 @@ void App::InspectionSystem::UpdateStreamedNodes()
         }
         else if (Red::IsInstanceOf<Red::worldStaticDecalNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldBendedMeshNode>(nodeDefinition) ||
+                 Red::IsInstanceOf<Red::worldEntityNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition))
         {
@@ -454,6 +455,16 @@ Red::DynArray<App::WorldNodeRuntimeSceneData> App::InspectionSystem::GetStreamed
 int32_t App::InspectionSystem::GetFrustumMaxDistance()
 {
     return FrustumMaxDistance;
+}
+
+Red::Vector4 App::InspectionSystem::GetStreamedNodePosition(const Red::Handle<Red::worldINodeInstance>& aNodeInstance)
+{
+    auto setupInfo = Raw::WorldNodeInstance::SetupInfo::Ptr(aNodeInstance.instance);
+
+    if (!setupInfo || !*setupInfo)
+        return {};
+
+    return (*setupInfo)->transform.position;
 }
 
 bool App::InspectionSystem::SetNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aVisible)

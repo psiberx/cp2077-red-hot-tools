@@ -67,14 +67,16 @@ end
 -- App :: User State --
 
 local Feature = enum('None', 'Inspect', 'Scan', 'Lookup', 'Watch', 'Reload')
+local TargetingMode = enum('GamePhysics', 'StaticBounds')
 local ColorScheme = enum('Green', 'Red', 'Yellow', 'White', 'Shimmer')
 local OutlineMode = enum('ForSupportedObjects', 'Never')
 local MarkerMode = enum('Always', 'ForStaticMeshes', 'WhenOutlineIsUnsupported', 'Never')
 local BoundingBoxMode = enum('ForAreaNodes', 'Never')
-local TargetingMode = enum('GamePhysics', 'StaticBounds')
+local WindowSnapping = enum('Disabled', 'TopLeft', 'TopRight')
 
 local userState = {}
 local userStateSchema = {
+    windowSnapping = { type = WindowSnapping, default = WindowSnapping.Disabled },
     activeTool = { type = Feature, default = Feature.Inspect },
     showOnScreenDisplay = { type = 'boolean', default = false },
     scannerFilter = { type = 'string', default = '' },
@@ -87,7 +89,7 @@ local userStateSchema = {
     showMarkerDistance = { type = 'boolean', default = true },
     showBoundingBoxDistances = { type = 'boolean', default = false },
     targetingMode = { type = TargetingMode, default = TargetingMode.GamePhysics },
-    maxStaticMeshTargets = { type = 'number', default = 8 },
+    maxTargets = { type = 'number', default = 8 },
     highlightInspectorResult = { type = 'boolean', default = true },
     highlightScannerResult = { type = 'boolean', default = true },
     highlightLookupResult = { type = 'boolean', default = false },
@@ -242,7 +244,7 @@ local function getLookAtTargets(maxDistance)
             return
         end
 
-        while #results > userState.maxStaticMeshTargets do
+        while #results > userState.maxTargets do
             table.remove(results)
         end
 
@@ -347,17 +349,21 @@ local function enableHighlight(target)
     highlight.projections = {}
 
     local showMarker = false
-    if userState.markerMode == MarkerMode.Always then
-        showMarker = true
-    elseif userState.markerMode == MarkerMode.ForStaticMeshes and userState.targetingMode == TargetingMode.StaticBounds then
-        showMarker = true
-    elseif userState.markerMode == MarkerMode.WhenOutlineIsUnsupported and (not isOutlineActive or target.isProxyMeshNode) then
-        showMarker = true
+    if not target.isCollisionNode then
+        if userState.markerMode == MarkerMode.Always then
+            showMarker = true
+        elseif userState.markerMode == MarkerMode.ForStaticMeshes and userState.targetingMode == TargetingMode.StaticBounds then
+            showMarker = true
+        elseif userState.markerMode == MarkerMode.WhenOutlineIsUnsupported and (not isOutlineActive or target.isProxyMeshNode) then
+            showMarker = true
+        end
     end
 
     local showBoundindBox = false
-    if userState.boundingBoxMode == BoundingBoxMode.ForAreaNodes and target.isAreaNode then
-        showBoundindBox = true
+    if not target.isCollisionNode then
+        if userState.boundingBoxMode == BoundingBoxMode.ForAreaNodes and target.isAreaNode then
+            showBoundindBox = true
+        end
     end
 
     if showMarker or showBoundindBox then
@@ -684,6 +690,7 @@ local function fillTargetNodeData(target, data)
     data.isCommunityNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldCompiledCommunityAreaNode')
     data.isSpawnerNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldPopulationSpawnerNode')
     data.isVisibleNode = data.isNode and (isNotEmpty(data.meshPath) or isNotEmpty(data.materialPath) or isNotEmpty(data.templatePath))
+    data.isCollisionNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldCollisionNode')
 
     if isNotEmpty(data.nodeType) then
         data.nodeGroup = nodeGroupMapping[data.nodeType]
@@ -698,6 +705,17 @@ local function fillTargetGeomertyData(target, data)
     if target.boundingBox and not target.boundingBox.Min:IsXYZZero() then
         data.boundingBox = target.boundingBox
         data.position = Game['OperatorAdd;Vector4Vector4;Vector4'](data.boundingBox.Min, data.boundingBox:GetExtents())
+    end
+
+    if not data.position then
+        if IsDefined(data.entity) then
+            data.position = data.entity:GetWorldPosition()
+        elseif IsDefined(data.nodeInstance) then
+            local position = inspectionSystem:GetStreamedNodePosition(data.nodeInstance)
+            if not position:IsXYZZero() then
+                data.position = position
+            end
+        end
     end
 end
 
@@ -1339,11 +1357,12 @@ local function buildMappingOptions(mapping, first)
 end
 
 local function initializeViewData()
+    viewData.targetingModeOptions = buildComboOptions(TargetingMode.values, true)
     viewData.colorSchemeOptions = buildComboOptions(ColorScheme.values)
     viewData.outlineModeOptions = buildComboOptions(OutlineMode.values)
     viewData.markerModeOptions = buildComboOptions(MarkerMode.values)
     viewData.boundingBoxModeOptions = buildComboOptions(BoundingBoxMode.values)
-    viewData.targetingModeOptions = buildComboOptions(TargetingMode.values, true)
+    viewData.windowSnappingOptions = buildComboOptions(WindowSnapping.values, true)
     viewData.nodeGroupOptions = buildMappingOptions(nodeGroupMapping, 'All')
 end
 
@@ -1356,14 +1375,16 @@ local function initializeViewStyle()
         viewStyle.windowPaddingY = viewStyle.windowPaddingX
 
         viewStyle.windowWidth = 400 * viewStyle.viewScale
+        viewStyle.windowFullWidth = viewStyle.windowWidth + viewStyle.windowPaddingX * 2 - 1
         viewStyle.windowHeight = 0
 
-        viewStyle.windowX = GetDisplayResolution() - viewStyle.windowWidth - viewStyle.windowPaddingX * 2 - 5
-        viewStyle.windowY = 5
+        viewStyle.windowTopY = 5
+        viewStyle.windowLeftX = 5
+        viewStyle.windowRightX = GetDisplayResolution() - viewStyle.windowFullWidth - 5
 
         viewStyle.mainWindowFlags = ImGuiWindowFlags.NoResize
             + ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
-        viewStyle.overlayWindowFlags = viewStyle.mainWindowFlags
+        viewStyle.inspectorWindowFlags = viewStyle.mainWindowFlags
             + ImGuiWindowFlags.NoTitleBar + ImGuiWindowFlags.NoCollapse
             + ImGuiWindowFlags.NoInputs + ImGuiWindowFlags.NoNav
         viewStyle.projectionWindowFlags = ImGuiWindowFlags.NoSavedSettings
@@ -2020,9 +2041,10 @@ end
 
 local function drawSettingsContent()
     local state, changed
+
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
     ImGui.SetWindowFontScale(0.85)
-    ImGui.Text('INSPECTING')
+    ImGui.Text('WINDOW')
     ImGui.SetWindowFontScale(1.0)
     ImGui.PopStyleColor()
     ImGui.Separator()
@@ -2030,89 +2052,14 @@ local function drawSettingsContent()
 
     ImGui.BeginGroup()
     ImGui.AlignTextToFramePadding()
-    ImGui.Text('Targeting mode:')
+    ImGui.Text('Window snapping:')
     ImGui.SameLine()
     ImGui.SetNextItemWidth(viewStyle.settingsMiddleComboRowWidth - ImGui.GetCursorPosX())
-    state, changed = ImGui.Combo('##TargetingMode', TargetingMode.values[userState.targetingMode] - 1, viewData.targetingModeOptions, #viewData.targetingModeOptions)
+    state, changed = ImGui.Combo('##WindowSnapping', WindowSnapping.values[userState.windowSnapping] - 1, viewData.windowSnappingOptions, #viewData.windowSnappingOptions)
     if changed then
-        userState.targetingMode = TargetingMode.values[state + 1]
+        userState.windowSnapping = WindowSnapping.values[state + 1]
     end
     ImGui.EndGroup()
-    if ImGui.IsItemHovered() then
-        ImGui.BeginTooltip()
-        local cursorY = ImGui.GetCursorPosY()
-        ImGui.Dummy(220 * viewStyle.viewScale, 0)
-        ImGui.SetCursorPosY(cursorY)
-        ImGui.Text(viewData.targetingModeOptions[1])
-        ImGui.TextWrapped(
-            'Uses the same ray casting method and physical data as during normal gameplay, ' ..
-            'pixel accurate but cannot target non-collision meshes and decals.')
-        ImGui.Separator()
-        ImGui.Text(viewData.targetingModeOptions[2])
-        ImGui.TextWrapped(
-            'Uses alternative ray casting method based on static bounding boxes of world nodes, ' ..
-            'ignores transparency and generally less accurate but can target non-collision meshes and decals.')
-        ImGui.EndTooltip()
-    end
-
-    ImGui.AlignTextToFramePadding()
-    ImGui.Text('Static mesh targets:')
-    ImGui.SameLine()
-    ImGui.SetNextItemWidth(viewStyle.settingsShortInputWidth)
-    state, changed = ImGui.InputInt('##StaticMeshTargets', userState.maxStaticMeshTargets, 1, 10, ImGuiInputTextFlags.None)
-    if changed then
-        userState.maxStaticMeshTargets = clamp(state, 1, 16)
-    end
-
-    ImGui.Spacing()
-
-    state, changed = ImGui.Checkbox('Highlight inspected target', userState.highlightInspectorResult)
-    if changed then
-        userState.highlightInspectorResult = state
-    end
-
-    ImGui.Spacing()
-    ImGui.Spacing()
-    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-    ImGui.SetWindowFontScale(0.85)
-    ImGui.Text('SCANNING')
-    ImGui.SetWindowFontScale(1.0)
-    ImGui.PopStyleColor()
-    ImGui.Separator()
-    ImGui.Spacing()
-
-    state, changed = ImGui.Checkbox('Highlight scanned target when hover over', userState.highlightScannerResult)
-    if changed then
-        userState.highlightScannerResult = state
-    end
-
-    --ImGui.Indent(ImGui.GetFrameHeightWithSpacing())
-    if not userState.highlightScannerResult then
-        ImGui.BeginDisabled()
-    end
-    state, changed = ImGui.Checkbox('Keep last target highlighted when hover out', userState.keepLastHoveredResultHighlighted)
-    if changed then
-        userState.keepLastHoveredResultHighlighted = state
-    end
-    if not userState.highlightScannerResult then
-        ImGui.EndDisabled()
-    end
-    --ImGui.Unindent(ImGui.GetFrameHeightWithSpacing())
-
-    ImGui.Spacing()
-    ImGui.Spacing()
-    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-    ImGui.SetWindowFontScale(0.85)
-    ImGui.Text('LOOKUP')
-    ImGui.SetWindowFontScale(1.0)
-    ImGui.PopStyleColor()
-    ImGui.Separator()
-    ImGui.Spacing()
-
-    state, changed = ImGui.Checkbox('Highlight lookup target', userState.highlightLookupResult)
-    if changed then
-        userState.highlightLookupResult = state
-    end
 
     ImGui.Spacing()
     ImGui.Spacing()
@@ -2189,6 +2136,108 @@ local function drawSettingsContent()
     state, changed = ImGui.Checkbox('Show distances to the corners of bounding box', userState.showBoundingBoxDistances)
     if changed then
         userState.showBoundingBoxDistances = state
+    end
+
+    ImGui.Spacing()
+    ImGui.Spacing()
+    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+    ImGui.SetWindowFontScale(0.85)
+    ImGui.Text('INSPECTING')
+    ImGui.SetWindowFontScale(1.0)
+    ImGui.PopStyleColor()
+    ImGui.Separator()
+    ImGui.Spacing()
+
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Targeting mode:')
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsMiddleComboRowWidth - ImGui.GetCursorPosX())
+    state, changed = ImGui.Combo('##TargetingMode', TargetingMode.values[userState.targetingMode] - 1, viewData.targetingModeOptions, #viewData.targetingModeOptions)
+    if changed then
+        userState.targetingMode = TargetingMode.values[state + 1]
+    end
+    ImGui.EndGroup()
+    if ImGui.IsItemHovered() then
+        ImGui.BeginTooltip()
+        local cursorY = ImGui.GetCursorPosY()
+        ImGui.Dummy(220 * viewStyle.viewScale, 0)
+        ImGui.SetCursorPosY(cursorY)
+        ImGui.Text(viewData.targetingModeOptions[1])
+        ImGui.TextWrapped(
+            'Uses the same ray casting method and physical data as during normal gameplay, ' ..
+            'pixel accurate but cannot target non-collision meshes and decals.')
+        ImGui.Spacing()
+        ImGui.Separator()
+        ImGui.Text(viewData.targetingModeOptions[2])
+        ImGui.TextWrapped(
+            'Uses alternative ray casting method based on static bounding boxes of world nodes, ' ..
+            'ignores transparency and generally less accurate but can target non-collision meshes and decals.')
+        ImGui.EndTooltip()
+    end
+
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Max static targets:')
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsShortInputWidth)
+    state, changed = ImGui.InputInt('##StaticMeshTargets', userState.maxTargets, 1, 10, ImGuiInputTextFlags.None)
+    if changed then
+        userState.maxTargets = clamp(state, 1, 16)
+    end
+    ImGui.EndGroup()
+    if ImGui.IsItemHovered() then
+        ImGui.SetTooltip('The number of targets closest to the crosshair in Static Bounds mode.')
+    end
+
+    ImGui.Spacing()
+
+    state, changed = ImGui.Checkbox('Highlight inspected target', userState.highlightInspectorResult)
+    if changed then
+        userState.highlightInspectorResult = state
+    end
+
+    ImGui.Spacing()
+    ImGui.Spacing()
+    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+    ImGui.SetWindowFontScale(0.85)
+    ImGui.Text('SCANNING')
+    ImGui.SetWindowFontScale(1.0)
+    ImGui.PopStyleColor()
+    ImGui.Separator()
+    ImGui.Spacing()
+
+    state, changed = ImGui.Checkbox('Highlight scanned target when hover over', userState.highlightScannerResult)
+    if changed then
+        userState.highlightScannerResult = state
+    end
+
+    --ImGui.Indent(ImGui.GetFrameHeightWithSpacing())
+    if not userState.highlightScannerResult then
+        ImGui.BeginDisabled()
+    end
+    state, changed = ImGui.Checkbox('Keep last target highlighted when hover out', userState.keepLastHoveredResultHighlighted)
+    if changed then
+        userState.keepLastHoveredResultHighlighted = state
+    end
+    if not userState.highlightScannerResult then
+        ImGui.EndDisabled()
+    end
+    --ImGui.Unindent(ImGui.GetFrameHeightWithSpacing())
+
+    ImGui.Spacing()
+    ImGui.Spacing()
+    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+    ImGui.SetWindowFontScale(0.85)
+    ImGui.Text('LOOKUP')
+    ImGui.SetWindowFontScale(1.0)
+    ImGui.PopStyleColor()
+    ImGui.Separator()
+    ImGui.Spacing()
+
+    state, changed = ImGui.Checkbox('Highlight lookup target', userState.highlightLookupResult)
+    if changed then
+        userState.highlightLookupResult = state
     end
 end
 
@@ -2468,66 +2517,87 @@ end
 
 -- GUI :: Windows --
 
-local function drawInspectorWindow()
-    ImGui.SetNextWindowPos(viewStyle.windowX, viewStyle.windowY, ImGuiCond.FirstUseEver)
-    ImGui.SetNextWindowSize(viewStyle.windowWidth + viewStyle.windowPaddingX * 2 - 1, viewStyle.windowHeight)
+local function pushWindowStyle()
+    local windowX, windowY, condition
+
+    if userState.windowSnapping == WindowSnapping.Disabled then
+        condition = ImGuiCond.FirstUseEver
+        windowX = viewStyle.windowRightX
+        windowY = viewStyle.windowTopY
+    elseif userState.windowSnapping == WindowSnapping.TopLeft then
+        condition = ImGuiCond.Always
+        windowX = viewStyle.windowLeftX
+        windowY = viewStyle.windowTopY
+    elseif userState.windowSnapping == WindowSnapping.TopRight then
+        condition = ImGuiCond.Always
+        windowX = viewStyle.windowRightX
+        windowY = viewStyle.windowTopY
+    end
+
+    ImGui.SetNextWindowPos(windowX, windowY, condition)
+    ImGui.SetNextWindowSize(viewStyle.windowFullWidth, viewStyle.windowHeight)
     ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, viewStyle.windowPaddingX, viewStyle.windowPaddingY)
+end
 
-    ImGui.Begin('Red Hot Tools', viewStyle.overlayWindowFlags)
-    ImGui.SetCursorPosY(ImGui.GetCursorPosY() - 2)
-    drawInspectorContent(true)
-    ImGui.End()
-
+local function popWindowStyle()
     ImGui.PopStyleVar()
 end
 
+local function drawInspectorWindow()
+    pushWindowStyle()
+    ImGui.Begin('Red Hot Tools', viewStyle.inspectorWindowFlags)
+
+    ImGui.SetCursorPosY(ImGui.GetCursorPosY() - 2)
+    drawInspectorContent(true)
+
+    ImGui.End()
+    popWindowStyle()
+end
+
 local function drawMainWindow()
-    ImGui.SetNextWindowPos(viewStyle.windowX, viewStyle.windowY, ImGuiCond.FirstUseEver)
-    ImGui.SetNextWindowSize(viewStyle.windowWidth + viewStyle.windowPaddingX * 2 - 1, viewStyle.windowHeight)
-    ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, viewStyle.windowPaddingX, viewStyle.windowPaddingY)
+    pushWindowStyle()
+    ImGui.Begin('Red Hot Tools', viewStyle.mainWindowFlags)
 
-    if ImGui.Begin('Red Hot Tools', viewStyle.mainWindowFlags) then
-        viewState.isWindowOpen = not ImGui.IsWindowCollapsed()
-        if viewState.isWindowOpen then
-            ImGui.BeginTabBar('Red Hot Tools TabBar')
+    viewState.isWindowOpen = not ImGui.IsWindowCollapsed()
+    if viewState.isWindowOpen then
+        ImGui.BeginTabBar('Red Hot Tools TabBar')
 
-            local activeTool
-            local toolTabs = {
-                { id = Feature.Inspect, draw = drawInspectorContent },
-                { id = Feature.Scan, draw = drawScannerContent },
-                { id = Feature.Lookup, draw = drawLookupContent },
-                { id = Feature.Watch, draw = drawWatcherContent },
-                { id = Feature.Reload, draw = drawHotReloadContent },
-            }
+        local activeTool
+        local toolTabs = {
+            { id = Feature.Inspect, draw = drawInspectorContent },
+            { id = Feature.Scan, draw = drawScannerContent },
+            { id = Feature.Lookup, draw = drawLookupContent },
+            { id = Feature.Watch, draw = drawWatcherContent },
+            { id = Feature.Reload, draw = drawHotReloadContent },
+        }
 
-            for _, toolTab in ipairs(toolTabs) do
-                local tabLabel = ' ' .. toolTab.id .. ' '
-                local tabFlags = ImGuiTabItemFlags.None
-                if viewState.isFirstOpen and userState.activeTool == toolTab.id then
-                    tabFlags = ImGuiTabItemFlags.SetSelected
-                end
-
-                if ImGui.BeginTabItem(tabLabel, tabFlags) then
-                    activeTool = toolTab.id
-                    ImGui.Spacing()
-                    toolTab.draw()
-                    ImGui.EndTabItem()
-                end
+        for _, toolTab in ipairs(toolTabs) do
+            local tabLabel = ' ' .. toolTab.id .. ' '
+            local tabFlags = ImGuiTabItemFlags.None
+            if viewState.isFirstOpen and userState.activeTool == toolTab.id then
+                tabFlags = ImGuiTabItemFlags.SetSelected
             end
 
-            if ImGui.BeginTabItem(' Settings ') then
+            if ImGui.BeginTabItem(tabLabel, tabFlags) then
+                activeTool = toolTab.id
                 ImGui.Spacing()
-                drawSettingsContent()
+                toolTab.draw()
                 ImGui.EndTabItem()
             end
-
-            userState.activeTool = activeTool
-            viewState.isFirstOpen = false
         end
-    end
-    ImGui.End()
 
-    ImGui.PopStyleVar()
+        if ImGui.BeginTabItem(' Settings ') then
+            ImGui.Spacing()
+            drawSettingsContent()
+            ImGui.EndTabItem()
+        end
+
+        userState.activeTool = activeTool
+        viewState.isFirstOpen = false
+    end
+
+    ImGui.End()
+    popWindowStyle()
 end
 
 -- GUI :: Events --

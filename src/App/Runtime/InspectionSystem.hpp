@@ -72,6 +72,7 @@ public:
     Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedWorldNodesInCrosshair();
     int32_t GetFrustumMaxDistance();
 
+    Red::Vector4 GetStreamedNodePosition(const Red::Handle<Red::worldINodeInstance>& aNodeInstance);
     bool SetNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aVisible);
     bool ToggleNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance);
 
@@ -169,6 +170,7 @@ RTTI_DEFINE_CLASS(App::InspectionSystem, {
     RTTI_METHOD(GetStreamedWorldNodesInFrustum);
     RTTI_METHOD(GetStreamedWorldNodesInCrosshair);
     RTTI_METHOD(GetFrustumMaxDistance);
+    RTTI_METHOD(GetStreamedNodePosition);
     RTTI_METHOD(SetNodeVisibility);
     RTTI_METHOD(ToggleNodeVisibility);
     RTTI_METHOD(ApplyHighlightEffect);
