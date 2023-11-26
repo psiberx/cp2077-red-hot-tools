@@ -666,6 +666,13 @@ local function fillTargetNodeData(target, data)
         if inspectionSystem:IsInstanceOf(node, 'worldDeviceNode') then
             data.deviceClass = node.deviceClassName.value
         end
+
+        if inspectionSystem:IsInstanceOf(node, 'worldTriggerAreaNode') then
+            data.triggerNotifiers = {}
+            for _, notifier in ipairs(node.notifiers) do
+                table.insert(data.triggerNotifiers, inspectionSystem:GetTypeName(notifier).value)
+            end
+        end
     end
 
     if isNotEmpty(data.nodeID) then
@@ -1378,9 +1385,9 @@ local function initializeViewStyle()
         viewStyle.windowFullWidth = viewStyle.windowWidth + viewStyle.windowPaddingX * 2 - 1
         viewStyle.windowHeight = 0
 
-        viewStyle.windowTopY = 5
-        viewStyle.windowLeftX = 5
-        viewStyle.windowRightX = GetDisplayResolution() - viewStyle.windowFullWidth - 5
+        viewStyle.windowTopY = 4
+        viewStyle.windowLeftX = 4
+        viewStyle.windowRightX = GetDisplayResolution() - viewStyle.windowFullWidth - 4
 
         viewStyle.mainWindowFlags = ImGuiWindowFlags.NoResize
             + ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
@@ -1470,22 +1477,13 @@ end
 
 -- GUI :: Fieldsets --
 
---local function formatCollision(data)
---    return data.collision.name.value
---end
+local function formatArrayField(data, field)
+    return table.concat(data[field.name], '\n')
+end
 
 local function formatDistance(data)
     return ('%.2fm'):format(type(data) == 'table' and data.distance or data)
 end
-
---local function useInlineDistance(data)
---    return data.collision and '@'
---end
-
---local function isValidNodeIndex(data)
---    return type(data.nodeIndex) == 'number' and data.nodeIndex >= 0
---        and type(data.nodeCount) == 'number' and data.nodeCount > 0
---end
 
 local function isValidInstanceIndex(data)
     return type(data.instanceIndex) == 'number' and data.instanceIndex >= 0
@@ -1493,10 +1491,6 @@ local function isValidInstanceIndex(data)
 end
 
 local resultSchema = {
-    --{
-    --    { name = 'collision', label = 'Collision:', format = formatCollision },
-    --    { name = 'distance', label = 'Distance:', format = formatDistance, inline = useInlineDistance },
-    --},
     {
         { name = 'nodeType', label = 'Node Type:' },
         { name = 'nodeID', label = 'Node ID:', format = '%u' },
@@ -1519,6 +1513,7 @@ local resultSchema = {
         { name = 'meshAppearance', label = 'Mesh Appearance:' },
         { name = 'materialPath', label = 'Material:', wrap = true },
         { name = 'effectPath', label = 'Effect:', wrap = true },
+        { name = 'triggerNotifiers', label = 'Trigger Notifiers:', format = formatArrayField },
     },
     {
         { name = 'resolvedPath', label = 'Resource:', wrap = true },
@@ -2260,6 +2255,12 @@ local function getScreenDescriptor(camera)
     return screen
 end
 
+local clampScreenPoint = false
+
+local function setScreenClamping(enabled)
+    clampScreenPoint = enabled
+end
+
 local function getScreenPoint(screen, point)
     local projected = inspectionSystem:ProjectWorldPoint(point)
 
@@ -2272,6 +2273,12 @@ local function getScreenPoint(screen, point)
     if projected.w > 0.0 then
         result.x = result.x / projected.w
         result.y = result.y / projected.w
+    end
+
+    if clampScreenPoint then
+        result.x = clamp(result.x, -0.995, 0.995)
+        result.y = clamp(result.y, -0.999, 0.999)
+        result.off = false
     end
 
     result.x = screen.centerX + (result.x * screen.centerX)
@@ -2395,12 +2402,16 @@ local function drawProjectedDistance(screen, position, offsetX, offsetY, textCol
 end
 
 local function drawProjectedMarker(screen, position, outerColor, innerColor, distanceColor)
+    setScreenClamping(true)
+
     drawProjectedPoint(screen, position, outerColor, 10, 3)
     drawProjectedPoint(screen, position, innerColor, 5)
 
     if userState.showMarkerDistance then
         drawProjectedDistance(screen, position, true, -32, distanceColor, viewStyle.fontSize, true)
     end
+
+    setScreenClamping(false)
 end
 
 local function drawProjectedBox(screen, box, faceColor, edgeColor, verticeColor, frame, fill, fadeWithDistance)
