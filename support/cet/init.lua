@@ -1046,6 +1046,7 @@ local partialMatchFields = {
     'effectPath',
     'templatePath',
     'recordID',
+    'triggerNotifiers',
 }
 
 local exactMatchFields = {
@@ -1083,8 +1084,15 @@ local function filterTargetByQuery(target, query)
     end
 
     for _, field in ipairs(partialMatchFields) do
-        if isNotEmpty(target[field]) then
-            local value = target[field]:upper()
+        if type(target[field]) == 'table' then
+            for _, item in ipairs(target[field]) do
+                local value = tostring(item):upper()
+                if value:find(query.escaped) or value:find(query.wildcard) then
+                    return true
+                end
+            end
+        elseif isNotEmpty(target[field]) then
+            local value = tostring(target[field]):upper()
             if value:find(query.escaped) or value:find(query.wildcard) then
                 return true
             end
@@ -1436,7 +1444,7 @@ end
 
 -- GUI :: Actions --
 
-local function getToggleNodeActionName(target)
+local function getToggleNodeActionName()
     return 'Toggle node visibility'
 end
 
