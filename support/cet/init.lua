@@ -697,6 +697,7 @@ local function fillTargetNodeData(target, data)
     data.isCommunityNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldCompiledCommunityAreaNode')
     data.isSpawnerNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldPopulationSpawnerNode')
     data.isVisibleNode = data.isNode and (isNotEmpty(data.meshPath) or isNotEmpty(data.materialPath) or isNotEmpty(data.templatePath))
+        or inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldStaticLightNode')
     data.isCollisionNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldCollisionNode')
 
     if isNotEmpty(data.nodeType) then

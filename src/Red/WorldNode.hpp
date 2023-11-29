@@ -134,6 +134,11 @@ namespace Raw::WorldEntityNodeInstance
 using Entity = Core::OffsetPtr<0xA0, Red::Handle<Red::Entity>>;
 }
 
+namespace Raw::WorldStaticLightNodeInstance
+{
+using RenderProxy = Core::OffsetPtr<0xB0, Red::SharedPtr<Red::RenderProxy>>;
+}
+
 namespace Raw::WorldNodeRegistry
 {
 using EntriesLock = Core::OffsetPtr<0x48, Red::SharedMutex>;

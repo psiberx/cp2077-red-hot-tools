@@ -529,6 +529,11 @@ bool App::InspectionSystem::UpdateNodeVisibility(const Red::Handle<Red::worldINo
         return SetRenderProxyVisibility<Raw::WorldTerrainMeshNodeInstance::RenderProxies>(aNodeInstance, aToggle, aVisible);
     }
 
+    if (Red::IsInstanceOf<Red::worldStaticLightNodeInstance>(aNodeInstance))
+    {
+        return SetRenderProxyVisibility<Raw::WorldStaticLightNodeInstance::RenderProxy>(aNodeInstance, aToggle, aVisible);
+    }
+
     return false;
 }
 
