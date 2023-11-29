@@ -17,10 +17,6 @@ For greater convenience it integrates with other tools:
 
 ## Getting Started
 
-### Prerequisites
-
-- [RED4ext](https://docs.red4ext.com/getting-started/installing-red4ext) 1.18.0+
-
 ### Compatibility
 
 - Cyberpunk 2077 2.02
@@ -28,12 +24,13 @@ For greater convenience it integrates with other tools:
 
 ### Installation
 
-1. Download [the latest release](https://github.com/psiberx/cp2077-red-hot-tools/releases) archive
-2. Extract the archive into the Cyberpunk 2077 installation directory
+1. Install requirements:
+   - [RED4ext](https://docs.red4ext.com/getting-started/installing-red4ext) 1.18.0+
+2. Extract the release archive `RedHotTools-x.x.x.zip` into the Cyberpunk 2077 directory.
+3. _(Optional)_ Install CET UI: Extract the archive `RedHotTools-x.x.x-CET.zip` into the Cyberpunk 2077 directory.
+4. _(Optional)_ Install VS Code extension: Drag the `red-hot-vscode-x.x.x.vsix ` file onto your VS Code extension bar.
 
 ## Visual Studio Code
-
-The extension can be installed by dragging the `.vsix` file onto your VS Code extension bar.
 
 With extension installed, when editing scripts or tweaks files in VS Code, 
 you'll get new editor commands in the menu to hot reload the scripts or tweaks.
