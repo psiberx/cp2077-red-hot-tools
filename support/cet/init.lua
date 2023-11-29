@@ -710,7 +710,7 @@ local function fillTargetGeomertyData(target, data)
     data.distance = target.distance
     data.position = target.position
 
-    if target.boundingBox and not target.boundingBox.Min:IsXYZZero() then
+    if target.boundingBox and not target.boundingBox.Min:IsXYZZero() and target.boundingBox.Min.x <= target.boundingBox.Max.x then
         data.boundingBox = target.boundingBox
         data.position = Game['OperatorAdd;Vector4Vector4;Vector4'](data.boundingBox.Min, data.boundingBox:GetExtents())
     end
