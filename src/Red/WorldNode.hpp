@@ -64,19 +64,19 @@ inline bool IsVisible(Red::worldINodeInstance* aNodeInstance)
 }
 
 constexpr auto Initialize = Core::RawFunc<
-    /* addr = */ 0x1401B96A4 - Red::Addresses::ImageBase, // FIXME
+    /* addr = */ Red::Addresses::WorldNodeInstance_Initialize,
     /* type = */ bool (*)(Red::worldINodeInstance*, Red::CompiledNodeInstanceSetupInfo*, void*)>();
 
 constexpr auto Attach = Core::RawFunc<
-    /* addr = */ 0x14057FAD0 - Red::Addresses::ImageBase, // FIXME
+    /* addr = */ Red::Addresses::WorldNodeInstance_Attach,
     /* type = */ bool (*)(Red::worldINodeInstance*, void*)>();
 
 constexpr auto Detach = Core::RawFunc<
-    /* addr = */ 0x1404B201C - Red::Addresses::ImageBase, // FIXME
+    /* addr = */ Red::Addresses::WorldNodeInstance_Detach,
     /* type = */ bool (*)(Red::worldINodeInstance*, void*)>();
 
 constexpr auto SetVisibility = Core::RawFunc<
-    /* addr = */ 0x140783E28 - Red::Addresses::ImageBase, // FIXME
+    /* addr = */ Red::Addresses::WorldNodeInstance_SetVisibility,
     /* type = */ void (*)(Red::worldINodeInstance*, bool aVisible)>();
 
 constexpr auto UpdateVisibility = Core::RawVFunc<

@@ -41,7 +41,7 @@ void App::InspectionSystem::OnAfterWorldDetach()
 
 void App::InspectionSystem::OnRegisterUpdates(Red::UpdateRegistrar* aRegistrar)
 {
-    aRegistrar->RegisterUpdate(Red::UpdateTickGroup::FrameBegin, this, "InspectionSystem/UpdateFrustumNodes",
+    aRegistrar->RegisterUpdate(Red::UpdateTickGroup::FrameBegin, this, "InspectionSystem/UpdateNodes",
                                [this](Red::FrameInfo& aFrame, Red::JobQueue&)
                                {
                                    if (!m_nodesUpdating)

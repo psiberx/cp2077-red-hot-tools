@@ -9,12 +9,12 @@ constexpr auto ApplyToBox = Core::RawFunc<
     /* type = */ void* (*)(const Red::Transform& aTransform, Red::Box& aOut, const Red::Box& aBox)>();
 }
 
-namespace Raw::WorldTransform
-{
-constexpr auto ApplyToBox = Core::RawFunc<
-    /* addr = */ 0x14014D910 - Red::Addresses::ImageBase, // FIXME
-    /* type = */ void* (*)(const Red::WorldTransform& aTransform, Red::Box& aOut, const Red::Box& aBox)>();
-}
+// namespace Raw::WorldTransform
+// {
+// constexpr auto ApplyToBox = Core::RawFunc<
+//     /* addr = */ 0x14014D910 - Red::Addresses::ImageBase, // FIXME
+//     /* type = */ void* (*)(const Red::WorldTransform& aTransform, Red::Box& aOut, const Red::Box& aBox)>();
+// }
 
 namespace Red
 {
@@ -34,12 +34,12 @@ inline void TransformBox(Box& aBox, const Transform& aTransform)
     aBox = newBox;
 }
 
-inline void TransformBox(Box& aBox, const WorldTransform& aTransform)
-{
-    Box newBox{};
-    Raw::WorldTransform::ApplyToBox(aTransform, newBox, aBox);
-    aBox = newBox;
-}
+// inline void TransformBox(Box& aBox, const WorldTransform& aTransform)
+// {
+//     Box newBox{};
+//     Raw::WorldTransform::ApplyToBox(aTransform, newBox, aBox);
+//     aBox = newBox;
+// }
 
 inline bool IsValidBox(const Box& aBox)
 {

@@ -29,11 +29,11 @@ inline bool IsVisible(Red::RenderProxy* aProxy)
     return (Flags::Ref(aProxy) & 6) == 6;
 }
 
-constexpr auto SetVisibility = Core::RawFunc<
-    /* addr = */ 0x14019902C - Red::Addresses::ImageBase, // FIXME
-    /* type = */ void (*)(Red::RenderProxy* aProxy, bool aVisible)>();
-
 constexpr auto SetHighlightParams = Core::RawFunc<
-    /* addr = */ 0x14099FD10 - Red::Addresses::ImageBase, // FIXME
+    /* addr = */ Red::Addresses::RenderProxy_SetHighlightParams,
     /* type = */ uint8_t (*)(Red::RenderProxy* aProxy, const Red::HighlightParams& aParams)>();
+
+constexpr auto SetVisibility = Core::RawFunc<
+    /* addr = */ Red::Addresses::RenderProxy_SetVisibility,
+    /* type = */ void (*)(Red::RenderProxy* aProxy, bool aVisible)>();
 }

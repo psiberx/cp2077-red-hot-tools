@@ -19,7 +19,7 @@ def patterns():
                 Item(name="LoadScripts",
                      pattern="48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 41 56 41 57 48 83 EC ? 49 8D 99"),
                 Item(name="MainLoopTick",
-                     pattern="48 8B C4 55 53 56 57 41 54 41 56 41 57 48 8D 68 ? 48 81 EC ? ? ? ? 0F 29 70 ? 48 8B F9 0F 29 78 ? 48 8D 4D"),
+                     pattern="48 8B C4 55 53 56 57 41 54 41 56 41 57 48 8D 68 ? 48 81 EC ? ? ? ? 0F 29 70 ? 48 8B F1 48 8D 4D ? 0F 29 78"),
             ]),
             Group(name="EntityID", functions=[
                 Item(name="ToStringDEBUG",
@@ -49,7 +49,7 @@ def patterns():
             ]),
             Group(name="PhysicsTraceResult", functions=[
                 Item(name="GetHitObject",
-                     pattern="48 89 5C 24 ? 57 48 83 EC ? 41 8B F8 48 8B D9 48 8B 0D B5 8B 21 03 44 8B C2 48 8D 54 24 ? E8 ? ? ? ? 4C 8B 4C 24 ? 4D 85 C9"),
+                     pattern="48 89 5C 24 ? 57 48 83 EC ? 41 8B F8 48 8B D9 48 8B 0D ? ? ? ? 44 8B C2 48 8D 54 24 ? E8 ? ? ? ? 4C 8B 4C 24 ? 4D 85 C9"),
             ]),
             Group(name="ResourceBank", functions=[
                 Item(name="ForgetResource",
@@ -111,6 +111,26 @@ def patterns():
             Group(name="Transform", functions=[
                 Item(name="ApplyToBox",
                      pattern="48 8B C4 48 81 EC ? ? ? ? 0F 29 70 ? 4C 8B D9 0F 29 78 ? 49 8B C8 44 0F 29 40 ? 4D 8B D0 44 0F 29 48 ? 4C 8B CA"),
+            ]),
+            Group(name="Camera", functions=[
+                Item(name="ProjectPoint",
+                     pattern="40 55 48 8D 6C 24 ? 48 81 EC ? ? ? ? 0F 10 41 ? 4D 8B C8 0F 10 49 ? 4C 8D 81 ? ? ? ? 0F 29 45"),
+            ]),
+            Group(name="RenderProxy", functions=[
+                Item(name="SetHighlightParams",
+                     pattern="40 53 48 83 EC ? 44 8A 5A ? 4C 8B D2 48 8B D9 45 84 DB 0F 84 ? ? ? ? 8A 02 44 8A 42 ? F6 D8 1A C9 80 E1"),
+                Item(name="SetVisibility",
+                     pattern="8A 41 ? 02 D2 44 8A C0 4C 8B C9 41 80 E0 ? 44 0A C2 B2 ? 22 C2 44 88 41 ? 3A C2 0F 94 C1 44 22 C2 44 3A C2"),
+            ]),
+            Group(name="WorldNodeInstance", functions=[
+                Item(name="Initialize",
+                     pattern="4C 8B DC 49 89 5B ? 49 89 6B ? 49 89 73 ? 57 48 83 EC ? 80 89 ? ? ? ? 01 48 8B DA 0F 10 02 48 8B F1 0F 11 41"),
+                Item(name="Attach",
+                     pattern="40 53 48 83 EC ? 48 8B 01 48 8B D9 80 89 ? ? ? ? ? FF 90 ? ? ? ? 8A 83 ? ? ? ? 24"),
+                Item(name="Detach",
+                     pattern="40 53 48 83 EC ? 8A 81 ? ? ? ? 48 8B D9 A8 ? 74 ? 0C ? 88 81 ? ? ? ? 48 8B 01 FF 90"),
+                Item(name="SetVisibility",
+                     pattern="48 89 5C 24 ? 57 48 83 EC ? 48 8B D9 40 8A FA 48 8B 49 ? 44 8A 83 ? ? ? ? 48 85 C9 0F 84 ? ? ? ? 8A C2 41 80 E0"),
             ]),
         ]),
     ]

@@ -70,7 +70,7 @@ struct Camera
 namespace Raw::Camera
 {
 constexpr auto ProjectPoint = Core::RawFunc<
-    /* addr = */ 0x1403EF110 - Red::Addresses::ImageBase, // FIXME
+    /* addr = */ Red::Addresses::Camera_ProjectPoint,
     /* type = */ void* (*)(Red::Camera* aCamera, Red::Vector4& aOut, const Red::Vector3& aPoint)>();
 }
 
