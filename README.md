@@ -13,8 +13,6 @@ For greater convenience it integrates with other tools:
 - **Visual Studio Code**: Reload scripts and tweaks from the editor using context menu or hotkeys
 - **Cyber Engine Tweaks**: Reload assets using in-game menu and inspect world nodes and entities
 
->  Archive reloading is not supported on game version 2.0+ yet
-
 ## Getting Started
 
 ### Compatibility
