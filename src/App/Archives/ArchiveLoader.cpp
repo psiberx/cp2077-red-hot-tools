@@ -292,7 +292,7 @@ bool App::ArchiveLoader::InvalidateResources(const Red::DynArray<Red::ResourcePa
         HookOnceAfter<Raw::CBaseEngine::MainLoopTick>([oldTokens, locker = std::move(aDepotLocker)]() {
             auto loader = Red::ResourceLoader::Get();
 
-            Red::JobHandle allJobs{Red::JobParamSet()};
+            Red::JobHandle allJobs;
 
             for (const auto& oldToken : oldTokens)
             {
@@ -377,11 +377,7 @@ void App::ArchiveLoader::MoveExtensionFiles(const Red::DynArray<Red::ArchiveGrou
 
 void App::ArchiveLoader::ReloadExtensions()
 {
-    Red::ExecuteFunction("ArchiveXL", "Reload", nullptr);
-
-    // HookOnceAfter<Raw::CBaseEngine::MainLoopTick>(+[]() {
-    //     Red::ExecuteFunction("ArchiveXL", "Reload", nullptr);
-    // });
+    Red::CallStatic("ArchiveXL", "Reload");
 }
 
 App::ArchiveLoader::DepotLocker::DepotLocker()

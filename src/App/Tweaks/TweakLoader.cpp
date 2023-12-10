@@ -9,7 +9,7 @@ App::TweakLoader::TweakLoader(std::filesystem::path aTweaksDir)
 void App::TweakLoader::ReloadTweaks()
 {
     HookOnceAfter<Raw::CBaseEngine::MainLoopTick>(+[]() {
-        Red::ExecuteFunction("TweakXL", "Reload", nullptr);
+        Red::CallStatic("TweakXL", "Reload", nullptr);
     });
 }
 
