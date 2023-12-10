@@ -2009,7 +2009,7 @@ local function drawHotReloadContent()
     ImGui.Text('Archives')
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
     ImGui.TextWrapped(
-        'Hot load archives and extensions from archive/pc/hot.\n' ..
+        'Hot load archives from archive/pc/hot and reload all extensions.\n' ..
         'Existing archives will be unloaded and replaced.\n' ..
         'New archives will be moved to archive/pc/mod and loaded.')
     ImGui.PopStyleColor()
