@@ -556,6 +556,7 @@ local function resolveComponents(entity)
         if component:IsA('entMeshComponent') or component:IsA('entSkinnedMeshComponent') then
             data.meshPath = inspectionSystem:ResolveResourcePath(component.mesh.hash)
             data.meshAppearance = component.meshAppearance.value
+            data.chunkMask = component.chunkMask
 
             if isEmpty(data.meshPath) then
                 data.meshPath = ('%u'):format(component.mesh.hash)
@@ -565,6 +566,7 @@ local function resolveComponents(entity)
         if component:IsA('entMorphTargetSkinnedMeshComponent') then
             data.morphPath = inspectionSystem:ResolveResourcePath(component.morphResource.hash)
             data.meshAppearance = component.meshAppearance.value
+            data.chunkMask = component.chunkMask
 
             if isEmpty(data.morphPath) then
                 data.morphPath = ('%u'):format(component.morphResource.hash)
@@ -1499,6 +1501,41 @@ local function isValidInstanceIndex(data)
         and type(data.instanceCount) == 'number' and data.instanceCount > 0
 end
 
+local hex2bin = {
+    ['0'] = '0000',
+    ['1'] = '0001',
+    ['2'] = '0010',
+    ['3'] = '0011',
+    ['4'] = '0100',
+    ['5'] = '0101',
+    ['6'] = '0110',
+    ['7'] = '0111',
+    ['8'] = '1000',
+    ['9'] = '1001',
+    ['A'] = '1010',
+    ['B'] = '1011',
+    ['C'] = '1100',
+    ['D'] = '1101',
+    ['E'] = '1110',
+    ['F'] = '1111'
+}
+
+local function formatChunkMask(data)
+    local value = type(data) == 'table' and data.chunkMask or data
+    local bs = {}
+    local hs = ('%016X'):format(value)
+    local ln = hs:len()
+    for i = 1, ln do
+        table.insert(bs, hex2bin[hs:sub(i, i)])
+    end
+    local str = table.concat(bs, ' '):reverse()
+    return str:sub(1, 39) .. '\n' .. str:sub(41)
+end
+
+local function isValidChunkMask(data)
+    return type(data.chunkMask) == 'cdata' or type(data.chunkMask) == 'number'
+end
+
 local resultSchema = {
     {
         { name = 'nodeType', label = 'Node Type:' },
@@ -1537,6 +1574,7 @@ local componentSchema = {
     { name = 'meshPath', label = 'Mesh Resource:', wrap = true },
     { name = 'morphPath', label = 'Morph Target:', wrap = true },
     { name = 'meshAppearance', label = 'Mesh Appearance:' },
+    { name = 'chunkMask', label = 'Chunk Mask:', wrap = true, format = formatChunkMask, validate = isValidChunkMask },
 }
 
 local function isVisibleField(field, data)
