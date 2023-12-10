@@ -2006,36 +2006,24 @@ end
 -- GUI :: Hot Reload --
 
 local function drawHotReloadContent()
-    --[[
     ImGui.Text('Archives')
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
     ImGui.TextWrapped(
-        'Hot load archives from archive/pc/hot.\n' ..
-        'New archives will be moved to archive/pc/mod and loaded.\n' ..
-        'Existing archives will be unloaded and replaced.')
+        'Hot load archives and extensions from archive/pc/hot.\n' ..
+        'Existing archives will be unloaded and replaced.\n' ..
+        'New archives will be moved to archive/pc/mod and loaded.')
     ImGui.PopStyleColor()
     ImGui.Spacing()
 
-    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.dangerTextColor)
-    ImGui.Text('Not supported on game version 2.0+ yet')
-    ImGui.PopStyleColor()
-    ImGui.Spacing()
-
-    --ImGui.Checkbox('Watch for changes', true)
-
-    ImGui.PushStyleColor(ImGuiCol.Button, viewStyle.disabledButtonColor)
-    ImGui.PushStyleColor(ImGuiCol.ButtonHovered, viewStyle.disabledButtonColor)
-    ImGui.PushStyleColor(ImGuiCol.ButtonActive, viewStyle.disabledButtonColor)
     if ImGui.Button('Reload archives', viewStyle.windowWidth, viewStyle.buttonHeight) then
-        --RedHotTools.ReloadArchives()
+        RedHotTools.ReloadArchives()
     end
-    ImGui.PopStyleColor(3)
 
     ImGui.Spacing()
     ImGui.Separator()
     ImGui.Spacing()
-    --]]
 
+    --[[
     if isArchiveXLFound then
         ImGui.Text('Archives')
         ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
@@ -2051,6 +2039,7 @@ local function drawHotReloadContent()
         ImGui.Separator()
         ImGui.Spacing()
     end
+    --]]
 
     ImGui.Text('Scripts')
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
