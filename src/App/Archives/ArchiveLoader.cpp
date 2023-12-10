@@ -388,18 +388,18 @@ void App::ArchiveLoader::ReloadExtensions()
 App::ArchiveLoader::DepotLocker::DepotLocker()
     : m_guard(s_mutex)
 {
-    HookBefore<Raw::ResourceDepot::RequestResource>(+[](Red::ResourceDepot& aDepot, uintptr_t,
-                                                        Red::ResourcePath aPath, uintptr_t) {
-        if (!s_bypass.contains(aPath))
-        {
-            std::shared_lock lock(s_mutex);
-        }
-    });
+    // HookBefore<Raw::ResourceDepot::RequestResource>(+[](Red::ResourceDepot& aDepot, uintptr_t,
+    //                                                     Red::ResourcePath aPath, uintptr_t) {
+    //     if (!s_bypass.contains(aPath))
+    //     {
+    //         std::shared_lock lock(s_mutex);
+    //     }
+    // });
 }
 
 App::ArchiveLoader::DepotLocker::~DepotLocker()
 {
-    Unhook<Raw::ResourceDepot::RequestResource>();
+    // Unhook<Raw::ResourceDepot::RequestResource>();
     s_bypass.clear();
 }
 
