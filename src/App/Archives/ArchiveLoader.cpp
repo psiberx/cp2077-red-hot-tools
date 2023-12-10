@@ -53,8 +53,9 @@ bool App::ArchiveLoader::SwapArchives(const std::filesystem::path& aArchiveHotDi
 
     LogInfo("[ArchiveLoader] Reloading archive extensions...");
 
-    MoveExtensionFiles(archiveGroups, aArchiveHotDir);
-    if (invalidated)
+    auto reconfigured = MoveExtensionFiles(archiveGroups, aArchiveHotDir);
+
+    if (reconfigured || invalidated)
     {
         ReloadExtensions();
     }
@@ -324,15 +325,16 @@ bool App::ArchiveLoader::InvalidateResources(const Red::DynArray<Red::ResourcePa
     return true;
 }
 
-void App::ArchiveLoader::MoveExtensionFiles(const Red::DynArray<Red::ArchiveGroup*>& aGroups,
+bool App::ArchiveLoader::MoveExtensionFiles(const Red::DynArray<Red::ArchiveGroup*>& aGroups,
                                             const std::filesystem::path& aHotDir)
 {
     std::error_code error;
     auto iterator = std::filesystem::recursive_directory_iterator(aHotDir, error);
 
     if (error)
-        return;
+        return false;
 
+    auto movedAny = false;
     const std::filesystem::path defaultModDir = aGroups[0]->basePath.c_str();
 
     for (const auto& entry : iterator)
@@ -370,9 +372,12 @@ void App::ArchiveLoader::MoveExtensionFiles(const Red::DynArray<Red::ArchiveGrou
                 }
 
                 std::filesystem::rename(entry.path(), configModPath);
+                movedAny = true;
             }
         }
     }
+
+    return movedAny;
 }
 
 void App::ArchiveLoader::ReloadExtensions()

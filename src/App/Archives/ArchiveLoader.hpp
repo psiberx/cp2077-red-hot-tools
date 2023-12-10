@@ -43,7 +43,7 @@ private:
     static Red::Archive* FindArchivePosition(Red::DynArray<Red::Archive>& aArchives, const Red::CString& aArchivePath);
     static bool InvalidateResources(const Red::DynArray<Red::ResourcePath>& aPaths,
                                     Core::UniquePtr<DepotLocker>& aDepotLocker);
-    static void MoveExtensionFiles(const Red::DynArray<Red::ArchiveGroup*>& aGroups,
+    static bool MoveExtensionFiles(const Red::DynArray<Red::ArchiveGroup*>& aGroups,
                                    const std::filesystem::path& aHotDir);
     static void ReloadExtensions();
 
