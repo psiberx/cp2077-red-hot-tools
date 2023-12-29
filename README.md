@@ -18,6 +18,7 @@ For greater convenience it integrates with other tools:
 ### Compatibility
 
 - Cyberpunk 2077 2.1
+- [ArchiveXL](https://github.com/psiberx/cp2077-archive-xl) 1.10.2+
 - [Cyber Engine Tweaks](https://github.com/yamashi/CyberEngineTweaks) 1.29.1+
 
 ### Installation
