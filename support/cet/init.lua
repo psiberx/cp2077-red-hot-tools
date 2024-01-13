@@ -1942,6 +1942,19 @@ local function drawScannerContent()
             ImGui.SameLine()
             local collapseAll = ImGui.Button('Collapse all')
 
+            ImGui.SameLine()
+            if ImGui.Button('Copy sectors') then
+                local sectors = {}
+                for _, result in ipairs(scanner.filtered) do
+                    if isNotEmpty(result.sectorPath) and not sectors[result.sectorPath] then
+                        sectors[result.sectorPath] = result.sectorPath
+                        table.insert(sectors, result.sectorPath)
+                    end
+                end
+                table.sort(sectors)
+                ImGui.SetClipboardText(table.concat(sectors, '\n'))
+            end
+
             ImGui.Spacing()
             ImGui.Separator()
             ImGui.Spacing()
