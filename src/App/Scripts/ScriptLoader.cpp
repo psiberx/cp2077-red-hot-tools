@@ -75,16 +75,16 @@ bool App::ScriptLoader::CompileScripts(Red::ScriptBundle& aBundle, bool aInjectC
         blobPath = engine->scriptsBlobPath;
     }
 
-    LogInfo("[ScriptLoader] Compiling scripts from \"{}\" as \"{}\"...", sourceDir.c_str(), blobPath.c_str());
+    LogInfo(R"([ScriptLoader] Compiling scripts from "{}" as "{}"...)", sourceDir.c_str(), blobPath.c_str());
 
-    if (engine->scriptsBlobPath.Length() > 0 && aInjectCustomCacheArg)
+    if (blobPath.Length() > 0 && aInjectCustomCacheArg)
     {
         auto argInjection = std::format("{}\" -customCacheDir \"{}", sourceDir.c_str(),
                                         std::filesystem::path(blobPath.c_str()).parent_path().string());
         sourceDir = argInjection.c_str();
     }
 
-    if (!Red::ScriptCompiler::Compile(sourceDir, blobPath, engine->scriptsCompilationErrors))
+    if (!Red::ScriptCompiler::Compile(/*sourceDir, blobPath, engine->scriptsCompilationErrors*/))
     {
         LogError("[ScriptLoader] Scripts compilation failed.");
         return false;

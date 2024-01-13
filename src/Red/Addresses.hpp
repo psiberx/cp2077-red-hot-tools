@@ -12,6 +12,7 @@ constexpr uintptr_t ImageBase = 0x140000000;
 constexpr uintptr_t Main = 0x140827094 - ImageBase; // 40 55 53 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? FF 15 ? ? ? ? E8, expected: 1, index: 0
 constexpr uintptr_t InvokeSCC = 0x14082DCC0 - ImageBase; // 48 8B C4 48 89 58 ? 48 89 70 ? 48 89 78 ? 55 41 56 41 57 48 8D A8 ? ? ? ? B8 ? ? ? ? E8 ? ? ? ? 48 2B E0 41 8A D8 4C 8B F2, expected: 1, index: 0
 constexpr uintptr_t LogChannel = 0x140D11B64 - ImageBase; // 48 89 5C 24 08 48 89 74 24 18 55 48 8B EC 48 83 EC 70 48 8B 02 48 8D 35 ? ? ? ? 48 83 65 18 00 4C 8D 45 18 48 83 62 30 00 45 33 C9 48 83 62 38 00, expected: 2, index: 0
+constexpr uintptr_t ExecuteProcess = 0x14082E260 - ImageBase;
 
 constexpr uintptr_t Camera_ProjectPoint = 0x14039F330 - ImageBase; // 40 55 48 8D 6C 24 ? 48 81 EC ? ? ? ? 0F 10 41 ? 4D 8B C8 0F 10 49 ? 4C 8D 81 ? ? ? ? 0F 29 45, expected: 1, index: 0
 

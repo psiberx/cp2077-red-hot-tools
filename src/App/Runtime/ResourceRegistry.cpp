@@ -6,7 +6,7 @@ App::ResourceRegistry::ResourceRegistry(const std::filesystem::path& aMetadataDi
     if (std::filesystem::exists(resourceList))
     {
         std::thread([resourceList]() {
-            LogInfo("ResourceRegistry: Loading metadata...");
+            LogInfo("[ResourceRegistry] Loading metadata...");
 
             std::ifstream f(resourceList);
             {
@@ -18,7 +18,7 @@ App::ResourceRegistry::ResourceRegistry(const std::filesystem::path& aMetadataDi
                 }
             }
 
-            LogInfo("ResourceRegistry: Loaded {} predefined hashes.", s_resourcePathMap.size());
+            LogInfo("[ResourceRegistry] Loaded {} predefined hashes.", s_resourcePathMap.size());
         }).detach();
     }
 }

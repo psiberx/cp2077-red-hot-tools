@@ -22,6 +22,14 @@ struct ScriptCompiler
     //     return InvokeSCC(aSourceDir, aBlobPath, EScriptProfile::Final, 0, 0, 0, nullptr);
     // }
 
+    inline static bool Compile()
+    {
+        using func_t = bool(*)(void* a1, const CString& aCommand, void*, void*, char);
+        RelocFunc<func_t> func(Addresses::ExecuteProcess);
+
+        return func(nullptr, "scc.exe", nullptr, nullptr, 0);
+    }
+
     inline static bool Compile(CString& aSourceDir, CString& aBlobPath, CString& aOutput)
     {
         return InvokeSCC(aSourceDir, aBlobPath, EScriptProfile::Final, 0, 0, 0, &aOutput);

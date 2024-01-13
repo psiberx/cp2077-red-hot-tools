@@ -24,7 +24,7 @@ For greater convenience it integrates with other tools:
 ### Installation
 
 1. Install requirements:
-   - [RED4ext](https://docs.red4ext.com/getting-started/installing-red4ext) 1.19.0+
+   - [RED4ext](https://docs.red4ext.com/getting-started/installing-red4ext) 1.21.0+
 2. Extract the release archive `RedHotTools-x.x.x.zip` into the Cyberpunk 2077 directory.
 3. _(Optional)_ Install CET UI: Extract the archive `RedHotTools-x.x.x-CET.zip` into the Cyberpunk 2077 directory.
 4. _(Optional)_ Install VS Code extension: Drag the `red-hot-vscode-x.x.x.vsix` onto your VS Code extension bar.
