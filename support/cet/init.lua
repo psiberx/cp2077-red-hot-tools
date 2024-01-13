@@ -48,6 +48,7 @@ local isTweakXLFound = false
 local cameraSystem
 local targetingSystem
 local spatialQuerySystem
+local transactionSystem
 local inspectionSystem
 
 local function initializeEnvironment()
@@ -58,6 +59,7 @@ local function initializeEnvironment()
     cameraSystem = Game.GetCameraSystem()
     targetingSystem = Game.GetTargetingSystem()
     spatialQuerySystem = Game.GetSpatialQueriesSystem()
+    transactionSystem = Game.GetTransactionSystem()
 
     if isPluginFound then
         inspectionSystem = Game.GetInspectionSystem()
@@ -604,8 +606,30 @@ local function fillTargetEntityData(target, data)
             end
         end
 
+        if entity:IsA('gameLootContainerBase') then
+            data.lootTables = {}
+            for _, lootTableID in ipairs(entity.lootTables) do
+                if isNotEmpty(lootTableID.value) then
+                    table.insert(data.lootTables, lootTableID.value)
+                end
+            end
+        end
+
+        local success, items = transactionSystem:GetItemList(entity)
+        if success then
+            data.inventory = {}
+            for _, item in ipairs(items) do
+                local itemID = item:GetID().id.value
+                if isNotEmpty(itemID) then
+                    table.insert(data.inventory, itemID)
+                end
+            end
+            table.sort(data.inventory)
+        end
+
         data.components = resolveComponents(entity)
         data.hasComponents = (#data.components > 0)
+        data.hasInventory = (#data.inventory > 0)
     end
 
     data.entity = target.entity
@@ -1492,6 +1516,10 @@ local function formatArrayField(data, field)
     return table.concat(data[field.name], '\n')
 end
 
+local function validateArrayField(data, field)
+    return type(data[field.name]) == 'table' and #data[field.name] > 0
+end
+
 local function formatDistance(data)
     return ('%.2fm'):format(type(data) == 'table' and data.distance or data)
 end
@@ -1559,7 +1587,8 @@ local resultSchema = {
         { name = 'meshAppearance', label = 'Mesh Appearance:' },
         { name = 'materialPath', label = 'Material:', wrap = true },
         { name = 'effectPath', label = 'Effect:', wrap = true },
-        { name = 'triggerNotifiers', label = 'Trigger Notifiers:', format = formatArrayField },
+        { name = 'triggerNotifiers', label = 'Trigger Notifiers:', format = formatArrayField, validate = validateArrayField },
+        { name = 'lootTables', label = 'Loot Tables:', format = formatArrayField, validate = validateArrayField },
     },
     {
         { name = 'resolvedPath', label = 'Resource:', wrap = true },
@@ -1660,6 +1689,28 @@ local function drawComponents(components, maxComponents)
     end
 end
 
+local function drawInventory(items, maxItems)
+    if maxItems == nil then
+        maxItems = 10
+    end
+
+    if maxItems > 0 then
+        local visibleItems = math.min(maxItems, #items)
+        ImGui.BeginChildFrame(1, 0, visibleItems * ImGui.GetFrameHeightWithSpacing())
+    end
+
+    for _, itemID in ipairs(items) do
+        ImGui.Selectable(itemID)
+        if ImGui.IsItemClicked(ImGuiMouseButton.Middle) then
+            ImGui.SetClipboardText(itemID)
+        end
+    end
+
+    if maxItems > 0 then
+        ImGui.EndChildFrame()
+    end
+end
+
 local function drawFieldset(targetData, withInputs, maxComponents, withSeparators)
     if withInputs == nil then
         withInputs = true
@@ -1697,19 +1748,26 @@ local function drawFieldset(targetData, withInputs, maxComponents, withSeparator
         end
     end
 
-    if targetData.hasComponents and withInputs then
-        if withSeparators then
+    if withInputs then
+        if withSeparators and (targetData.hasComponents or targetData.hasInventory) then
             ImGui.Spacing()
             ImGui.Separator()
             ImGui.Spacing()
         end
-        if ImGui.TreeNodeEx(('Components (%d)##Components'):format(#targetData.components), ImGuiTreeNodeFlags.SpanFullWidth) then
-            drawComponents(targetData.components, maxComponents)
-            ImGui.TreePop()
+
+        if targetData.hasComponents then
+            if ImGui.TreeNodeEx(('Components (%d)##Components'):format(#targetData.components), ImGuiTreeNodeFlags.SpanFullWidth) then
+                drawComponents(targetData.components, maxComponents)
+                ImGui.TreePop()
+            end
         end
-        --ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
-        --ImGui.Text(('Components (%d)'):format(#targetData.components))
-        --ImGui.PopStyleColor()
+
+        if targetData.hasInventory then
+            if ImGui.TreeNodeEx(('Items (%d)##Inventory'):format(#targetData.inventory), ImGuiTreeNodeFlags.SpanFullWidth) then
+                drawInventory(targetData.inventory, maxComponents)
+                ImGui.TreePop()
+            end
+        end
     end
 
     ImGui.PopStyleColor()
