@@ -615,9 +615,9 @@ local function fillTargetEntityData(target, data)
             end
         end
 
+        data.inventory = {}
         local success, items = transactionSystem:GetItemList(entity)
         if success then
-            data.inventory = {}
             for _, item in ipairs(items) do
                 local itemID = item:GetID().id.value
                 if isNotEmpty(itemID) then
@@ -626,10 +626,10 @@ local function fillTargetEntityData(target, data)
             end
             table.sort(data.inventory)
         end
+        data.hasInventory = (#data.inventory > 0)
 
         data.components = resolveComponents(entity)
         data.hasComponents = (#data.components > 0)
-        data.hasInventory = (#data.inventory > 0)
     end
 
     data.entity = target.entity
@@ -2855,7 +2855,7 @@ end)
 
 return {
     RegisterExtension = registerExtension,
-    getLookAtTargets = getLookAtTargets,
+    GetLookAtTargets = getLookAtTargets,
     CollectTargetData = resolveTargetData,
     GetInspectorTarget = function()
         return inspector.active and inspector.results[inspector.active] or nil
