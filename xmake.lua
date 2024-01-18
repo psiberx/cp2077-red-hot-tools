@@ -4,7 +4,7 @@ set_project("RedHotTools")
 set_version("0.7.2", {build = "%y%m%d%H%M"})
 
 set_arch("x64")
-set_languages("cxx20", "cxx2a")
+set_languages("cxx2a")
 add_cxxflags("/MP /GR- /EHsc")
 
 if is_mode("debug") then
@@ -41,7 +41,7 @@ target("RedHotTools")
     add_includedirs("src/", "lib/", "vendor/filewatch/")
     add_deps("RED4ext.SDK", "nameof", "semver", "wil")
     add_packages("fmt", "hopscotch-map", "minhook", "spdlog", "tiltedcore")
-    add_syslinks("Version")
+    add_syslinks("Version", "User32")
     add_defines("WINVER=0x0601", "WIN32_LEAN_AND_MEAN", "NOMINMAX")
     set_configdir("src")
     add_configfiles("config/Project.hpp.in", {prefixdir = "App"})
