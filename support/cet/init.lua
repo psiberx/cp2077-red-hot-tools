@@ -24,11 +24,6 @@ local function fade(abgr, a)
     return bit32.bor(bit32.lshift(bit32.band(a, 0xFF), 24), bit32.band(abgr, 0xFFFFFF))
 end
 
-local function insideBox(point, box)
-    return point.x >= box.Min.x and point.y >= box.Min.y and point.z >= box.Min.z
-        and point.x <= box.Max.x and point.y <= box.Max.y and point.z <= box.Max.z
-end
-
 local function enum(...)
     local map = { values = {} }
     for index, value in ipairs({...}) do
@@ -74,6 +69,7 @@ local ColorScheme = enum('Green', 'Red', 'Yellow', 'White', 'Shimmer')
 local OutlineMode = enum('ForSupportedObjects', 'Never')
 local MarkerMode = enum('Always', 'ForStaticMeshes', 'WhenOutlineIsUnsupported', 'Never')
 local BoundingBoxMode = enum('ForAreaNodes', 'Never')
+local NodeSizeBoxMode = enum('Occluders', 'Never')
 local WindowSnapping = enum('Disabled', 'TopLeft', 'TopRight')
 
 local userState = {}
@@ -88,6 +84,7 @@ local userStateSchema = {
     outlineMode = { type = OutlineMode, default = OutlineMode.ForSupportedObjects },
     markerMode = { type = MarkerMode, default = MarkerMode.ForStaticMeshes },
     boundingBoxMode = { type = BoundingBoxMode, default = BoundingBoxMode.Never },
+    nodeSizeBoxMode = { type = NodeSizeBoxMode, default = NodeSizeBoxMode.Never },
     showMarkerDistance = { type = 'boolean', default = true },
     showBoundingBoxDistances = { type = 'boolean', default = false },
     targetingMode = { type = TargetingMode, default = TargetingMode.GamePhysics },
@@ -368,12 +365,20 @@ local function enableHighlight(target)
         end
     end
 
-    if showMarker or showBoundindBox then
+    local showNodeSizeBox = false
+    if not target.isCollisionNode then
+        if userState.nodeSizeBoxMode == NodeSizeBoxMode.Occluders and target.isOccluderNode then
+            showNodeSizeBox = true
+        end
+    end
+
+    if showMarker or showBoundindBox or showNodeSizeBox then
         highlight.projections[target.hash] = {
             target = target,
             color = highlight.color,
             showMarker = showMarker,
             showBoundindBox = showBoundindBox,
+            showNodeSizeBox = showNodeSizeBox
         }
     end
 end
@@ -671,6 +676,10 @@ local function fillTargetNodeData(target, data)
             data.meshPath = inspectionSystem:ResolveResourcePath(node.meshRef.hash)
         end
 
+        if inspectionSystem:IsInstanceOf(node, 'worldStaticOccluderMeshNode') then
+            data.meshPath = inspectionSystem:ResolveResourcePath(node.mesh.hash)
+        end
+
         if inspectionSystem:IsInstanceOf(node, 'worldStaticDecalNode') then
             data.materialPath = inspectionSystem:ResolveResourcePath(node.material.hash)
         end
@@ -725,6 +734,7 @@ local function fillTargetNodeData(target, data)
     data.isVisibleNode = data.isNode and (isNotEmpty(data.meshPath) or isNotEmpty(data.materialPath) or isNotEmpty(data.templatePath))
         or inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldStaticLightNode')
     data.isCollisionNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldCollisionNode')
+    data.isOccluderNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldStaticOccluderMeshNode')
 
     if isNotEmpty(data.nodeType) then
         data.nodeGroup = nodeGroupMapping[data.nodeType]
@@ -735,6 +745,7 @@ local function fillTargetGeomertyData(target, data)
     data.collision = target.collision
     data.distance = target.distance
     data.position = target.position
+    data.orientation = target.orientation
 
     if target.boundingBox and not target.boundingBox.Min:IsXYZZero() and target.boundingBox.Min.x <= target.boundingBox.Max.x then
         data.boundingBox = target.boundingBox
@@ -749,6 +760,14 @@ local function fillTargetGeomertyData(target, data)
             if not position:IsXYZZero() then
                 data.position = position
             end
+        end
+    end
+
+    if data.isOccluderNode or data.meshPath then
+        if IsDefined(data.nodeInstance) then
+            data.scale = inspectionSystem:GetStreamedNodeScale(data.nodeInstance)
+        else
+            data.scale = target.scale
         end
     end
 end
@@ -1404,6 +1423,7 @@ local function initializeViewData()
     viewData.outlineModeOptions = buildComboOptions(OutlineMode.values)
     viewData.markerModeOptions = buildComboOptions(MarkerMode.values)
     viewData.boundingBoxModeOptions = buildComboOptions(BoundingBoxMode.values)
+    viewData.nodeSizeBoxModeOptions = buildComboOptions(NodeSizeBoxMode.values)
     viewData.windowSnappingOptions = buildComboOptions(WindowSnapping.values, true)
     viewData.nodeGroupOptions = buildMappingOptions(nodeGroupMapping, 'All')
 end
@@ -1524,6 +1544,10 @@ local function formatDistance(data)
     return ('%.2fm'):format(type(data) == 'table' and data.distance or data)
 end
 
+local function formatVector4(data)
+    return ('X=%.2fm, Y=%.2fm, Z=%.2fm'):format(data.scale.x, data.scale.y, data.scale.z)
+end
+
 local function isValidInstanceIndex(data)
     return type(data.instanceIndex) == 'number' and data.instanceIndex >= 0
         and type(data.instanceCount) == 'number' and data.instanceCount > 0
@@ -1589,6 +1613,7 @@ local resultSchema = {
         { name = 'effectPath', label = 'Effect:', wrap = true },
         { name = 'triggerNotifiers', label = 'Trigger Notifiers:', format = formatArrayField, validate = validateArrayField },
         { name = 'lootTables', label = 'Loot Tables:', format = formatArrayField, validate = validateArrayField },
+        { name = 'scale', label = 'Node Scale:', format = formatVector4 }
     },
     {
         { name = 'resolvedPath', label = 'Resource:', wrap = true },
@@ -2228,6 +2253,20 @@ local function drawSettingsContent()
             'but helps to understand its general location and boundaries.')
     end
 
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Show node size box:')
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
+    state, changed = ImGui.Combo('##NodeSizeBoxMode', NodeSizeBoxMode.values[userState.nodeSizeBoxMode] - 1, viewData.nodeSizeBoxModeOptions, #viewData.nodeSizeBoxModeOptions)
+    if changed then
+        userState.nodeSizeBoxMode = NodeSizeBoxMode.values[state + 1]
+    end
+    ImGui.EndGroup()
+    if ImGui.IsItemHovered() then
+        ImGui.SetTooltip('Displays the size of the node')
+    end
+
     ImGui.Spacing()
 
     state, changed = ImGui.Checkbox('Show distance to the marker', userState.showMarkerDistance)
@@ -2344,6 +2383,28 @@ local function drawSettingsContent()
 end
 
 -- GUI :: Drawing --
+
+local function getBoxFromScale3(position, scale)
+    local scale = Vector4.Vector3To4(scale)
+    local min = Game['OperatorSubtract;Vector4Vector4;Vector4'](position, Game['OperatorDivide;Vector4Float;Vector4'](scale, 2))
+    local max = Game['OperatorAdd;Vector4Vector4;Vector4'](position, Game['OperatorDivide;Vector4Float;Vector4'](scale, 2))
+    return Box.new({ Min = min, Max = max })
+end
+
+local function rotateVectorAroundPoint(vector, origin, rotation)
+    local positionRelativeToOrigin = Game['OperatorSubtract;Vector4Vector4;Vector4'](vector, origin)
+    local rotated = Quaternion.Transform(rotation, positionRelativeToOrigin)
+    local absolutePosition = Game['OperatorAdd;Vector4Vector4;Vector4'](origin, rotated)
+
+    return absolutePosition
+end
+
+local function insideBox(point, boxOrigin, boxOrientation, box)
+    local point = rotateVectorAroundPoint(point, boxOrigin, boxOrientation)
+
+    return point.x >= box.Min.x and point.y >= box.Min.y and point.z >= box.Min.z
+        and point.x <= box.Max.x and point.y <= box.Max.y and point.z <= box.Max.z
+end
 
 local function getScreenDescriptor(camera)
     local screen = {}
@@ -2521,7 +2582,7 @@ local function drawProjectedMarker(screen, position, outerColor, innerColor, dis
     setScreenClamping(false)
 end
 
-local function drawProjectedBox(screen, box, faceColor, edgeColor, verticeColor, frame, fill, fadeWithDistance)
+local function drawProjectedBox(screen, box, faceColor, edgeColor, verticeColor, frame, fill, fadeWithDistance, rotation, origin)
     local vertices = {
         ToVector4{ x = box.Min.x, y = box.Min.y, z = box.Min.z, w = 1.0 },
         ToVector4{ x = box.Min.x, y = box.Min.y, z = box.Max.z, w = 1.0 },
@@ -2532,6 +2593,10 @@ local function drawProjectedBox(screen, box, faceColor, edgeColor, verticeColor,
         ToVector4{ x = box.Max.x, y = box.Max.y, z = box.Min.z, w = 1.0 },
         ToVector4{ x = box.Max.x, y = box.Max.y, z = box.Max.z, w = 1.0 },
     }
+
+    for key, vertex in pairs(vertices) do
+        vertices[key] = rotateVectorAroundPoint(vertex, origin, rotation)
+    end
 
     if fill then
         local faces = {
@@ -2608,17 +2673,28 @@ local function drawProjections()
         for _, projection in pairs(highlight.projections) do
             local target = projection.target
 
+            local drawBox = false
+            local box = target.boundingBox
+            local rotation = target.orientation
+            local insideColor = fade(projection.color, 0x1D)
+            local faceColor = fade(projection.color, 0x0D)
+            local edgeColor = fade(projection.color, 0xF0)
+
             if projection.showBoundindBox and target.boundingBox then
-                local insideColor = fade(projection.color, 0x1D)
-                local faceColor = fade(projection.color, 0x0D)
-                local edgeColor = fade(projection.color, 0xF0)
+                drawBox = true
+            elseif projection.showNodeSizeBox and target.scale then
+                drawBox = true
+                box = getBoxFromScale3(target.position, target.scale)
+            end
+
+            if drawBox then
                 local verticeColor = projection.color
 
-                if insideBox(camera.position, target.boundingBox) then
+                if insideBox(camera.position, target.position, rotation, box) then
                     drawQuad(screen, insideColor)
-                    drawProjectedBox(screen, target.boundingBox, faceColor, edgeColor, verticeColor, true, false, true)
+                    drawProjectedBox(screen, box, faceColor, edgeColor, verticeColor, true, false, true, rotation, target.position)
                 else
-                    drawProjectedBox(screen, target.boundingBox, faceColor, edgeColor, verticeColor, true, true, true)
+                    drawProjectedBox(screen, box, faceColor, edgeColor, verticeColor, true, true, true, rotation, target.position)
                 end
             end
 
@@ -2865,6 +2941,9 @@ return {
     end,
     GetScannerTargets = function()
         return scanner.results
+    end,
+    GetScannerFilteredTargets = function ()
+        return scanner.filtered
     end,
     GetLookupTarget = function()
         return lookup.result
