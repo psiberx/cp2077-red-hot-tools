@@ -27,6 +27,7 @@ struct WorldNodeStaticSceneData
     Red::WeakHandle<Red::worldINodeInstance> nodeInstance;
     Red::WeakHandle<Red::worldNode> nodeDefinition;
     Red::CompiledNodeInstanceSetupInfo* nodeSetup;
+    Red::Vector3 scale;
     Core::Vector<Red::Box> boundingBoxes;
     bool isStaticMesh{false};
 };
@@ -37,6 +38,7 @@ struct WorldNodeRuntimeSceneData
     Red::WeakHandle<Red::worldNode> nodeDefinition;
     Red::Vector4 position;
     Red::Quaternion orientation;
+    Red::Vector3 scale;
     Red::Box boundingBox;
     float distance;
     uint64_t hash;
@@ -73,6 +75,7 @@ public:
     int32_t GetFrustumMaxDistance();
 
     Red::Vector4 GetStreamedNodePosition(const Red::Handle<Red::worldINodeInstance>& aNodeInstance);
+    Red::Vector3 GetStreamedNodeScale(const Red::Handle<Red::worldINodeInstance>& aNodeInstance);
     bool SetNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aVisible);
     bool ToggleNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance);
 
@@ -171,6 +174,7 @@ RTTI_DEFINE_CLASS(App::InspectionSystem, {
     RTTI_METHOD(GetStreamedWorldNodesInCrosshair);
     RTTI_METHOD(GetFrustumMaxDistance);
     RTTI_METHOD(GetStreamedNodePosition);
+    RTTI_METHOD(GetStreamedNodeScale);
     RTTI_METHOD(SetNodeVisibility);
     RTTI_METHOD(ToggleNodeVisibility);
     RTTI_METHOD(ApplyHighlightEffect);

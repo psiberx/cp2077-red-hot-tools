@@ -119,7 +119,7 @@ void App::InspectionSystem::UpdateStreamedNodes()
             continue;
         }
 
-        WorldNodeStaticSceneData streamedNode{request.nodeInstance, request.nodeDefinition, request.nodeSetup};
+        WorldNodeStaticSceneData streamedNode{request.nodeInstance, request.nodeDefinition, request.nodeSetup, request.nodeSetup->scale};
 
         auto& transform = Raw::WorldNodeInstance::Transform::Ref(nodeInstance);
         auto& scale = Raw::WorldNodeInstance::Scale::Ref(nodeInstance);
@@ -306,7 +306,7 @@ void App::InspectionSystem::UpdateFrustumNodes()
 
             const auto instanceHash = reinterpret_cast<uint64_t>(streamedNode.nodeInstance.instance);
             frustumNodes.PushBack({streamedNode.nodeInstance, streamedNode.nodeDefinition,
-                                   transform.position, transform.orientation, boundingBox,
+                                   transform.position, transform.orientation, streamedNode.scale, boundingBox,
                                    distance, instanceHash, true});
         }
     }
@@ -437,7 +437,7 @@ App::WorldNodeRuntimeSceneData App::InspectionSystem::FindStreamedWorldNode(uint
     if (!nodeInstanceWeak)
         return {};
 
-    return {nodeInstanceWeak, nodeDefinitionWeak, setup->transform.position, setup->transform.orientation};
+    return {nodeInstanceWeak, nodeDefinitionWeak, setup->transform.position, setup->transform.orientation, setup->scale};
 }
 
 Red::DynArray<App::WorldNodeRuntimeSceneData> App::InspectionSystem::GetStreamedWorldNodesInFrustum()
@@ -465,6 +465,16 @@ Red::Vector4 App::InspectionSystem::GetStreamedNodePosition(const Red::Handle<Re
         return {};
 
     return (*setupInfo)->transform.position;
+}
+
+Red::Vector3 App::InspectionSystem::GetStreamedNodeScale(const Red::Handle<Red::worldINodeInstance>& aNodeInstance)
+{
+    auto setupInfo = Raw::WorldNodeInstance::SetupInfo::Ptr(aNodeInstance.instance);
+
+    if (!setupInfo || !*setupInfo)
+        return {};
+
+    return (*setupInfo)->scale;
 }
 
 bool App::InspectionSystem::SetNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aVisible)
