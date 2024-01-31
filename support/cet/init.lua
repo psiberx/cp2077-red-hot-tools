@@ -2866,6 +2866,9 @@ return {
     GetScannerTargets = function()
         return scanner.results
     end,
+    GetScannerFilteredTargets = function ()
+        return scanner.filtered
+    end,
     GetLookupTarget = function()
         return lookup.result
     end,
