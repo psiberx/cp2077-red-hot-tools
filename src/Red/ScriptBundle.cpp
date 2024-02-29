@@ -1,18 +1,17 @@
 #include "ScriptBundle.hpp"
-#include "Red/Addresses.hpp"
 #include "Red/FileSystem.hpp"
 
 Red::ScriptBundle::ScriptBundle()
 {
     using func_t = void (*)(ScriptBundle*);
-    RelocFunc<func_t> func(Addresses::ScriptBundle_ctor);
+    static UniversalRelocFunc<func_t> func(AddressLib::ScriptBundle_ctor);
     func(this);
 }
 
 Red::ScriptBundle::~ScriptBundle()
 {
     using func_t = void (*)(ScriptBundle*);
-    RelocFunc<func_t> func(Addresses::ScriptBundle_dtor);
+    static UniversalRelocFunc<func_t> func(AddressLib::ScriptBundle_dtor);
     func(this);
 }
 
@@ -22,7 +21,7 @@ bool Red::ScriptBundle::Read(const CString& aPath)
     if (file)
     {
         using func_t = bool (*)(ScriptBundle*, uint64_t);
-        RelocFunc<func_t> func(Addresses::ScriptBundle_Read);
+        static UniversalRelocFunc<func_t> func(AddressLib::ScriptBundle_Read);
         return func(this, file.ptr);
     }
     else

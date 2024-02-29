@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Addresses.hpp"
-
 #include <RED4ext/CString.hpp>
 #include <RED4ext/Relocation.hpp>
 
@@ -25,7 +23,7 @@ struct ScriptCompiler
     inline static bool Compile()
     {
         using func_t = bool(*)(void* a1, const CString& aCommand, void*, void*, char);
-        RelocFunc<func_t> func(Addresses::ExecuteProcess);
+        static UniversalRelocFunc<func_t> func(AddressLib::ExecuteProcess);
 
         return func(nullptr, "scc.exe", nullptr, nullptr, 0);
     }
@@ -39,7 +37,7 @@ struct ScriptCompiler
                                  int64_t a4, int32_t a5, int32_t a6, CString* aOutput)
     {
         using func_t = decltype(&InvokeSCC);
-        RelocFunc<func_t> func(Addresses::InvokeSCC);
+        static UniversalRelocFunc<func_t> func(AddressLib::InvokeSCC);
 
         return func(aSourceDir, aBlobPath, aProfile, a4, a5, a6, aOutput);
     }

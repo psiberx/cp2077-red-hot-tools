@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Red/Addresses.hpp"
-
 namespace Red
 {
 struct FileHandle
@@ -28,10 +26,10 @@ struct FileSystem
 namespace Raw::FileSystem
 {
 constexpr auto Instance = Core::RawPtr<
-    /* addr = */ Red::Addresses::FileSystem_Instance,
+    /* addr = */ Red::AddressLib::FileSystem_Instance,
     /* type = */ Red::FileSystem*>();
 
 constexpr auto Close = Core::RawFunc<
-    /* addr = */ Red::Addresses::FileSystem_Close,
+    /* addr = */ Red::AddressLib::FileSystem_Close,
     /* type = */ void (*)(Red::FileHandle* aHandle)>();
 }

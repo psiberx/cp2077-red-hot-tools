@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Red/Addresses.hpp"
-
 namespace Red
 {
 struct RenderProxy
@@ -30,10 +28,10 @@ inline bool IsVisible(Red::RenderProxy* aProxy)
 }
 
 constexpr auto SetHighlightParams = Core::RawFunc<
-    /* addr = */ Red::Addresses::RenderProxy_SetHighlightParams,
+    /* addr = */ Red::AddressLib::RenderProxy_SetHighlightParams,
     /* type = */ uint8_t (*)(Red::RenderProxy* aProxy, const Red::HighlightParams& aParams)>();
 
 constexpr auto SetVisibility = Core::RawFunc<
-    /* addr = */ Red::Addresses::RenderProxy_SetVisibility,
+    /* addr = */ Red::AddressLib::RenderProxy_SetVisibility,
     /* type = */ void (*)(Red::RenderProxy* aProxy, bool aVisible)>();
 }

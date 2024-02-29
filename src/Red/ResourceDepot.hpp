@@ -1,11 +1,9 @@
 #pragma once
 
-#include "Addresses.hpp"
-
 namespace Raw::ResourceDepot
 {
 constexpr auto LoadArchives = Core::RawFunc<
-    /* addr = */ Red::Addresses::ResourceDepot_LoadArchives,
+    /* addr = */ Red::AddressLib::ResourceDepot_LoadArchives,
     /* type = */ void (*)(Red::ResourceDepot* aDepot,
                           Red::ArchiveGroup& aGroup,
                           const Red::DynArray<Red::CString>& aArchivePaths,
@@ -13,10 +11,10 @@ constexpr auto LoadArchives = Core::RawFunc<
                           bool aMemoryResident)>{};
 
 constexpr auto RequestResource = Core::RawFunc<
-    /* addr = */ Red::Addresses::ResourceDepot_RequestResource,
+    /* addr = */ Red::AddressLib::ResourceDepot_RequestResource,
     /* type = */ uintptr_t (*)(Red::ResourceDepot& aDepot, uintptr_t, Red::ResourcePath aPath, uintptr_t)>{};
 
 constexpr auto DestructArchives = Core::RawFunc<
-    /* addr = */ Red::Addresses::ResourceDepot_DestructArchives,
+    /* addr = */ Red::AddressLib::ResourceDepot_DestructArchives,
     /* type = */ int64_t (*)(Red::Archive aArchives[], uint32_t aCount)>{};
 }
