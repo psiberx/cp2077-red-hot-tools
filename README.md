@@ -17,14 +17,14 @@ For greater convenience it integrates with other tools:
 
 ### Compatibility
 
-- Cyberpunk 2077 2.12+
-- [ArchiveXL](https://github.com/psiberx/cp2077-archive-xl) 1.12.0+
-- [Cyber Engine Tweaks](https://github.com/yamashi/CyberEngineTweaks) 1.31.1+
+- Cyberpunk 2077 2.12a+
+- [ArchiveXL](https://github.com/psiberx/cp2077-archive-xl) 1.12.2+
+- [Cyber Engine Tweaks](https://github.com/yamashi/CyberEngineTweaks) 1.32.0+
 
 ### Installation
 
 1. Install requirements:
-   - [RED4ext](https://docs.red4ext.com/getting-started/installing-red4ext) 1.23.0+
+   - [RED4ext](https://docs.red4ext.com/getting-started/installing-red4ext) 1.24.0+
 2. Extract the release archive `RedHotTools-x.x.x.zip` into the Cyberpunk 2077 directory.
 3. _(Optional)_ Install CET UI: Extract the archive `RedHotTools-x.x.x-CET.zip` into the Cyberpunk 2077 directory.
 4. _(Optional)_ Install VS Code extension: Drag the `red-hot-vscode-x.x.x.vsix` onto your VS Code extension bar.
