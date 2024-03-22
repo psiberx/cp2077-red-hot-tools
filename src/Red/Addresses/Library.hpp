@@ -2,7 +2,7 @@
 
 namespace Red::AddressLib
 {
-constexpr uint32_t Main = 3649178469;
+constexpr uint32_t Main = 3545369307;
 constexpr uint32_t ExecuteProcess = 2203918127; // CProcessRunner::Run
 constexpr uint32_t InvokeSCC = 2746819158;
 constexpr uint32_t LogChannel = 3083410640;
