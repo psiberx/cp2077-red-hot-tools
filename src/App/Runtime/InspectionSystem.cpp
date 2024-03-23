@@ -4,6 +4,8 @@
 #include "Red/CameraSystem.hpp"
 #include "Red/Debug.hpp"
 #include "Red/Entity.hpp"
+#include "Red/InkSystem.hpp"
+#include "Red/InkLayer.hpp"
 #include "Red/Math.hpp"
 #include "Red/NodeRef.hpp"
 #include "Red/Physics.hpp"
@@ -781,4 +783,40 @@ bool App::InspectionSystem::IsInstanceOf(const Red::WeakHandle<Red::ISerializabl
 uint64_t App::InspectionSystem::GetObjectHash(const Red::WeakHandle<Red::ISerializable>& aInstace)
 {
     return reinterpret_cast<uint64_t>(aInstace.instance);
+}
+
+void App::InspectionSystem::CollectWidgetsUnderCursor()
+{
+    auto inkSystem = Red::InkSystem::Get();
+
+    for (auto& layer : inkSystem->GetLayers())
+    {
+        auto pointerHandler = Raw::inkLayer::GetPointerHandler(layer);
+
+        if (!pointerHandler)
+            continue;
+
+        Red::DynArray<Red::Handle<Red::inkWidget>> widgets;
+        Red::Vector2 pointerScreenPosition{inkSystem->pointerScreenPosition};
+        Red::Vector2 pointerWindowPosition{inkSystem->pointerWindowPosition};
+        Red::Vector2 pointerSize{10.0, 10.0};
+
+        pointerHandler->CollectWidgets(widgets, pointerScreenPosition, pointerWindowPosition, pointerSize);
+
+        if (widgets.size)
+        {
+            auto layerName = layer->GetNativeType()->name.ToString();
+
+            for (auto& widget : widgets)
+            {
+                auto widgetType = widget->GetNativeType()->name.ToString();
+                auto widgetName = widget->name.ToString();
+                auto resourceHash = widget->layerProxy->resource ? widget->layerProxy->resource.instance->path.hash : 0;
+                auto controllerType = widget->logicController ? widget->logicController->GetType()->name.ToString() : "";
+
+                Red::Log::Debug("- {} {} {} {} {} {}", widget->isInteractive, layerName, widgetType, widgetName,
+                                resourceHash, controllerType);
+            }
+        }
+    }
 }

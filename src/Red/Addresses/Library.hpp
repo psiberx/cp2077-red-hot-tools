@@ -19,6 +19,10 @@ constexpr uint32_t FileSystem_Close = 1332290822;
 
 constexpr uint32_t ISerializable_SetReference = 2587561854;
 
+constexpr uint32_t InkSystem_Instance = 2755465343;
+
+constexpr uint32_t InkWidget_Draw = 1737035665;
+
 constexpr uint32_t JobHandle_Wait = 1576079097;
 
 constexpr uint32_t NodeRef_Create = 3491172781;
