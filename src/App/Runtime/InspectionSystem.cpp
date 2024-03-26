@@ -241,6 +241,9 @@ void App::InspectionSystem::UpdateFrustumNodes()
             if (streamedNode.nodeInstance.Expired() || streamedNode.nodeDefinition.Expired())
                 continue;
 
+            if (!Raw::WorldNodeInstance::SetupInfo::Ptr(streamedNode.nodeInstance.instance))
+                continue;
+
             const auto& transform = streamedNode.nodeSetup->transform;
 
 #ifndef NDEBUG
