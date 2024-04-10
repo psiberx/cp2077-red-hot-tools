@@ -51,7 +51,7 @@ bool App::ScriptReporter::OnLoadScripts(Red::CBaseEngine& aEngine, Red::CString&
     if (!aTimestamp)
         return false;
 
-    if (aEngine.scriptsCompilationErrors.Length() > 0)
+    if (aEngine.scriptsCompilationErrors.Length() > 0 || aEngine.scriptsBlobPath.Length() == 0)
     {
         ExitProcess(0xDEAD);
         return false;
