@@ -1,7 +1,7 @@
 set_xmakever("2.5.9")
 
 set_project("RedHotTools")
-set_version("0.9.2", {build = "%y%m%d%H%M"})
+set_version("1.0.0", {build = "%y%m%d%H%M"})
 
 set_arch("x64")
 set_languages("cxx2a")
@@ -43,9 +43,10 @@ target("RedHotTools")
     add_packages("fmt", "hopscotch-map", "minhook", "spdlog", "tiltedcore")
     add_syslinks("Version", "User32")
     add_defines("WINVER=0x0601", "WIN32_LEAN_AND_MEAN", "NOMINMAX")
-    set_configdir("src")
-    add_configfiles("config/Project.hpp.in", {prefixdir = "App"})
-    add_configfiles("config/Version.rc.in", {prefixdir = "App"})
+    set_configdir(".")
+    add_configfiles("config/Project.hpp.in", {prefixdir = "src/App"})
+    add_configfiles("config/Version.rc.in", {prefixdir = "src/App"})
+    add_configfiles("config/version.lua.in", {prefixdir = "support/cet"})
     set_configvar("AUTHOR", "psiberx")
     set_configvar("NAME", "RedHotTools")
 
