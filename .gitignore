@@ -5,7 +5,7 @@
 /build
 /dev
 /src/App/Staging
-/support/cet/.*
+/support/cet/**/.*
 /support/cet/*.log
 /support/cet/*.sqlite3
 /support/vscode/out
