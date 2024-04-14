@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Red/Addresses.hpp"
 #include "Red/Common.hpp"
 
 namespace Red
@@ -60,10 +59,10 @@ namespace Raw::StreamingSector
 using NodeBuffer = Core::OffsetPtr<0x40, Red::StreamingSectorNodeBuffer>;
 
 constexpr auto Destruct = Core::RawFunc<
-    /* addr = */ Red::Addresses::StreamingSector_dtor,
+    /* addr = */ Red::AddressLib::StreamingSector_dtor,
     /* type = */ void (*)(Red::worldStreamingSector* aSector)>();
 
 constexpr auto Prepare = Core::RawFunc<
-    /* addr = */ Red::Addresses::StreamingSector_OnReady,
+    /* addr = */ Red::AddressLib::StreamingSector_OnReady,
     /* type = */ void (*)(Red::worldStreamingSector* aSector, uint64_t a2)>();
 }

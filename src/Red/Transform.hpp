@@ -1,18 +1,16 @@
 #pragma once
 
-#include "Addresses.hpp"
-
 namespace Raw::Transform
 {
 constexpr auto ApplyToBox = Core::RawFunc<
-    /* addr = */ Red::Addresses::Transform_ApplyToBox,
+    /* addr = */ Red::AddressLib::Transform_ApplyToBox,
     /* type = */ void* (*)(const Red::Transform& aTransform, Red::Box& aOut, const Red::Box& aBox)>();
 }
 
 // namespace Raw::WorldTransform
 // {
 // constexpr auto ApplyToBox = Core::RawFunc<
-//     /* addr = */ 0x14014D910 - Red::Addresses::ImageBase, // FIXME
+//     /* addr = */ 0x14014D910 - Red::AddressLib::ImageBase, // FIXME
 //     /* type = */ void* (*)(const Red::WorldTransform& aTransform, Red::Box& aOut, const Red::Box& aBox)>();
 // }
 

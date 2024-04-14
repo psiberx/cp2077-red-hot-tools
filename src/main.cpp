@@ -2,7 +2,6 @@
 #include "App/Project.hpp"
 #include "Core/Facades/Hook.hpp"
 #include "Core/Facades/Runtime.hpp"
-#include "Red/Addresses.hpp"
 
 namespace
 {
@@ -41,7 +40,7 @@ RED4EXT_C_EXPORT void RED4EXT_CALL Query(RED4ext::PluginInfo* aInfo)
                                     App::Project::Version.minor,
                                     App::Project::Version.patch);
 
-    aInfo->runtime = RED4EXT_RUNTIME_LATEST;
+    aInfo->runtime = RED4EXT_RUNTIME_INDEPENDENT;
     aInfo->sdk = RED4EXT_SDK_LATEST;
 }
 
@@ -54,7 +53,7 @@ RED4EXT_C_EXPORT uint32_t RED4EXT_CALL Supports()
 
 BOOL APIENTRY DllMain(HMODULE aHandle, DWORD aReason, LPVOID)
 {
-    using GameMain = Core::RawFunc<Red::Addresses::Main, int32_t(*)()>;
+    using GameMain = Core::RawFunc<Red::Address::Main, int32_t(*)()>;
 
     static const bool s_isGame = Core::Runtime::IsEXE(L"Cyberpunk2077.exe");
     static const bool s_isASI = Core::Runtime::IsASI(aHandle);

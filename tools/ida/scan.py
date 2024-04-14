@@ -5,10 +5,12 @@ from pathlib import Path
 # Defines patterns and output files
 def patterns():
     return [
-        Output(filename="src/Red/Addresses.hpp", namespace="Red::Addresses", groups=[
+        Output(filename="src/Red/Addresses/Direct.hpp", namespace="Red::Address", groups=[
             Group(functions=[
                 Item(name="Main",
                      pattern="40 55 53 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? FF 15 ? ? ? ? E8"),
+                Item(name='ExecuteProcess',
+                    pattern='48 89 5C 24 ? 48 89 74 24 ? 57 48 81 EC ? ? ? ? 41 81 79'),
                 Item(name="InvokeSCC",
                      pattern="48 8B C4 48 89 58 ? 48 89 70 ? 48 89 78 ? 55 41 56 41 57 48 8D A8 ? ? ? ? B8 ? ? ? ? E8 ? ? ? ? 48 2B E0 41 8A D8 4C 8B F2"),
                 Item(name='LogChannel',
@@ -30,7 +32,7 @@ def patterns():
                      pattern='48 89 05 ? ? ? ? 48 83 C4 ? 5F C3',
                      offset=3,
                      expected=6,
-                     index=4),
+                     index=1),
             ], functions=[
                 Item(name="Close",
                      pattern="48 89 5C 24 ? 57 48 83 EC ? 48 8B 39 48 85 FF 74 ? 48 8B 07 48 8B CF FF 10 4C 8B  07 33 D2 48 8B CF 48 8B D8 41 FF 50 08"),
@@ -61,7 +63,7 @@ def patterns():
                 Item(name="DestructArchives",
                      pattern="85 D2 74 ? 48 89 5C 24 ? 57 48 83 EC ? 8D 42 ? 8B DA 48 8D 3C 80 48 C1 E7 ? 48 03 F9 48 8B CF 48 83 EF ? E8 ? ? ? ? 83 C3 ? 75",
                      expected=22,
-                     index=5),
+                     index=10),
                 Item(name="RequestResource",
                      pattern="4C 89 4C 24 ? 48 89 54 24 ? 55 53 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 ? 48 81 EC ? ? ? ? 48 8D B1"),
             ]),
@@ -86,7 +88,8 @@ def patterns():
                      pattern="48 8B C4 48 89 58 ? 48 89 70 ? 48 89 78 ? 55 41 54 41 55 41 56 41 57 48 8D 68 ? 48 81 EC ? ? ? ? 44 0F B6 92"),
                 Item(name="TranslateBytecode",
                      pattern="48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 57 48 83 EC 20 48 8B 1A 48 8B E9 8B 42 0C",
-                     expected=2),
+                     expected=2,
+                     index=1),
             ]),
             Group(name="ScriptBundle", functions=[
                 Item(name="ctor",

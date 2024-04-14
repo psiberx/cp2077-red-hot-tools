@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Addresses.hpp"
 #include "ScriptBundle.hpp"
 #include "ScriptReport.hpp"
 
@@ -11,7 +10,7 @@ struct ScriptValidator
     inline static bool Validate(ScriptBundle& aData, ScriptReport& aReport)
     {
         using func_t = bool (*)(ScriptValidator*, ScriptBundle&, ScriptReport&);
-        RelocFunc<func_t> func(Addresses::ScriptValidator_Validate);
+        static UniversalRelocFunc<func_t> func(AddressLib::ScriptValidator_Validate);
 
         return func(nullptr, aData, aReport);
     }

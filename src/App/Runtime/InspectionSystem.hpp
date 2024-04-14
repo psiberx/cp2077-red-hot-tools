@@ -87,6 +87,8 @@ public:
     bool IsInstanceOf(const Red::WeakHandle<Red::ISerializable>& aInstace, Red::CName aType);
     uint64_t GetObjectHash(const Red::WeakHandle<Red::ISerializable>& aInstace);
 
+    void CollectWidgetsUnderCursor();
+
 private:
     void OnWorldAttached(Red::world::RuntimeScene*) override;
     void OnAfterWorldDetach() override;
@@ -185,4 +187,5 @@ RTTI_DEFINE_CLASS(App::InspectionSystem, {
     RTTI_METHOD(GetTypeName);
     RTTI_METHOD(IsInstanceOf);
     RTTI_METHOD(GetObjectHash);
+    RTTI_METHOD(CollectWidgetsUnderCursor);
 });
