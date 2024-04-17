@@ -1,4 +1,5 @@
 local app, modulePath = ...
+local moduleID = 'WorldTools'
 
 -- Deps --
 
@@ -37,7 +38,7 @@ end
 
 -- User State --
 
-local Feature = Enumeration('None', 'Inspect', 'Scan', 'Watch', 'Lookup')
+local MainTab = Enumeration('None', 'Inspect', 'Scan', 'Watch', 'Lookup', 'Settings', 'Hotkeys')
 local TargetingMode = Enumeration('GamePhysics', 'StaticBounds')
 local ColorScheme = Enumeration('Green', 'Red', 'Yellow', 'White', 'Shimmer')
 local OutlineMode = Enumeration('ForSupportedObjects', 'Never')
@@ -48,8 +49,8 @@ local WindowSnapping = Enumeration('Disabled', 'TopLeft', 'TopRight')
 local userState = {}
 local userStateSchema = {
     isModuleActive = { type = 'boolean', default = true },
-    selectedTab = { type = Feature, default = Feature.Inspect },
     isOnScreenDisplayActive = { type = 'boolean', default = false },
+    selectedTab = { type = MainTab, default = MainTab.Inspect },
     windowSnapping = { type = WindowSnapping, default = WindowSnapping.Disabled },
     scannerFilter = { type = 'string', default = '' },
     scannerGroup = { type = 'string', default = '' },
@@ -210,7 +211,7 @@ local function getLookAtTargets(maxDistance)
 	end
 
     if userState.targetingMode == TargetingMode.StaticBounds then
-        local results = inspectionSystem:GetStreamedWorldNodesInCrosshair()
+        local results = inspectionSystem:GetStreamedNodesInCrosshair()
 
         if #results == 0 then
             return
@@ -680,7 +681,7 @@ local function fillTargetNodeData(target, data)
     if isNotEmpty(data.parentID) then
         data.parentRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.parentID)
         if isNotEmpty(data.parentRef) then
-            data.parentInstance = inspectionSystem:FindStreamedWorldNode(data.parentID).nodeInstance
+            data.parentInstance = inspectionSystem:FindStreamedNode(data.parentID).nodeInstance
         end
     end
 
@@ -805,7 +806,7 @@ local function expandTarget(target)
         end
 
         if isNotEmpty(nodeID) then
-            local streamingData = inspectionSystem:FindStreamedWorldNode(nodeID)
+            local streamingData = inspectionSystem:FindStreamedNode(nodeID)
             target.nodeInstance = streamingData.nodeInstance
             target.nodeDefinition = streamingData.nodeDefinition
             target.nodeID = nodeID
@@ -1003,7 +1004,7 @@ local function scanTargets()
 
     local results = {}
 
-    for _, target in ipairs(inspectionSystem:GetStreamedWorldNodesInFrustum()) do
+    for _, target in ipairs(inspectionSystem:GetStreamedNodesInFrustum()) do
         local result = resolveTargetData(target)
         if result then
             table.insert(results, result)
@@ -1175,7 +1176,7 @@ local function lookupTarget(lookupQuery)
         if IsDefined(entity) then
             target.entity = entity
         else
-            local streamingData = inspectionSystem:FindStreamedWorldNode(lookupHash)
+            local streamingData = inspectionSystem:FindStreamedNode(lookupHash)
             if IsDefined(streamingData.nodeInstance) then
                 target.nodeInstance = streamingData.nodeInstance
                 target.nodeDefinition = streamingData.nodeDefinition
@@ -1183,7 +1184,7 @@ local function lookupTarget(lookupQuery)
                 if lookupHash <= 0xFFFFFF then
                     local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(lookupHash)
                     if communityID.hash > 0xFFFFFF then
-                        streamingData = inspectionSystem:FindStreamedWorldNode(communityID.hash)
+                        streamingData = inspectionSystem:FindStreamedNode(communityID.hash)
                         if IsDefined(streamingData.nodeInstance) then
                             target.nodeInstance = streamingData.nodeInstance
                             target.nodeDefinition = streamingData.nodeDefinition
@@ -1201,7 +1202,7 @@ local function lookupTarget(lookupQuery)
             if IsDefined(entity) then
                 target.entity = entity
             else
-                local streamingData = inspectionSystem:FindStreamedWorldNode(resolvedRef.hash)
+                local streamingData = inspectionSystem:FindStreamedNode(resolvedRef.hash)
                 target.nodeInstance = streamingData.nodeInstance
                 target.nodeDefinition = streamingData.nodeDefinition
                 target.nodeID = resolvedRef.hash
@@ -1330,22 +1331,13 @@ local viewData = {
 }
 
 local viewStyle = {
-    labelTextColor = 0xFF9F9F9F, --0xFFA5A19B
+    labelTextColor = 0xFFA5A19B,
     mutedTextColor = 0xFFA5A19B,
     hintTextColor = 0x66FFFFFF,
     dangerTextColor = 0xFF6666FF,
     disabledButtonColor = 0xFF4F4F4F,
+    groupCaptionSize = 0.75,
 }
-
-local function buildComboOptions(values, capitalize)
-    local options = {}
-    for index, value in ipairs(values) do
-        options[index] = value:gsub('([a-z])([A-Z])', function(l, u)
-            return l .. ' ' .. (capitalize and u or u:lower())
-        end)
-    end
-    return options
-end
 
 local function buildMappingOptions(mapping, first)
     local options = {}
@@ -1369,12 +1361,12 @@ local function buildMappingOptions(mapping, first)
 end
 
 local function initializeViewData()
-    viewData.targetingModeOptions = buildComboOptions(TargetingMode.values, true)
-    viewData.colorSchemeOptions = buildComboOptions(ColorScheme.values)
-    viewData.outlineModeOptions = buildComboOptions(OutlineMode.values)
-    viewData.markerModeOptions = buildComboOptions(MarkerMode.values)
-    viewData.boundingBoxModeOptions = buildComboOptions(BoundingBoxMode.values)
-    viewData.windowSnappingOptions = buildComboOptions(WindowSnapping.values, true)
+    viewData.targetingModeOptions = ImGuiEx.BuildComboOptions(TargetingMode.values, true)
+    viewData.colorSchemeOptions = ImGuiEx.BuildComboOptions(ColorScheme.values)
+    viewData.outlineModeOptions = ImGuiEx.BuildComboOptions(OutlineMode.values)
+    viewData.markerModeOptions = ImGuiEx.BuildComboOptions(MarkerMode.values)
+    viewData.boundingBoxModeOptions = ImGuiEx.BuildComboOptions(BoundingBoxMode.values)
+    viewData.windowSnappingOptions = ImGuiEx.BuildComboOptions(WindowSnapping.values, true)
     viewData.nodeGroupOptions = buildMappingOptions(nodeGroupMapping, 'All')
 end
 
@@ -1398,7 +1390,6 @@ local function initializeViewStyle()
 
         viewStyle.mainWindowFlags = ImGuiWindowFlags.NoResize
             + ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
-            + ImGuiWindowFlags.MenuBar
         viewStyle.inspectorWindowFlags = ImGuiWindowFlags.NoResize
             + ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
             + ImGuiWindowFlags.NoTitleBar + ImGuiWindowFlags.NoCollapse
@@ -1976,7 +1967,7 @@ local function drawLookupContent()
     ImGui.PushStyleColor(ImGuiCol.TextDisabled, viewStyle.hintTextColor)
     local query, queryChanged = ImGui.InputTextWithHint('##LookupQuery', 'Enter node reference or entity id or hash', viewState.lookupQuery, viewData.maxInputLen)
     if queryChanged then
-        viewState.lookupQuery = sanitizeTextInput(query)
+        viewState.lookupQuery = ImGuiEx.SanitizeTextInput(query)
     end
     ImGui.PopStyleColor()
 
@@ -2035,12 +2026,10 @@ local function drawSettingsContent()
     local state, changed
 
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-    ImGui.SetWindowFontScale(0.85)
-    ImGui.Text('WINDOW')
+    ImGui.SetWindowFontScale(viewStyle.groupCaptionSize)
+    ImGui.Text('TOOL WINDOW')
     ImGui.SetWindowFontScale(1.0)
     ImGui.PopStyleColor()
-    ImGui.Separator()
-    ImGui.Spacing()
 
     ImGui.BeginGroup()
     ImGui.AlignTextToFramePadding()
@@ -2054,14 +2043,14 @@ local function drawSettingsContent()
     ImGui.EndGroup()
 
     ImGui.Spacing()
+    ImGui.Separator()
     ImGui.Spacing()
+
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-    ImGui.SetWindowFontScale(0.85)
+    ImGui.SetWindowFontScale(viewStyle.groupCaptionSize)
     ImGui.Text('HIGHLIGHTING')
     ImGui.SetWindowFontScale(1.0)
     ImGui.PopStyleColor()
-    ImGui.Separator()
-    ImGui.Spacing()
 
     ImGui.BeginGroup()
     ImGui.AlignTextToFramePadding()
@@ -2131,14 +2120,14 @@ local function drawSettingsContent()
     end
 
     ImGui.Spacing()
-    ImGui.Spacing()
-    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-    ImGui.SetWindowFontScale(0.85)
-    ImGui.Text('INSPECTING')
-    ImGui.SetWindowFontScale(1.0)
-    ImGui.PopStyleColor()
     ImGui.Separator()
     ImGui.Spacing()
+
+    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+    ImGui.SetWindowFontScale(viewStyle.groupCaptionSize)
+    ImGui.Text('WORLD INSPECTOR')
+    ImGui.SetWindowFontScale(1.0)
+    ImGui.PopStyleColor()
 
     ImGui.BeginGroup()
     ImGui.AlignTextToFramePadding()
@@ -2190,13 +2179,15 @@ local function drawSettingsContent()
     end
 
     ImGui.Spacing()
+    ImGui.Separator()
     ImGui.Spacing()
+
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-    ImGui.SetWindowFontScale(0.85)
-    ImGui.Text('SCANNING')
+    ImGui.SetWindowFontScale(viewStyle.groupCaptionSize)
+    ImGui.Text('WORLD SCANNER')
     ImGui.SetWindowFontScale(1.0)
     ImGui.PopStyleColor()
-    ImGui.Separator()
+
     ImGui.Spacing()
 
     state, changed = ImGui.Checkbox('Highlight scanned target when hover over', userState.highlightScannerResult)
@@ -2218,19 +2209,27 @@ local function drawSettingsContent()
     --ImGui.Unindent(ImGui.GetFrameHeightWithSpacing())
 
     ImGui.Spacing()
+    ImGui.Separator()
     ImGui.Spacing()
+
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-    ImGui.SetWindowFontScale(0.85)
+    ImGui.SetWindowFontScale(viewStyle.groupCaptionSize)
     ImGui.Text('LOOKUP')
     ImGui.SetWindowFontScale(1.0)
     ImGui.PopStyleColor()
-    ImGui.Separator()
+
     ImGui.Spacing()
 
     state, changed = ImGui.Checkbox('Highlight lookup target', userState.highlightLookupResult)
     if changed then
         userState.highlightLookupResult = state
     end
+end
+
+-- GUI :: Hotkeys --
+
+local function drawHotkeysContent()
+    app.drawHotkeys(moduleID)
 end
 
 -- GUI :: Drawing --
@@ -2562,7 +2561,7 @@ end
 
 local function drawInspectorWindow()
     pushWindowStyle()
-    ImGui.Begin('World Inspector', viewStyle.inspectorWindowFlags)
+    ImGui.Begin('World Inspector##RHT:WorldTools', viewStyle.inspectorWindowFlags)
 
     ImGui.SetCursorPosY(ImGui.GetCursorPosY() - 2)
     drawInspectorContent(true)
@@ -2574,20 +2573,22 @@ end
 local function drawMainWindow()
     pushWindowStyle()
 
-    viewState.isWindowOpen = ImGuiEx.Begin('World Inspector##RHT:WorldInspector', app.canCloseTools(), viewStyle.mainWindowFlags)
+    viewState.isWindowOpen = ImGuiEx.Begin('World Inspector##RHT:WorldTools', app.canCloseTools(), viewStyle.mainWindowFlags)
     viewState.isWindowExpanded = not ImGui.IsWindowCollapsed()
 
     if viewState.isWindowOpen and viewState.isWindowExpanded then
-        app.drawMainMenu()
+        app.drawSharedMenu(moduleID)
 
-        ImGui.BeginTabBar('##RHT:WorldInspectorTabBar')
+        ImGui.BeginTabBar('##RHT:WorldToolsTabBar')
 
         local selectedTab
         local featureTabs = {
-            { id = Feature.Inspect, draw = drawInspectorContent },
-            { id = Feature.Scan, draw = drawScannerContent },
-            { id = Feature.Lookup, draw = drawLookupContent },
-            { id = Feature.Watch, draw = drawWatcherContent },
+            { id = MainTab.Inspect, draw = drawInspectorContent },
+            { id = MainTab.Scan, draw = drawScannerContent },
+            { id = MainTab.Lookup, draw = drawLookupContent },
+            { id = MainTab.Watch, draw = drawWatcherContent },
+            { id = MainTab.Settings, draw = drawSettingsContent },
+            { id = MainTab.Hotkeys, draw = drawHotkeysContent },
         }
 
         for _, featureTab in ipairs(featureTabs) do
@@ -2605,12 +2606,6 @@ local function drawMainWindow()
             end
         end
 
-        if ImGui.BeginTabItem(' Settings ') then
-            ImGui.Spacing()
-            drawSettingsContent()
-            ImGui.EndTabItem()
-        end
-
         userState.selectedTab = selectedTab
         viewState.isFirstOpen = false
     end
@@ -2625,32 +2620,64 @@ local function drawMainWindow()
     end
 end
 
--- Bindings --
+local function onDraw()
+    if not userState.isModuleActive then
+        return
+    end
 
-local function onToggleInspector()
+    if not viewState.isConsoleOpen and not userState.isOnScreenDisplayActive then
+        return
+    end
+
+    initializeViewStyle()
+
+    if viewState.isConsoleOpen then
+        if userState.isModuleActive and viewState.isWindowExpanded then
+            drawProjections()
+        end
+        drawMainWindow()
+    elseif userState.isOnScreenDisplayActive then
+        drawProjections()
+        drawInspectorWindow()
+    end
+end
+
+local function onOverlayOpen()
+    viewState.isConsoleOpen = true
+end
+
+local function onOverlayClose()
+    viewState.isConsoleOpen = false
+    saveUserState()
+end
+
+-- Hotkeys --
+
+local function onToggleInspectorHotkey()
     if not viewState.isConsoleOpen then
         userState.isOnScreenDisplayActive = not userState.isOnScreenDisplayActive
         if userState.isOnScreenDisplayActive then
-            userState.selectedTab = Feature.Inspect
+            userState.isModuleActive = true
             viewState.isFirstOpen = true
+            userState.selectedTab = MainTab.Inspect
         end
         saveUserState()
     end
 end
 
-local function onNextInspectorResult()
+local function onSelectNextResultHotkey()
     if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
         cycleNextInspectedResult()
     end
 end
 
-local function onPrevInspectorResult()
+local function onSelectPrevResultHotkey()
     if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
         cyclePrevInspectedResult()
     end
 end
 
-local function onToggleInspectorNodeState()
+local function onToggleTargetStateHotkey()
     if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
         if inspector.active then
             toggleNodeState(inspector.results[inspector.active])
@@ -2660,7 +2687,7 @@ local function onToggleInspectorNodeState()
     end
 end
 
-local function onCycleTargetingMode()
+local function onCycleTargetingModeHotkey()
     if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
         local nextModeIndex = TargetingMode.values[userState.targetingMode] + 1
         if nextModeIndex > #TargetingMode.values then
@@ -2671,7 +2698,7 @@ local function onCycleTargetingMode()
     end
 end
 
-local function onCycleHighlightColor()
+local function onCycleHighlightColorHotkey()
     if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
         local nextColorIndex = ColorScheme.values[userState.highlightColor] + 1
         if nextColorIndex > #ColorScheme.values then
@@ -2709,13 +2736,13 @@ local function onInit()
         if userState.isModuleActive then
             if viewState.isConsoleOpen then
                 if viewState.isWindowExpanded then
-                    if userState.selectedTab == Feature.Inspect then
+                    if userState.selectedTab == MainTab.Inspect then
                         updateInspector()
-                    elseif userState.selectedTab == Feature.Scan then
+                    elseif userState.selectedTab == MainTab.Scan then
                         updateScanner(userState.scannerDistance, userState.scannerGroup, userState.scannerFilter)
-                    elseif userState.selectedTab == Feature.Lookup then
+                    elseif userState.selectedTab == MainTab.Lookup then
                         updateLookup(viewState.lookupQuery)
-                    elseif userState.selectedTab == Feature.Watch then
+                    elseif userState.selectedTab == MainTab.Watch then
                         updateWatcher()
                     end
                 end
@@ -2732,39 +2759,8 @@ local function onShutdown()
     saveUserState()
 end
 
-local function onOverlayOpen()
-    viewState.isConsoleOpen = true
-end
-
-local function onOverlayClose()
-    viewState.isConsoleOpen = false
-    saveUserState()
-end
-
-local function onDraw()
-    if not userState.isModuleActive then
-        return
-    end
-
-    if not viewState.isConsoleOpen and not userState.isOnScreenDisplayActive then
-        return
-    end
-
-    initializeViewStyle()
-
-    if viewState.isConsoleOpen then
-        if userState.isModuleActive and viewState.isWindowExpanded then
-            drawProjections()
-        end
-        drawMainWindow()
-    elseif userState.isOnScreenDisplayActive then
-        drawProjections()
-        drawInspectorWindow()
-    end
-end
-
 return {
-    id = 'World',
+    id = moduleID,
     events = {
         onInit = onInit,
         onShutdown = onShutdown,
@@ -2773,33 +2769,33 @@ return {
         onDraw = onDraw,
     },
     tools = {
-        { id = 'WorldInspector', label = 'World Inspector', isActive = isActive, setActive = setActive }
+        { id = 'WorldTools', label = 'World Inspector', isActive = isActive, setActive = setActive }
     },
     hotkeys = {
-        { id = 'ToggleInspector', label = 'Toggle inspector window', callback = onToggleInspector },
-        { id = 'NextInspectorResult', label = 'Select next inspected target', callback = onNextInspectorResult },
-        { id = 'PrevInspectorResult', label = 'Select previous inspected target', callback = onPrevInspectorResult },
-        { id = 'ToggleInspectorNodeState', label = 'Toggle state of inspected target', callback = onToggleInspectorNodeState },
-        { id = 'CycleTargetingMode', label = 'Cycle targeting modes', callback = onCycleTargetingMode },
-        { id = 'CycleHighlightColor', label = 'Cycle highlight colors', callback = onCycleHighlightColor },
+        { id = 'ToggleWorldInspector', group = 'World Inspector', label = 'Toggle overlay', callback = onToggleInspectorHotkey },
+        { id = 'CycleTargetingMode', group = 'World Inspector', label = 'Cycle targeting modes', callback = onCycleTargetingModeHotkey },
+        --{ id = 'CycleHighlightColor', group = 'World Inspector', label = 'Cycle highlight colors', callback = onCycleHighlightColorHotkey },
+        --{ id = 'ToggleTargetState', group = 'World Inspector', label = 'Toggle target visibility', callback = onToggleTargetStateHotkey },
+        { id = 'SelectNextResult', group = 'Target Control', label = 'Select next target', callback = onSelectNextResultHotkey },
+        { id = 'SelectPrevResult', group = 'Target Control', label = 'Select previous target', callback = onSelectPrevResultHotkey },
     },
     publicApi = {
-        GetLookAtTargets = getLookAtTargets,
-        CollectTargetData = resolveTargetData,
-        GetInspectorTarget = function()
+        GetWorldInspectorTarget = function()
             return inspector.active and inspector.results[inspector.active] or nil
         end,
-        GetInspectorTargets = function()
+        GetWorldInspectorTargets = function()
             return inspector.results
         end,
-        GetScannerTargets = function()
+        GetWorldScannerResults = function()
             return scanner.results
         end,
-        GetScannerFilteredTargets = function ()
+        GetWorldScannerFilteredResults = function ()
             return scanner.filtered
         end,
-        GetLookupTarget = function()
+        GetLookupResult = function()
             return lookup.result
         end,
+        GetLookAtObjects = getLookAtTargets,
+        ResolveObjectData = resolveTargetData,
     }
 }

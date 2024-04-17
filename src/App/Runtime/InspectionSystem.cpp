@@ -5,7 +5,6 @@
 #include "Red/Debug.hpp"
 #include "Red/Entity.hpp"
 #include "Red/InkSystem.hpp"
-#include "Red/InkLayer.hpp"
 #include "Red/Math.hpp"
 #include "Red/NodeRef.hpp"
 #include "Red/Physics.hpp"
@@ -16,9 +15,10 @@
 void App::InspectionSystem::OnWorldAttached(Red::world::RuntimeScene*)
 {
     m_resourceRegistry = Core::Resolve<ResourceRegistry>();
-    m_resourceRegistry->RegisterWatcher(this);
+    m_inkWidgetService = Core::Resolve<InkWidgetCollector>();
+    m_worldNodeRegistry = Core::Resolve<WorldNodeRegistry>();
+    m_worldNodeRegistry->RegisterWatcher(this);
 
-    m_nodeRegistry = Red::GetRuntimeSystem<Red::worldNodeInstanceRegistry>();
     m_cameraSystem = Red::GetGameSystem<Red::gameICameraSystem>();
 
     m_nodesUpdateDelay = 0;
@@ -26,8 +26,8 @@ void App::InspectionSystem::OnWorldAttached(Red::world::RuntimeScene*)
 
 void App::InspectionSystem::OnAfterWorldDetach()
 {
-    m_resourceRegistry->UnregisterWatcher(this);
-    m_resourceRegistry->ClearRuntimeData();
+    m_worldNodeRegistry->UnregisterWatcher(this);
+    m_worldNodeRegistry->ClearRuntimeData();
 
     {
         std::unique_lock _(m_streamedNodesLock);
@@ -355,7 +355,7 @@ Red::CString App::InspectionSystem::ResolveResourcePath(uint64_t aResourceHash)
     return m_resourceRegistry->ResolveResorcePath(aResourceHash);
 }
 
-App::WorldNodeStaticData App::InspectionSystem::ResolveSectorDataFromNodeID(uint64_t aNodeID)
+App::WorldNodeInstanceStaticData App::InspectionSystem::ResolveSectorDataFromNodeID(uint64_t aNodeID)
 {
     {
         static const Red::GlobalNodeRef context{Red::NodeRef::GlobalRoot};
@@ -370,13 +370,13 @@ App::WorldNodeStaticData App::InspectionSystem::ResolveSectorDataFromNodeID(uint
         }
     }
 
-    return m_resourceRegistry->GetNodeStaticData(aNodeID);
+    return m_worldNodeRegistry->GetNodeStaticData(aNodeID);
 }
 
-App::WorldNodeStaticData App::InspectionSystem::ResolveSectorDataFromNodeInstance(
+App::WorldNodeInstanceStaticData App::InspectionSystem::ResolveSectorDataFromNodeInstance(
     const Red::WeakHandle<Red::worldINodeInstance>& aNodeInstance)
 {
-    return m_resourceRegistry->GetNodeStaticData(aNodeInstance);
+    return m_worldNodeRegistry->GetNodeStaticData(aNodeInstance);
 }
 
 Red::CString App::InspectionSystem::ResolveNodeRefFromNodeHash(uint64_t aNodeID)
@@ -429,15 +429,14 @@ Red::EntityID App::InspectionSystem::ResolveCommunityIDFromEntityID(uint64_t aEn
     return entityStub->stubState->spawnerId.entityId;
 }
 
-App::WorldNodeRuntimeSceneData App::InspectionSystem::FindStreamedWorldNode(uint64_t aNodeID)
+App::WorldNodeRuntimeSceneData App::InspectionSystem::FindStreamedNode(uint64_t aNodeID)
 {
-    Red::Handle<Red::worldINodeInstance> nodeInstance;
-    Raw::WorldNodeRegistry::FindNode(m_nodeRegistry, nodeInstance, aNodeID);
+    auto nodeInstance = m_worldNodeRegistry->FindStreamedNodeInstance(aNodeID);
 
     if (!nodeInstance)
         return {};
 
-    const auto& [setup, nodeInstanceWeak, nodeDefinitionWeak] = m_resourceRegistry->GetNodeRuntimeData(nodeInstance);
+    const auto& [setup, nodeInstanceWeak, nodeDefinitionWeak] = m_worldNodeRegistry->GetNodeRuntimeData(nodeInstance);
 
     if (!nodeInstanceWeak)
         return {};
@@ -445,13 +444,13 @@ App::WorldNodeRuntimeSceneData App::InspectionSystem::FindStreamedWorldNode(uint
     return {nodeInstanceWeak, nodeDefinitionWeak, setup->transform.position, setup->transform.orientation};
 }
 
-Red::DynArray<App::WorldNodeRuntimeSceneData> App::InspectionSystem::GetStreamedWorldNodesInFrustum()
+Red::DynArray<App::WorldNodeRuntimeSceneData> App::InspectionSystem::GetStreamedNodesInFrustum()
 {
     std::shared_lock _(m_frustumNodesLock);
     return m_frustumNodes;
 }
 
-Red::DynArray<App::WorldNodeRuntimeSceneData> App::InspectionSystem::GetStreamedWorldNodesInCrosshair()
+Red::DynArray<App::WorldNodeRuntimeSceneData> App::InspectionSystem::GetStreamedNodesInCrosshair()
 {
     std::shared_lock _(m_frustumNodesLock);
     return m_targetedNodes;
@@ -593,12 +592,6 @@ bool App::InspectionSystem::ApplyHighlightEffect(const Red::Handle<Red::ISeriali
             return SetEntityHighlightEffect(entity, aEffect);
         }
 
-        Red::HighlightParams highlight{aEffect->seeThroughWalls, 0,
-                                       aEffect->fillIndex,
-                                       aEffect->outlineIndex,
-                                       aEffect->opacity,
-                                       true};
-
         // if (Red::IsInstanceOf<Red::worldInstancedDestructibleMeshNodeInstance>(nodeInstance))
         // {
         //     return SetRenderProxyHighlightEffect<Raw::WorldInstancedDestructibleMeshNodeInstance::RenderProxy>(nodeInstance, aEffect);
@@ -659,6 +652,7 @@ bool App::InspectionSystem::SetRenderProxyHighlightEffect(const Red::Handle<Red:
 
         for (auto& renderProxy : renderProxies)
         {
+            Raw::RenderProxy::SetScanningState(renderProxy, Red::rendPostFx_ScanningState::Complete);
             Raw::RenderProxy::SetHighlightParams(renderProxy, highlight);
         }
         return true;
@@ -673,6 +667,7 @@ bool App::InspectionSystem::SetRenderProxyHighlightEffect(const Red::Handle<Red:
         Red::HighlightParams highlight{aEffect->seeThroughWalls, 0, aEffect->fillIndex, aEffect->outlineIndex,
                                        aEffect->opacity, true};
 
+        Raw::RenderProxy::SetScanningState(renderProxy, Red::rendPostFx_ScanningState::Complete);
         Raw::RenderProxy::SetHighlightParams(renderProxy, highlight);
         return true;
     }
@@ -737,7 +732,7 @@ App::PhysicsTraceResultObject App::InspectionSystem::GetPhysicsTraceObject(Red::
                 const auto& entityID = Raw::Entity::EntityID::Ref(entity.instance);
                 if (entityID.IsStatic())
                 {
-                    Raw::WorldNodeRegistry::FindNode(m_nodeRegistry, nodeInstance, entityID.hash);
+                    nodeInstance = m_worldNodeRegistry->FindStreamedNodeInstance(entityID.hash);
                     if (nodeInstance)
                     {
                         result.nodeInstance = nodeInstance;
@@ -788,38 +783,42 @@ uint64_t App::InspectionSystem::GetObjectHash(const Red::WeakHandle<Red::ISerial
     return reinterpret_cast<uint64_t>(aInstace.instance);
 }
 
-void App::InspectionSystem::CollectWidgetsUnderCursor()
+Red::DynArray<App::InkLayerExtendedData> App::InspectionSystem::CollectInkLayers()
 {
-    auto inkSystem = Red::InkSystem::Get();
+    return m_inkWidgetService->CollectLayers();
+}
 
-    for (auto& layer : inkSystem->GetLayers())
-    {
-        auto pointerHandler = Raw::inkLayer::GetPointerHandler(layer);
+App::InkWidgetCollectionData App::InspectionSystem::CollectHoveredWidgets()
+{
+    return m_inkWidgetService->CollectHoveredWidgets();
+}
 
-        if (!pointerHandler)
-            continue;
+App::InkWidgetSpawnData App::InspectionSystem::GetWidgetSpawnInfo(const Red::Handle<Red::inkWidget>& aWidget)
+{
+    return m_inkWidgetService->GetWidgetSpawnInfo(aWidget);
+}
 
-        Red::DynArray<Red::Handle<Red::inkWidget>> widgets;
-        Red::Vector2 pointerScreenPosition{inkSystem->pointerScreenPosition};
-        Red::Vector2 pointerWindowPosition{inkSystem->pointerWindowPosition};
-        Red::Vector2 pointerSize{10.0, 10.0};
+void App::InspectionSystem::EnablePointerInput()
+{
+    m_inkWidgetService->TogglePointerInput(true);
+}
 
-        pointerHandler->CollectWidgets(widgets, pointerScreenPosition, pointerWindowPosition, pointerSize);
+void App::InspectionSystem::DisablePointerInput()
+{
+    m_inkWidgetService->TogglePointerInput(false);
+}
 
-        if (widgets.size)
-        {
-            auto layerName = layer->GetNativeType()->name.ToString();
+void App::InspectionSystem::TogglePointerInput()
+{
+    m_inkWidgetService->TogglePointerInput();
+}
 
-            for (auto& widget : widgets)
-            {
-                auto widgetType = widget->GetNativeType()->name.ToString();
-                auto widgetName = widget->name.ToString();
-                auto resourceHash = widget->layerProxy->resource ? widget->layerProxy->resource.instance->path.hash : 0;
-                auto controllerType = widget->logicController ? widget->logicController->GetType()->name.ToString() : "";
+void App::InspectionSystem::EnsurePointerInput()
+{
+    m_inkWidgetService->EnsurePointerInput();
+}
 
-                Red::Log::Debug("- {} {} {} {} {} {}", widget->isInteractive, layerName, widgetType, widgetName,
-                                resourceHash, controllerType);
-            }
-        }
-    }
+Red::Vector2 App::InspectionSystem::GetPointerScreenPosition()
+{
+    return Red::InkSystem::Get()->pointerScreenPosition;
 }

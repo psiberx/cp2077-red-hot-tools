@@ -71,14 +71,48 @@ end
 local hotkeys = {}
 
 local function addHotkey(hotkey)
-    table.insert(hotkeys, hotkey)
+    if not hotkeys[hotkey.id] then
+        hotkeys[hotkey.id] = {
+            id = hotkey.id,
+            group = hotkey.group,
+            label = hotkey.label,
+            callbacks = {},
+        }
+
+    end
+
+    hotkeys[hotkey.id].callbacks[hotkey.module] = hotkey.callback
+
+    table.insert(hotkeys, hotkeys[hotkey.id])
+    for i = #hotkeys - 1, 1, -1 do
+        if hotkeys[i].id == hotkey.id then
+            table.remove(hotkeys, i)
+            break
+        end
+    end
+end
+
+local function getHotkeys(module)
+    if not module then
+        return hotkeys
+    end
+
+    local filtered = {}
+    for _, hotkey in ipairs(hotkeys) do
+        if hotkey.callbacks[module] then
+            table.insert(filtered, hotkey)
+        end
+    end
+    return filtered
 end
 
 local function activateHotkeys()
     for _, hotkey in ipairs(hotkeys) do
-        registerHotkey(hotkey.id, hotkey.label, function()
+        registerHotkey(hotkey.id, hotkey.group .. ': ' .. hotkey.label, function()
             if isPluginFound then
-                hotkey.callback()
+                for _, callback in pairs(hotkey.callbacks) do
+                    callback()
+                end
             end
         end)
     end
@@ -102,33 +136,28 @@ end
 
 -- GUI --
 
-local viewData = {}
-local viewStyle = {}
+local viewState = {
+    menuAnchorHovered = {}
+}
+
+local viewStyle = {
+    mutedTextColor = 0xFFA5A19B,
+    menuSectionLabelColor = 0xFFA5A19B,
+    menuSectionLabelSize = 0.75,
+}
 
 local function initializeViewStyle()
     if not viewStyle.fontSize then
         viewStyle.fontSize = ImGui.GetFontSize()
         viewStyle.viewScale = viewStyle.fontSize / 13
-
-        --local screenX, screenY = GetDisplayResolution()
-        --
-        --viewStyle.aboutPaddingX = 8 * viewStyle.viewScale
-        --viewStyle.aboutPaddingY = viewStyle.aboutPaddingX
-        --viewStyle.aboutWidth = 250 * viewStyle.viewScale
-        --viewStyle.aboutHeight = 150
-        --viewStyle.aboutFullWidth = viewStyle.aboutWidth + viewStyle.aboutPaddingX * 2 - 1
-        --viewStyle.aboutFullHeight = viewStyle.aboutHeight + viewStyle.aboutPaddingY * 2 - 1
-        --viewStyle.aboutPositionX = (screenX - viewStyle.aboutFullWidth - 4) / 2
-        --viewStyle.aboutPositionY = (screenY - viewStyle.aboutFullHeight - 4) / 2
-        --viewStyle.aboutFlags = ImGuiWindowFlags.NoCollapse + ImGuiWindowFlags.NoResize + ImGuiWindowFlags.NoMove
-
-        viewStyle.buttonHeight = 21 * viewStyle.viewScale
+        viewStyle.doubleFontSize = viewStyle.fontSize * 2.0
+        viewStyle.halfFontSize = viewStyle.fontSize / 2.0
     end
 end
 
 local function initializeViewData()
-    viewData.pluginVersion = RedHotTools.Version()
-    viewData.guiVersion = loadfile('version.lua')()
+    viewState.pluginVersion = RedHotTools.Version()
+    viewState.guiVersion = loadfile('version.lua')()
 end
 
 function privateApi.canCloseTools()
@@ -147,64 +176,121 @@ function privateApi.canCloseTools()
     return false
 end
 
-function privateApi.drawMainMenu()
-    --local openAboutPopup = false
+function privateApi.drawSharedMenu(module)
+    local regionW = ImGui.GetContentRegionAvail()
+    local cursorX, cursorY = ImGui.GetCursorPos()
 
-    if ImGui.BeginMenuBar() then
-        if ImGui.BeginMenu('Actions') then
-            for _, action in ipairs(actions) do
+    ImGui.SetCursorPosX(cursorX + regionW - viewStyle.doubleFontSize + 1)
+    ImGui.BeginGroup()
+    ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
+    if viewState.menuAnchorHovered[module] then
+        ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.ButtonHovered, 1))
+    end
+    ImGui.Bullet()
+    ImGui.SetCursorPosX(ImGui.GetCursorPosX() - viewStyle.halfFontSize + 1)
+    ImGui.Bullet()
+    ImGui.SetCursorPosX(ImGui.GetCursorPosX() - viewStyle.halfFontSize + 1)
+    ImGui.Bullet()
+    if viewState.menuAnchorHovered[module] then
+        viewState.menuAnchorHovered[module] = nil
+        ImGui.PopStyleColor()
+    end
+    ImGui.PopStyleVar()
+    ImGui.EndGroup()
+    viewState.menuAnchorHovered[module] = ImGui.IsItemHovered()
+    ImGui.SetCursorPos(cursorX, cursorY)
+
+    if ImGui.BeginPopupContextItem('##SharedMenu', ImGuiPopupFlags.MouseButtonLeft) then
+        ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.menuSectionLabelColor)
+        ImGui.SetWindowFontScale(viewStyle.menuSectionLabelSize)
+        ImGui.Text('TOOLS')
+        ImGui.SetWindowFontScale(1.0)
+        ImGui.PopStyleColor()
+
+        for _, tool in ipairs(tools) do
+            local active = tool.isActive()
+            local _, clicked = ImGui.MenuItem(tool.label, '', active)
+            if clicked then
+                tool.setActive(not active)
+            end
+        end
+
+        local filtered = {}
+        for _, action in ipairs(actions) do
+            if action.module ~= module then
+                table.insert(filtered, action)
+            end
+        end
+
+        if #filtered > 0 then
+            ImGui.Separator()
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.menuSectionLabelColor)
+            ImGui.SetWindowFontScale(viewStyle.menuSectionLabelSize)
+            ImGui.Text('QUICK ACTIONS')
+            ImGui.SetWindowFontScale(1.0)
+            ImGui.PopStyleColor()
+            --local group
+            for _, action in ipairs(filtered) do
+                --if group ~= action.module then
+                --    group = action.module
+                --end
                 if ImGui.MenuItem(action.label) then
                     action.callback()
                 end
             end
-            ImGui.EndMenu()
         end
 
-        if ImGui.BeginMenu('Tools') then
-            for _, tool in ipairs(tools) do
-                local active = tool.isActive()
-                local _, clicked = ImGui.MenuItem(tool.label, '', active)
-                if clicked then
-                    tool.setActive(not active)
-                end
-            end
-            ImGui.EndMenu()
-        end
+        ImGui.Separator()
 
         if ImGui.BeginMenu('About') then
             ImGui.Text('Red Hot Tools')
-            ImGui.Text('Plugin Version: ' .. viewData.pluginVersion)
-            ImGui.Text('GUI Version: ' .. viewData.guiVersion)
+            ImGui.Text('Plugin Version: ' .. viewState.pluginVersion)
+            ImGui.Text('GUI Version: ' .. viewState.guiVersion)
             ImGui.EndMenu()
         end
 
-        --if ImGui.BeginMenu('Help') then
-        --    if ImGui.MenuItem('About', '', false, false) then
-        --        openAboutPopup = true
-        --    end
-        --    ImGui.EndMenu()
-        --end
-
-        ImGui.EndMenuBar()
+        ImGui.EndPopup()
     end
-
-    --if openAboutPopup then
-    --    ImGui.OpenPopup('Red Hot Tools##RHT:About')
-    --    ImGui.SetNextWindowPos(viewStyle.aboutPositionX, viewStyle.aboutPositionY, ImGuiCond.Always)
-    --    ImGui.SetNextWindowSize(viewStyle.aboutFullWidth, viewStyle.aboutFullHeight)
-    --end
-    --
-    --if ImGui.BeginPopupModal('Red Hot Tools##RHT:About', true, viewStyle.aboutFlags) then
-    --    ImGui.Text('About')
-    --    if ImGui.Button('Close') then
-    --        ImGui.CloseCurrentPopup()
-    --    end
-    --    ImGui.EndPopup()
-    --end
 end
 
 function privateApi.drawHotkeys(module)
+    ImGui.TextWrapped('Hotkeys are configured in Cyber Engine Tweaks > Bindings.')
 
+    ImGui.BeginTable('##Hotkeys', 2)
+
+    local group
+    for _, hotkey in ipairs(getHotkeys(module)) do
+        if group ~= hotkey.group then
+            ImGui.TableNextRow()
+            ImGui.TableNextColumn()
+            ImGui.Spacing()
+            ImGui.Separator()
+            ImGui.Spacing()
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.menuSectionLabelColor)
+            ImGui.SetWindowFontScale(viewStyle.menuSectionLabelSize)
+            ImGui.Text(hotkey.group:upper())
+            ImGui.SetWindowFontScale(1.0)
+            ImGui.PopStyleColor()
+            ImGui.TableNextColumn()
+            ImGui.Spacing()
+            ImGui.Separator()
+            group = hotkey.group
+        end
+
+        ImGui.TableNextRow()
+        ImGui.TableNextColumn()
+        ImGui.Text(hotkey.label)
+        ImGui.TableNextColumn()
+        if IsBound(hotkey.id) then
+            ImGui.Text(GetBind(hotkey.id))
+        else
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+            ImGui.Text('(not set)')
+            ImGui.PopStyleColor()
+        end
+    end
+
+    ImGui.EndTable()
 end
 
 -- Modules --
@@ -303,7 +389,7 @@ addEventCallback('onUpdate', Cron.Update)
 
 loadModules({
     'modules/world',
-    --'modules/ink',
+    'modules/ink',
     'modules/hot',
 })
 

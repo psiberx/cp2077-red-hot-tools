@@ -1,6 +1,8 @@
 #pragma once
 
+#include "App/Runtime/InkWidgetCollector.hpp"
 #include "App/Runtime/ResourceRegistry.hpp"
+#include "App/Runtime/WorldNodeRegistry.hpp"
 
 namespace App
 {
@@ -45,7 +47,7 @@ struct WorldNodeRuntimeSceneData
 
 class InspectionSystem
     : public Red::IGameSystem
-    , public INodeInstanceWatcher
+    , public IWorldNodeInstanceWatcher
 {
 public:
     static constexpr auto FrustumUpdateFreq = 0.1f;
@@ -56,8 +58,8 @@ public:
 
     Red::CString ResolveResourcePath(uint64_t aResourceHash);
 
-    WorldNodeStaticData ResolveSectorDataFromNodeID(uint64_t aNodeID);
-    WorldNodeStaticData ResolveSectorDataFromNodeInstance(const Red::WeakHandle<Red::worldINodeInstance>& aNodeInstance);
+    WorldNodeInstanceStaticData ResolveSectorDataFromNodeID(uint64_t aNodeID);
+    WorldNodeInstanceStaticData ResolveSectorDataFromNodeInstance(const Red::WeakHandle<Red::worldINodeInstance>& aNodeInstance);
 
     Red::CString ResolveNodeRefFromNodeHash(uint64_t aNodeID);
     uint64_t ComputeNodeRefHash(const Red::CString& aNodeRef);
@@ -67,9 +69,9 @@ public:
     Red::ResourceAsyncReference<> GetTemplatePath(const Red::WeakHandle<Red::Entity>& aEntity);
     PhysicsTraceResultObject GetPhysicsTraceObject(Red::ScriptRef<Red::physicsTraceResult>& aTrace);
 
-    WorldNodeRuntimeSceneData FindStreamedWorldNode(uint64_t aNodeID);
-    Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedWorldNodesInFrustum();
-    Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedWorldNodesInCrosshair();
+    WorldNodeRuntimeSceneData FindStreamedNode(uint64_t aNodeID);
+    Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedNodesInFrustum();
+    Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedNodesInCrosshair();
     int32_t GetFrustumMaxDistance();
 
     Red::Vector4 GetStreamedNodePosition(const Red::Handle<Red::worldINodeInstance>& aNodeInstance);
@@ -84,7 +86,14 @@ public:
     bool IsInstanceOf(const Red::WeakHandle<Red::ISerializable>& aInstace, Red::CName aType);
     uint64_t GetObjectHash(const Red::WeakHandle<Red::ISerializable>& aInstace);
 
-    void CollectWidgetsUnderCursor();
+    Red::DynArray<InkLayerExtendedData> CollectInkLayers();
+    InkWidgetCollectionData CollectHoveredWidgets();
+    InkWidgetSpawnData GetWidgetSpawnInfo(const Red::Handle<Red::inkWidget>& aWidget);
+    void EnablePointerInput();
+    void DisablePointerInput();
+    void TogglePointerInput();
+    void EnsurePointerInput();
+    Red::Vector2 GetPointerScreenPosition();
 
 private:
     void OnWorldAttached(Red::world::RuntimeScene*) override;
@@ -110,7 +119,9 @@ private:
                                   const Red::Handle<Red::entRenderHighlightEvent>& aEffect);
 
     Core::SharedPtr<ResourceRegistry> m_resourceRegistry;
-    Red::worldNodeInstanceRegistry* m_nodeRegistry;
+    Core::SharedPtr<WorldNodeRegistry> m_worldNodeRegistry;
+    Core::SharedPtr<InkWidgetCollector> m_inkWidgetService;
+
     Red::gameICameraSystem* m_cameraSystem;
 
     std::shared_mutex m_pendingRequestsLock;
@@ -131,7 +142,7 @@ private:
 };
 }
 
-RTTI_DEFINE_CLASS(App::WorldNodeStaticData, {
+RTTI_DEFINE_CLASS(App::WorldNodeInstanceStaticData, {
     RTTI_PROPERTY(sectorHash);
     RTTI_PROPERTY(instanceIndex);
     RTTI_PROPERTY(instanceCount);
@@ -163,25 +174,35 @@ RTTI_DEFINE_CLASS(App::PhysicsTraceResultObject, {
 
 RTTI_DEFINE_CLASS(App::InspectionSystem, {
     RTTI_METHOD(ResolveResourcePath);
+
     RTTI_METHOD(ResolveSectorDataFromNodeID);
     RTTI_METHOD(ResolveSectorDataFromNodeInstance);
     RTTI_METHOD(ResolveNodeRefFromNodeHash);
     RTTI_METHOD(ComputeNodeRefHash);
     RTTI_METHOD(ResolveCommunityIDFromEntityID);
-    RTTI_METHOD(FindStreamedWorldNode);
-    RTTI_METHOD(GetStreamedWorldNodesInFrustum);
-    RTTI_METHOD(GetStreamedWorldNodesInCrosshair);
+    RTTI_METHOD(FindStreamedNode);
+    RTTI_METHOD(GetStreamedNodesInFrustum);
+    RTTI_METHOD(GetStreamedNodesInCrosshair);
     RTTI_METHOD(GetFrustumMaxDistance);
     RTTI_METHOD(GetStreamedNodePosition);
     RTTI_METHOD(SetNodeVisibility);
     RTTI_METHOD(ToggleNodeVisibility);
-    RTTI_METHOD(ApplyHighlightEffect);
+
+    RTTI_METHOD(GetTypeName);
+    RTTI_METHOD(GetObjectHash);
+    RTTI_METHOD(IsInstanceOf);
     RTTI_METHOD(GetComponents);
     RTTI_METHOD(GetTemplatePath);
+    RTTI_METHOD(ApplyHighlightEffect);
     RTTI_METHOD(GetPhysicsTraceObject);
     RTTI_METHOD(ProjectWorldPoint);
-    RTTI_METHOD(GetTypeName);
-    RTTI_METHOD(IsInstanceOf);
-    RTTI_METHOD(GetObjectHash);
-    RTTI_METHOD(CollectWidgetsUnderCursor);
+
+    RTTI_METHOD(CollectInkLayers);
+    RTTI_METHOD(CollectHoveredWidgets);
+    RTTI_METHOD(GetWidgetSpawnInfo);
+    RTTI_METHOD(EnablePointerInput);
+    RTTI_METHOD(DisablePointerInput);
+    RTTI_METHOD(TogglePointerInput);
+    RTTI_METHOD(EnsurePointerInput);
+    RTTI_METHOD(GetPointerScreenPosition);
 });

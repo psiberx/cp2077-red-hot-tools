@@ -1,4 +1,5 @@
 local app, modulePath = ...
+local moduleID = 'Hot'
 
 -- Deps --
 
@@ -8,12 +9,12 @@ local ImGuiEx = require('libs/ImGuiEx')
 
 -- User State --
 
-local Feature = Enumeration('None', 'Archives', 'Scripts', 'Tweaks')
+local MainTab = Enumeration('None', 'Archives', 'Scripts', 'Tweaks')
 
 local userState = {}
 local userStateSchema = {
     isModuleActive = { type = 'boolean', default = true },
-    selectedTab = { type = Feature, default = Feature.Inspect },
+    selectedTab = { type = MainTab, default = MainTab.Inspect },
 }
 
 local function initializeUserState()
@@ -51,7 +52,7 @@ local viewState = {
 }
 
 local viewStyle = {
-    labelTextColor = 0xFF9F9F9F, --0xFFA5A19B
+    labelTextColor = 0xFF9F9F9F,
     mutedTextColor = 0xFFA5A19B,
     dangerTextColor = 0xFF6666FF,
     disabledButtonColor = 0xFF4F4F4F,
@@ -74,7 +75,6 @@ local function initializeViewStyle()
 
         viewStyle.mainWindowFlags = ImGuiWindowFlags.NoResize
             + ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
-            + ImGuiWindowFlags.MenuBar
 
         viewStyle.buttonHeight = 21 * viewStyle.viewScale
     end
@@ -116,11 +116,6 @@ local function drawArchivesContent()
     if ImGui.Button('Reload extensions', viewStyle.windowWidth, viewStyle.buttonHeight) then
         reloadArchives()
     end
-
-    --ImGui.SetCursorPosX(viewStyle.windowFullWidth / 2)
-    --if ImGui.Button('Reload extensions', viewStyle.windowWidth / 2, viewStyle.buttonHeight) then
-    --    reloadArchives()
-    --end
 end
 
 local function drawScriptsContent()
@@ -174,15 +169,15 @@ local function drawMainWindow()
     viewState.isWindowExpanded = not ImGui.IsWindowCollapsed()
 
     if viewState.isWindowOpen and viewState.isWindowExpanded then
-        app.drawMainMenu()
+        app.drawSharedMenu(moduleID)
 
         ImGui.BeginTabBar('##RHT:HotReloadTabBar')
 
         local selectedTab
         local featureTabs = {
-            { id = Feature.Archives, draw = drawArchivesContent },
-            { id = Feature.Scripts, draw = drawScriptsContent },
-            { id = Feature.Tweaks, draw = drawTweaksContent },
+            { id = MainTab.Archives, draw = drawArchivesContent },
+            { id = MainTab.Scripts, draw = drawScriptsContent },
+            { id = MainTab.Tweaks, draw = drawTweaksContent },
         }
 
         for _, featureTab in ipairs(featureTabs) do
@@ -255,7 +250,7 @@ local function onDraw()
 end
 
 return {
-    id = 'Hot',
+    id = moduleID,
     events = {
         onInit = onInit,
         onShutdown = onShutdown,

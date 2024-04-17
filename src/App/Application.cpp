@@ -2,7 +2,9 @@
 #include "App/Archives/ArchiveLoader.hpp"
 #include "App/Archives/ArchiveWatcher.hpp"
 #include "App/Environment.hpp"
+#include "App/Runtime/InkWidgetCollector.hpp"
 #include "App/Runtime/ResourceRegistry.hpp"
+#include "App/Runtime/WorldNodeRegistry.hpp"
 #include "App/Scripts/ObjectRegistry.hpp"
 #include "App/Scripts/ScriptLoader.hpp"
 #include "App/Scripts/ScriptLogger.hpp"
@@ -38,4 +40,6 @@ App::Application::Application(HMODULE aHandle, const RED4ext::Sdk* aSdk)
     Register<App::TweakWatcher>(Env::TweakHotFile());
 
     Register<App::ResourceRegistry>(Env::MetadataDir());
+    Register<App::WorldNodeRegistry>();
+    Register<App::InkWidgetCollector>();
 }

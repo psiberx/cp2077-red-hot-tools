@@ -31,6 +31,10 @@ constexpr auto SetHighlightParams = Core::RawFunc<
     /* addr = */ Red::AddressLib::RenderProxy_SetHighlightParams,
     /* type = */ uint8_t (*)(Red::RenderProxy* aProxy, const Red::HighlightParams& aParams)>();
 
+constexpr auto SetScanningState = Core::RawFunc<
+    /* addr = */ Red::AddressLib::RenderProxy_SetScanningState,
+    /* type = */ uint8_t (*)(Red::RenderProxy* aProxy, Red::rendPostFx_ScanningState aState)>();
+
 constexpr auto SetVisibility = Core::RawFunc<
     /* addr = */ Red::AddressLib::RenderProxy_SetVisibility,
     /* type = */ void (*)(Red::RenderProxy* aProxy, bool aVisible)>();

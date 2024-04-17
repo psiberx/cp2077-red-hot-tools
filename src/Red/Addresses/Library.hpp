@@ -19,9 +19,25 @@ constexpr uint32_t FileSystem_Close = 1332290822;
 
 constexpr uint32_t ISerializable_SetReference = 2587561854;
 
+constexpr uint32_t InkLayer_AttachLibraryInstance = 2019635589;
+
+constexpr uint32_t InkSpawner_FinishAsyncSpawn = 2488155854;
+
 constexpr uint32_t InkSystem_Instance = 2755465343;
 
 constexpr uint32_t InkWidget_Draw = 1737035665;
+constexpr uint32_t InkWidget_SpawnFromLibrary = 111687851;
+
+constexpr uint32_t InkWidgetLibrary_AsyncSpawnFromExternal = 1396063719;
+constexpr uint32_t InkWidgetLibrary_AsyncSpawnFromLocal = 118698863;
+constexpr uint32_t InkWidgetLibrary_SpawnFromExternal = 506278179;
+constexpr uint32_t InkWidgetLibrary_SpawnFromLocal = 1158555307;
+constexpr uint32_t InkWidgetLibrary_SpawnRoot = 3160221133;
+
+constexpr uint32_t InkWindow_TogglePointerInput = 1797656531;
+constexpr uint32_t InkWindow_IsPointerVisible = 2091454561;
+constexpr uint32_t InkWindow_SetPointerVisibility = 3741389418;
+constexpr uint32_t InkWindow_SetPointerWidget = 621352754;
 
 constexpr uint32_t JobHandle_Wait = 1576079097;
 
@@ -30,6 +46,7 @@ constexpr uint32_t NodeRef_Create = 3491172781;
 constexpr uint32_t PhysicsTraceResult_GetHitObject = 2394822845;
 
 constexpr uint32_t RenderProxy_SetHighlightParams = 1093803822;
+constexpr uint32_t RenderProxy_SetScanningState = 2838044016;
 constexpr uint32_t RenderProxy_SetVisibility = 1790971865;
 
 constexpr uint32_t ResourceBank_ForgetResource = 2288918343;
