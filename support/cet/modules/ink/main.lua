@@ -263,6 +263,7 @@ local function initializeViewData()
 	viewData.inkEShapeVariant = ImGuiEx.BuildEnumOptions('inkEShapeVariant')
 	viewData.inkEEndCapStyle = ImGuiEx.BuildEnumOptions('inkEEndCapStyle')
 	viewData.inkEJointStyle = ImGuiEx.BuildEnumOptions('inkEJointStyle')
+	viewData.inkGradientMode = ImGuiEx.BuildEnumOptions('inkGradientMode')
 	viewData.inkCacheMode = ImGuiEx.BuildEnumOptions('inkCacheMode')
     viewData.textLetterCase = ImGuiEx.BuildEnumOptions('textLetterCase')
 	viewData.textJustificationType = ImGuiEx.BuildEnumOptions('textJustificationType')
@@ -645,7 +646,7 @@ local function drawEffectsFieldset(target)
     drawEditorStaticData('effects', effectNames)
 end
 
-local function drawBindingsFieldset(target)
+local function drawStyleFieldset(target)
     drawEditorGroupCaption('BINDINGS')
 
     local styleWrapper = target.style
@@ -661,27 +662,55 @@ local function drawBindingsFieldset(target)
     end
 
     local propertyManager = target.propertyManager
-    local bindings = {}
 
     if IsDefined(propertyManager) then
-        for _, binding in ipairs(propertyManager.bindings) do
-            table.insert(bindings, ('%s = %s'):format(binding.propertyName.value, binding.stylePath.value))
+        ImGui.BeginGroup()
+        drawEditorLabel('propertyManager')
+        ensureEditorInputWidth(viewStyle.editorInputFullWidth)
+        ImGui.BeginGroup()
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, viewStyle.editorInputPaddingX, viewStyle.editorInputPaddingY)
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 2 * viewStyle.viewScale, 4 * viewStyle.viewScale)
+
+        local propertyName, stylePath, confirmed
+
+        for i, binding in ipairs(propertyManager.bindings) do
+            ImGui.PushID(i)
+
+            ImGui.SetNextItemWidth(80 * viewStyle.viewScale)
+            propertyName, confirmed = ImGui.InputText('##Property', binding.propertyName.value, 256, ImGuiInputTextFlags.EnterReturnsTrue)
+            if confirmed and propertyName ~= binding.propertyName.value then
+                if target:BindProperty(propertyName, binding.stylePath) then
+                    target:UnbindProperty(binding.propertyName)
+                end
+            end
+
+            ImGui.SameLine()
+            ImGui.SetNextItemWidth(160 * viewStyle.viewScale)
+            stylePath, confirmed = ImGui.InputText('##Value', binding.stylePath.value, 256, ImGuiInputTextFlags.EnterReturnsTrue)
+            if confirmed and stylePath ~= binding.stylePath.value then
+                target:BindProperty(binding.propertyName, stylePath)
+            end
+
+            ImGui.SameLine()
+            if ImGui.Button(' X ') then
+                target:UnbindProperty(binding.propertyName)
+            end
+
+            ImGui.PopID()
         end
 
-        --ImGui.BeginGroup()
-        --drawEditorLabel('propertyManager')
-        --ensureEditorInputWidth(viewStyle.editorInputFullWidth)
-        --ImGui.BeginGroup()
-        --for _, binding in ipairs(propertyManager.bindings) do
-        --    ImGui.Text(binding.propertyName.value)
-        --    ImGui.SameLine()
-        --    ImGui.Text(binding.stylePath.value)
-        --end
-        --ImGui.EndGroup()
-        --ImGui.EndGroup()
-    end
+        ImGui.SetNextItemWidth(242 * viewStyle.viewScale)
+        propertyName, confirmed = ImGui.InputTextWithHint('##Property', 'Add property...', '', 256, ImGuiInputTextFlags.EnterReturnsTrue)
+        if confirmed then
+            target:BindProperty(propertyName, 'None')
+        end
 
-    drawEditorStaticData('propertyManager', bindings)
+        ImGui.PopStyleVar(2)
+        ImGui.EndGroup()
+        ImGui.EndGroup()
+    else
+        drawEditorStaticData('propertyManager', nil)
+    end
 end
 
 local function drawInteractionFieldset(target)
@@ -979,7 +1008,6 @@ local function drawVideoFieldset(target)
 end
 
 local function drawShapeFieldset(target)
-
 	drawEditorGroupCaption('SHAPE')
 
     local shapeResource = inspectionSystem:ResolveResourcePath(target.shapeResource.hash)
@@ -1057,6 +1085,102 @@ local function drawShapeFieldset(target)
     input, changed = drawEditorFloatInput('fillOpacity', target.fillOpacity, '%.3f', 0.001, 0.1, viewStyle.editorInputHalfWidth)
     if changed then
         target.fillOpacity = input
+    end
+end
+
+local function drawQuadShapeFieldset(target)
+	drawEditorGroupCaption('SHAPE')
+
+    local textureAtlas = inspectionSystem:ResolveResourcePath(target.textureAtlas.hash)
+    local input, changed = drawEditorTextInput('textureAtlas', textureAtlas, viewStyle.editorInputFullWidth)
+    if changed then
+        target.textureAtlas = input
+    end
+
+    input, changed = drawEditorTextInput('texturePart', target.texturePart.value, viewStyle.editorInputHalfWidth)
+    if changed then
+        target.texturePart = input
+    end
+end
+
+local function drawCircleFieldset(target)
+	drawEditorGroupCaption('APPEARANCE')
+
+    local input, changed = drawEditorIntegerInput('segmentsNumber', target.segmentsNumber, 1, 1, viewStyle.editorInputHalfWidth)
+    if changed then
+        target.segmentsNumber = input
+    end
+end
+
+local function drawBorderFieldset(target)
+	drawEditorGroupCaption('APPEARANCE')
+
+    local input, changed = drawEditorFloatInput('thickness', target.thickness, '%.f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
+    if changed then
+        target.thickness = input
+    end
+end
+
+local function drawGradientFieldset(target)
+	drawEditorGroupCaption('GRADIENT')
+
+    local input, changed = drawEditorEnumInput('gradientMode', target.gradientMode, viewData.inkGradientMode, viewStyle.editorInputHalfWidth)
+    if changed then
+        target.gradientMode = input
+    end
+
+    input, changed = drawEditorHDRColorInput('startColor', target.startColor, viewStyle.editorInputFullWidth)
+    if changed then
+        target.startColor = input
+    end
+
+    input, changed = drawEditorHDRColorInput('endColor', target.endColor, viewStyle.editorInputFullWidth)
+    if changed then
+        target.endColor = input
+    end
+
+    input, changed = drawEditorFloatInput('angle', target.angle, '%.f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
+    if changed then
+        target.angle = input
+    end
+end
+
+local function drawLinePatternFieldset(target)
+	drawEditorGroupCaption('LINE PATTERN')
+
+    local input, changed = drawEditorEnumInput('patternDirection', target.patternDirection, viewData.inkEChildOrder, viewStyle.editorInputHalfWidth)
+    if changed then
+        target.patternDirection = input
+    end
+
+    input, changed = drawEditorFloatInput('spacing', target.spacing, '%.f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
+    if changed then
+        target.spacing = input
+    end
+
+    input, changed = drawEditorFloatInput('looseSpacing', target.looseSpacing, '%.f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
+    if changed then
+        target.looseSpacing = input
+    end
+
+    input, changed = drawEditorFloatInput('startOffset', target.startOffset, '%.f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
+    if changed then
+        target.startOffset = input
+    end
+
+    input, changed = drawEditorFloatInput('endOffset', target.endOffset, '%.f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
+    if changed then
+        target.endOffset = input
+    end
+
+    input, changed = drawEditorFloatInput('fadeInLength', target.fadeInLength, '%.f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
+    if changed then
+        target.fadeInLength = input
+    end
+
+    input, changed = drawEditorCheckbox('rotateWithSegment', target.rotateWithSegment)
+    if changed then
+        target.rotateWithSegment = input
     end
 end
 
@@ -1404,17 +1528,33 @@ local function drawEditorContent()
             mergeAppearanceGroup = true
         end
 
-        -- TODO: inkCircleWidget
-        -- TODO: inkGradientWidget
-        -- TODO: inkQuadShapeWidget
-        -- TODO: inkBorderWidget
-        -- TODO: inkLinePatternWidget
+        if widget:IsA('inkQuadShapeWidget') then
+            drawQuadShapeFieldset(widget)
+        end
+
+        if widget:IsA('inkCircleWidget') then
+            drawCircleFieldset(widget)
+            mergeAppearanceGroup = true
+        end
+
+        if widget:IsA('inkBorderWidget') then
+            drawBorderFieldset(widget)
+            mergeAppearanceGroup = true
+        end
+
+        if widget:IsA('inkGradientWidget') then
+            drawGradientFieldset(widget)
+        end
+
+        if widget:IsA('inkLinePatternWidget') then
+            drawLinePatternFieldset(widget)
+        end
 
         drawAppearanceFieldset(widget, mergeAppearanceGroup)
         drawLayoutFieldset(widget)
         drawTransformFieldset(widget)
         drawEffectsFieldset(widget)
-        drawBindingsFieldset(widget)
+        drawStyleFieldset(widget)
 
         if widget:IsA('inkCompoundWidget') then
             drawContainerFieldset(widget)
@@ -1911,17 +2051,17 @@ local function onTogglePointerHotkey()
     end
 end
 
-local function onSelectNextResultHotkey()
-    if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
-        --cycleNextInspectedResult()
-    end
-end
-
-local function onSelectPrevResultHotkey()
-    if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
-        --cyclePrevInspectedResult()
-    end
-end
+--local function onSelectNextResultHotkey()
+--    if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
+--        --cycleNextInspectedResult()
+--    end
+--end
+--
+--local function onSelectPrevResultHotkey()
+--    if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
+--        --cyclePrevInspectedResult()
+--    end
+--end
 
 -- Module --
 

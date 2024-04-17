@@ -223,7 +223,9 @@ function privateApi.drawSharedMenu(module)
         end
 
         if #filtered > 0 then
+            ImGui.Spacing()
             ImGui.Separator()
+            ImGui.Spacing()
             ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.menuSectionLabelColor)
             ImGui.SetWindowFontScale(viewStyle.menuSectionLabelSize)
             ImGui.Text('QUICK ACTIONS')
@@ -240,7 +242,9 @@ function privateApi.drawSharedMenu(module)
             end
         end
 
+        ImGui.Spacing()
         ImGui.Separator()
+        ImGui.Spacing()
 
         if ImGui.BeginMenu('About') then
             ImGui.Text('Red Hot Tools')
