@@ -1,6 +1,7 @@
 param ($StageDir, $ProjectName)
 
-$ModDir = "${StageDir}/bin/x64/plugins/cyber_engine_tweaks/mods/${ProjectName}"
+$ModsDir = "${StageDir}/bin/x64/plugins/cyber_engine_tweaks/mods"
 
-New-Item -ItemType directory -Force -Path ${ModDir} | Out-Null
-Copy-Item -Path "support/cet/*.lua" -Recurse -Force -Destination ${ModDir}
+New-Item -ItemType directory -Force -Path ${ModsDir} | Out-Null
+Copy-Item -Path "support/cet/" -Filter "*.lua" -Destination ${ModsDir} -Recurse -Container
+Rename-Item -path "${ModsDir}/cet" -NewName ${ProjectName}
