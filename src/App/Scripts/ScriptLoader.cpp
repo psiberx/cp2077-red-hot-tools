@@ -222,26 +222,26 @@ bool App::ScriptLoader::BindScripts(Red::ScriptBundle& aBundle, Red::ScriptRepor
 
                 if (!scriptFunc->flags.isStatic)
                 {
-                    for (auto rttiFunc : scriptClass->rttiClass->funcs)
-                    {
-                        if (rttiFunc->fullName == scriptFunc->name)
-                        {
-                            scriptFunc->rttiFunc = rttiFunc;
-                            break;
-                        }
-                    }
-
-                    if (!scriptFunc->rttiFunc)
-                    {
-                        for (auto rttiFunc : scriptClass->rttiClass->funcs)
-                        {
-                            if (rttiFunc->shortName == scriptFunc->shortName)
-                            {
-                                scriptFunc->rttiFunc = rttiFunc;
-                                break;
-                            }
-                        }
-                    }
+                    // for (auto rttiFunc : scriptClass->rttiClass->funcs)
+                    // {
+                    //     if (rttiFunc->fullName == scriptFunc->name)
+                    //     {
+                    //         scriptFunc->rttiFunc = rttiFunc;
+                    //         break;
+                    //     }
+                    // }
+                    //
+                    // if (!scriptFunc->rttiFunc)
+                    // {
+                    //     for (auto rttiFunc : scriptClass->rttiClass->funcs)
+                    //     {
+                    //         if (rttiFunc->shortName == scriptFunc->shortName)
+                    //         {
+                    //             scriptFunc->rttiFunc = rttiFunc;
+                    //             break;
+                    //         }
+                    //     }
+                    // }
                 }
                 else if (scriptFunc->flags.isNative)
                 {
