@@ -62,6 +62,10 @@ local function updateInspector()
             window.scope = 'window'
         end
     end
+
+    if inspector.target and inspector.target.widget and not IsDefined(inspector.target.widget) then
+        inspector.target = nil
+    end
 end
 
 local function selectInspectedTarget(object, scope)
@@ -144,7 +148,22 @@ local function selectInspectedTarget(object, scope)
     inspector.target = target
 end
 
-local function describeTarget(target, maxTextLength)
+local function getChildIndex(target, hash)
+    if not hash then
+        hash = inspectionSystem:GetObjectHash(target)
+    end
+    local index = 0
+    local parent = target.parentWidget
+    while index < parent:GetNumChildren() do
+        if inspectionSystem:GetObjectHash(parent:GetWidgetByIndex(index)) == hash then
+            break
+        end
+        index = index + 1
+    end
+    return index
+end
+
+local function describeTarget(target, withContent, maxTextLength)
     if not maxTextLength then
         maxTextLength = 32
     end
@@ -160,25 +179,27 @@ local function describeTarget(target, maxTextLength)
             table.insert(description, name)
         end
 
-        local content
-        if inspectionSystem:IsInstanceOf(target, 'inkTextWidget') then
-            content = target:GetText()
-            if content == '' then
-                content = GetLocalizedTextByKey(target:GetLocalizationKey())
+        if withContent then
+            local content
+            if inspectionSystem:IsInstanceOf(target, 'inkTextWidget') then
+                content = target:GetText()
+                if content == '' then
+                    content = GetLocalizedTextByKey(target:GetLocalizationKey())
+                end
+                if content:len() > maxTextLength then
+                    content = content:sub(0, maxTextLength) .. '...'
+                end
+            elseif inspectionSystem:IsInstanceOf(target, 'inkImageWidget') then
+                local textureAtlas = inspectionSystem:ResolveResourcePath(target.textureAtlas.hash)
+                if textureAtlas ~= '' then
+                    local textureAtlasName = textureAtlas:match('\\([^\\]+)$')
+                    content = textureAtlasName .. ' : ' .. target.texturePart.value
+                end
             end
-            if content:len() > maxTextLength then
-                content = content:sub(0, maxTextLength) .. '...'
-            end
-        elseif inspectionSystem:IsInstanceOf(target, 'inkImageWidget') then
-            local textureAtlas = inspectionSystem:ResolveResourcePath(target.textureAtlas.hash)
-            if textureAtlas ~= '' then
-                local textureAtlasName = textureAtlas:match('\\([^\\]+)$')
-                content = textureAtlasName .. ' : ' .. target.texturePart.value
-            end
-        end
 
-        if content and content ~= '' then
-            table.insert(description, '[' .. content .. ']')
+            if content and content ~= '' then
+                table.insert(description, '[' .. content .. ']')
+            end
         end
     end
 
@@ -233,6 +254,28 @@ local viewState = {
 
 local viewData = {
     maxInputLen = 512,
+    widgetTypes = {
+        'inkCanvasWidget',
+        'inkFlexWidget',
+        'inkHorizontalPanelWidget',
+        'inkVerticalPanelWidget',
+        'inkTextWidget',
+        'inkRichTextBoxWidget',
+        'inkImageWidget',
+        'inkVideoWidget',
+        'inkMaskWidget',
+        'inkRectangleWidget',
+        'inkCircleWidget',
+        'inkBorderWidget',
+        'inkGradientWidget',
+        'inkLinePatternWidget',
+        'inkShapeWidget',
+        'inkQuadShapeWidget',
+        'inkGridWidget',
+        'inkUniformGridWidget',
+        'inkScrollAreaWidget',
+        'inkCacheWidget',
+    },
 }
 
 local viewStyle = {
@@ -241,7 +284,10 @@ local viewStyle = {
     hintTextColor = 0x66FFFFFF,
     dangerTextColor = 0xFF6666FF,
     disabledButtonColor = 0xFF4F4F4F,
+    groupCaptionColor = 0xFFA5A19B,
     groupCaptionSize = 0.75,
+    contextCaptionColor = 0xFFA5A19B,
+    contextCaptionSize = 0.85,
     showEditorCaptions = false,
     showEditorNestedGroups = true,
 }
@@ -510,7 +556,7 @@ local function drawGeneralFieldset(target)
 
     local input, changed = drawEditorTextInput('name', target.name.value, viewStyle.editorInputHalfWidth)
     if changed then
-        target:SetName(input)
+        target:SetName(StringToName(input))
     end
 
     input, changed = drawEditorCheckbox('visible', target.visible)
@@ -658,21 +704,20 @@ local function drawStyleFieldset(target)
 
     input, changed = drawEditorTextInput('state', target.state.value, viewStyle.editorInputHalfWidth)
     if changed then
-        target:SetState(input)
+        target:SetState(StringToName(input))
     end
 
     local propertyManager = target.propertyManager
+    local propertyName, stylePath, confirmed
+
+    ImGui.BeginGroup()
+    drawEditorLabel('propertyManager')
+    ensureEditorInputWidth(viewStyle.editorInputFullWidth)
+    ImGui.BeginGroup()
+    ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, viewStyle.editorInputPaddingX, viewStyle.editorInputPaddingY)
+    ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 2 * viewStyle.viewScale, 4 * viewStyle.viewScale)
 
     if IsDefined(propertyManager) then
-        ImGui.BeginGroup()
-        drawEditorLabel('propertyManager')
-        ensureEditorInputWidth(viewStyle.editorInputFullWidth)
-        ImGui.BeginGroup()
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, viewStyle.editorInputPaddingX, viewStyle.editorInputPaddingY)
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 2 * viewStyle.viewScale, 4 * viewStyle.viewScale)
-
-        local propertyName, stylePath, confirmed
-
         for i, binding in ipairs(propertyManager.bindings) do
             ImGui.PushID(i)
 
@@ -698,19 +743,17 @@ local function drawStyleFieldset(target)
 
             ImGui.PopID()
         end
-
-        ImGui.SetNextItemWidth(242 * viewStyle.viewScale)
-        propertyName, confirmed = ImGui.InputTextWithHint('##Property', 'Add property...', '', 256, ImGuiInputTextFlags.EnterReturnsTrue)
-        if confirmed then
-            target:BindProperty(propertyName, 'None')
-        end
-
-        ImGui.PopStyleVar(2)
-        ImGui.EndGroup()
-        ImGui.EndGroup()
-    else
-        drawEditorStaticData('propertyManager', nil)
     end
+
+    ImGui.SetNextItemWidth(242 * viewStyle.viewScale)
+    propertyName, confirmed = ImGui.InputTextWithHint('##Property', 'Add property...', '', 256, ImGuiInputTextFlags.EnterReturnsTrue)
+    if confirmed then
+        target:BindProperty(propertyName, 'None')
+    end
+
+    ImGui.PopStyleVar(2)
+    ImGui.EndGroup()
+    ImGui.EndGroup()
 end
 
 local function drawInteractionFieldset(target)
@@ -1597,7 +1640,7 @@ local function drawInspectorTreeNode(node, scope)
         target = node
     end
 
-    local caption = describeTarget(target)
+    local caption = describeTarget(target, true)
     if targetOwner then
         caption = caption .. ' @ ' .. targetOwner
     end
@@ -1635,6 +1678,99 @@ local function drawInspectorTreeNode(node, scope)
         selectInspectedTarget(node, scope)
 
         viewState.preserveCurrentEditorTab = true
+    end
+
+    if scope ~= 'layer' and ImGui.BeginPopupContextItem('##InspectorContextMenu:' .. tostring(hash)) then
+        local isWidget = not target:IsA('inkWindow')
+        local isContainer = target:IsA('inkCompoundWidget')
+        local hasSelection = IsDefined(viewState.widgetToMove) and viewState.widgetToMove.hash ~= hash
+        local selection = hasSelection and viewState.widgetToMove or nil
+
+        if hasSelection then
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.contextCaptionColor)
+            ImGui.SetWindowFontScale(viewStyle.contextCaptionSize)
+            ImGui.Text(describeTarget(selection))
+            ImGui.SetWindowFontScale(1.0)
+            ImGui.PopStyleColor()
+
+            local canMove = true
+            if isWidget and selection.isContainer then
+                local parent = target.parentWidget
+                while not parent:IsA('inkWindow') do
+                    if inspectionSystem:GetObjectHash(parent) == selection.hash then
+                        canMove = false
+                        break
+                    end
+                    parent = parent.parentWidget
+                end
+            end
+
+            if canMove then
+                local isSameParent = inspectionSystem:GetObjectHash(selection.parentWidget) == hash
+                local isInsideSameParent = inspectionSystem:GetObjectHash(target.parentWidget) == inspectionSystem:GetObjectHash(selection.parentWidget)
+
+                if isContainer and not isSameParent then
+                    if ImGui.MenuItem('Insert into') then
+                        selection:Reparent(target, -1)
+                        --viewState.widgetToMove = nil
+                    end
+                end
+
+                if isWidget then
+                    local moveRelative
+                    if ImGui.MenuItem('Move before') then
+                        moveRelative = 0
+                    end
+                    if ImGui.MenuItem('Move after') then
+                        moveRelative = 1
+                    end
+                    if moveRelative then
+                        if isInsideSameParent then
+                            print('isInsideSameParent')
+                            target.parentWidget:RemoveChild(selection)
+                        end
+                        local targetIndex = getChildIndex(target, hash)
+                        print(targetIndex)
+                        selection:Reparent(target.parentWidget, targetIndex + moveRelative)
+                        --viewState.widgetToMove = nil
+                    end
+                end
+            else
+                ImGui.Text('Can\'t move into itself')
+            end
+
+            if isContainer or isWidget then
+                ImGui.Spacing()
+                ImGui.Separator()
+                ImGui.Spacing()
+            end
+        end
+
+        if isWidget then
+            if ImGui.MenuItem('Select widget') then
+                viewState.widgetToMove = target
+                viewState.widgetToMove.hash = hash
+                viewState.widgetToMove.isContainer = isContainer
+            end
+            if ImGui.MenuItem('Remove widget') then
+                target.parentWidget:RemoveChild(target)
+            end
+        end
+
+        if isContainer then
+            if ImGui.BeginMenu('Add widget') then
+                for _, widgetType in ipairs(viewData.widgetTypes) do
+                    if ImGui.MenuItem(widgetType) then
+                        local newWidget = NewObject(widgetType)
+                        newWidget:Reparent(target, -1)
+                        selectInspectedTarget(newWidget)
+                    end
+                end
+                ImGui.EndMenu()
+            end
+        end
+
+        ImGui.EndPopup()
     end
 
     if expanded then
@@ -1681,6 +1817,11 @@ local function drawInspectorContent()
     if ImGui.Button('Collapse all') then
         userState.inspectorTreeID = userState.inspectorTreeID + 1
     end
+
+    --ImGui.SameLine()
+    --if ImGui.Button('Purge orphans') then
+    --    collectgarbage()
+    --end
 
     if viewState.openSelectedWidgetInTree == true and inspector.target then
         viewState.openSelectedWidgetInTree = inspector.target.hashPathMap
@@ -1772,7 +1913,7 @@ local function drawPickerContent(isModal)
     for _, result in ipairs(picker.results) do
         local widget = result.handle
         if IsDefined(widget) then
-            local itemCaption = describeTarget(widget)
+            local itemCaption = describeTarget(widget, true)
 
             if result.isInteractive then
                 itemCaption = itemCaption .. ' ^'
