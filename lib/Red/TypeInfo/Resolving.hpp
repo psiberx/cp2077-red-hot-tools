@@ -488,8 +488,8 @@ inline const Handle<T>& Cast(const Handle<U>& aObject)
 template<typename T, typename U = ISerializable>
 inline const WeakHandle<T>& Cast(const WeakHandle<U>& aObject)
 {
-    static const Handle<T> s_null;
-    return (aObject && aObject->GetType()->IsA(Red::GetClass<T>()))
+    static const WeakHandle<T> s_null;
+    return (aObject && aObject.instance->GetType()->IsA(Red::GetClass<T>()))
                ? *reinterpret_cast<const WeakHandle<T>*>(&aObject)
                : s_null;
 }
@@ -504,6 +504,12 @@ template<typename T>
 inline bool IsInstanceOf(ISerializable* aObject)
 {
     return aObject->GetType()->IsA(Red::GetClass<T>());
+}
+
+template<typename T>
+inline bool IsInstanceOf(const WeakHandle<ISerializable>& aObject)
+{
+    return aObject && aObject.instance->GetType()->IsA(Red::GetClass<T>());
 }
 
 inline bool IsCompatible(CBaseRTTIType* aLhsType, CBaseRTTIType* aRhsType)
