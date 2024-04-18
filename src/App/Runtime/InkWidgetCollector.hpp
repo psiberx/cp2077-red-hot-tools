@@ -165,6 +165,7 @@ RTTI_DEFINE_CLASS(App::InkWidgetSpawnData, {
 });
 
 RTTI_DEFINE_CLASS(App::InkLibraryItemInstanceData, {
+    RTTI_PARENT(Red::inkUserData);
     RTTI_PROPERTY(libraryPathHash);
     RTTI_PROPERTY(libraryItemName);
     RTTI_PROPERTY(gameControllerName);

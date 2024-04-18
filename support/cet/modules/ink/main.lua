@@ -193,6 +193,9 @@ local function describeTarget(target, withContent, maxTextLength)
                 local textureAtlas = inspectionSystem:ResolveResourcePath(target.textureAtlas.hash)
                 if textureAtlas ~= '' then
                     local textureAtlasName = textureAtlas:match('\\([^\\]+)$')
+                    if not textureAtlasName then
+                        textureAtlasName = textureAtlas
+                    end
                     content = textureAtlasName .. ' : ' .. target.texturePart.value
                 end
             end

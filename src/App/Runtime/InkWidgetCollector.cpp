@@ -82,6 +82,7 @@ void App::InkWidgetCollector::OnAttachInstance(Red::inkLayer*,
     if (aInstance)
     {
         aInstance->rootWidget->layerProxy->unk48 = GetLibraryItemInstanceData(aInstance->rootWidget);
+        aInstance->rootWidget->layerProxy->unk48.refCount = nullptr;
     }
 }
 
@@ -98,12 +99,16 @@ void App::InkWidgetCollector::AddLibraryItemInstanceData(Red::inkWidgetLibraryRe
         instanceData->gameControllerName = aItemInstance->gameController->GetType()->name;
     }
 
-    aItemInstance->rootWidget->userData.PushBack(instanceData);
+    {
+        std::unique_lock _(aItemInstance->rootWidget->userDataLock);
+        aItemInstance->rootWidget->userData.PushBack(instanceData);
+    }
 }
 
 Red::Handle<App::InkLibraryItemInstanceData> App::InkWidgetCollector::GetLibraryItemInstanceData(
     const Red::Handle<Red::inkWidget>& aWidget)
 {
+    std::shared_lock _(aWidget->userDataLock);
     for (auto& userData : aWidget->userData)
     {
         if (const auto& instanceData = Red::Cast<App::InkLibraryItemInstanceData>(userData))
@@ -390,7 +395,7 @@ App::InkWidgetSpawnData App::InkWidgetCollector::GetWidgetSpawnInfo(const Red::H
     auto& layerProxy = aWidget->layerProxy;
     if (layerProxy)
     {
-        if (const auto& instanceData = Red::Cast<InkLibraryItemInstanceData>(layerProxy->unk48.Lock()))
+        if (const auto& instanceData = Red::Cast<InkLibraryItemInstanceData>(layerProxy->unk48.instance))
         {
             spawnData.libraryPathHash = instanceData->libraryPathHash;
             spawnData.libraryItemName = instanceData->libraryItemName;
