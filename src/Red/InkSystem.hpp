@@ -13,7 +13,7 @@ RED4EXT_ASSERT_OFFSET(InkLayerManager, layers, 0x38);
 
 struct InkSystem
 {
-    static InkSystem* Get();
+    static InkSystem* Get(bool aCompatMode = false);
 
     [[nodiscard]] InkLayerManager* GetLayerManager() const;
     [[nodiscard]] const DynArray<Handle<inkLayer>>& GetLayers() const;
@@ -63,5 +63,9 @@ namespace Raw::inkSystem
 {
 constexpr auto Instance = Core::RawPtr<
     /* addr = */ Red::AddressLib::InkSystem_Instance,
+    /* type = */ Red::InkSystem*>();
+
+constexpr auto Instance_Pre212a = Core::RawPtr<
+    /* addr = */ Red::AddressLib::InkSystem_Instance_Pre212a,
     /* type = */ Red::InkSystem*>();
 }

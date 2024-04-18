@@ -43,4 +43,32 @@ inline std::filesystem::path TweakHotFile()
 {
     return Core::Runtime::GetModuleDir() / L".hot-tweaks";
 }
+
+inline bool IsPrePatch212a()
+{
+    auto& fileVer = Core::Runtime::GetHost()->GetFileVer();
+    auto patchVer = RED4EXT_RUNTIME_2_12_HOTFIX_1;
+
+    if (fileVer.major != patchVer.major)
+    {
+        return fileVer.major < patchVer.major;
+    }
+
+    if (fileVer.minor != patchVer.minor)
+    {
+        return fileVer.minor < patchVer.minor;
+    }
+
+    if (fileVer.build != patchVer.build)
+    {
+        return fileVer.build < patchVer.build;
+    }
+
+    if (fileVer.revision != patchVer.revision)
+    {
+        return fileVer.revision < patchVer.revision;
+    }
+
+    return false;
+}
 }

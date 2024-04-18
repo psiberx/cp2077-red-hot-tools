@@ -2,6 +2,11 @@
 #include "Red/InkWidget.hpp"
 #include "Red/InkWindow.hpp"
 
+App::InkWidgetCollector::InkWidgetCollector(bool aCompatMode)
+{
+    s_compatMode = aCompatMode;
+}
+
 void App::InkWidgetCollector::OnBootstrap()
 {
     HookAfter<Raw::InkWidgetLibrary::SpawnFromLocal>(&OnSpawnLocal);
@@ -166,7 +171,7 @@ Red::DynArray<App::InkLayerExtendedData> App::InkWidgetCollector::CollectLayers(
 {
     Red::DynArray<InkLayerExtendedData> layerDataList;
 
-    auto inkSystem = Red::InkSystem::Get();
+    auto inkSystem = Red::InkSystem::Get(s_compatMode);
 
     for (const auto& layer : inkSystem->GetLayers())
     {
@@ -234,7 +239,7 @@ App::InkWidgetCollectionData App::InkWidgetCollector::CollectHoveredWidgets()
 {
     InkWidgetCollectionData collectionData;
 
-    auto inkSystem = Red::InkSystem::Get();
+    auto inkSystem = Red::InkSystem::Get(s_compatMode);
     auto activeLayer = inkSystem->activeLayer.Lock();
 
     if (!activeLayer)
@@ -424,7 +429,7 @@ App::InkWidgetSpawnData App::InkWidgetCollector::GetWidgetSpawnInfo(const Red::H
 
 void App::InkWidgetCollector::TogglePointerInput(bool aEnabled)
 {
-    auto inkSystem = Red::InkSystem::Get();
+    auto inkSystem = Red::InkSystem::Get(s_compatMode);
     auto topLayer = inkSystem->GetLayer<Red::inkWatermarksLayer>();
 
     if (!topLayer->inputContext)
@@ -455,7 +460,7 @@ void App::InkWidgetCollector::TogglePointerInput(bool aEnabled)
 
 void App::InkWidgetCollector::TogglePointerInput()
 {
-    auto inkSystem = Red::InkSystem::Get();
+    auto inkSystem = Red::InkSystem::Get(s_compatMode);
     auto topLayer = inkSystem->GetLayer<Red::inkWatermarksLayer>();
 
     TogglePointerInput(!topLayer->isInteractive);
@@ -463,7 +468,7 @@ void App::InkWidgetCollector::TogglePointerInput()
 
 void App::InkWidgetCollector::EnsurePointerInput()
 {
-    auto inkSystem = Red::InkSystem::Get();
+    auto inkSystem = Red::InkSystem::Get(s_compatMode);
     auto activeLayer = inkSystem->activeLayer.Lock();
 
     if (!activeLayer)

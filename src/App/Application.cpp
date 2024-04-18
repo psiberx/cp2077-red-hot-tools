@@ -33,7 +33,7 @@ App::Application::Application(HMODULE aHandle, const RED4ext::Sdk* aSdk)
     Register<App::ScriptLoader>(Env::ScriptSourceDir(), Env::ScriptBlobPath());
     Register<App::ScriptWatcher>(Env::ScriptHotFile());
     Register<App::ScriptLogger>();
-    Register<App::ScriptReporter>();
+    Register<App::ScriptReporter>(Env::IsPrePatch212a());
     Register<App::ObjectRegistry>();
 
     Register<App::TweakLoader>(Env::TweakSourceDir());
@@ -41,5 +41,5 @@ App::Application::Application(HMODULE aHandle, const RED4ext::Sdk* aSdk)
 
     Register<App::ResourceRegistry>(Env::MetadataDir());
     Register<App::WorldNodeRegistry>();
-    Register<App::InkWidgetCollector>();
+    Register<App::InkWidgetCollector>(Env::IsPrePatch212a());
 }

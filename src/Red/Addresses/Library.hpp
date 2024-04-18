@@ -24,6 +24,7 @@ constexpr uint32_t InkLayer_AttachLibraryInstance = 2019635589;
 constexpr uint32_t InkSpawner_FinishAsyncSpawn = 2488155854;
 
 constexpr uint32_t InkSystem_Instance = 2755465343;
+constexpr uint32_t InkSystem_Instance_Pre212a = 2635337807;
 
 constexpr uint32_t InkWidget_Draw = 1737035665;
 constexpr uint32_t InkWidget_SpawnFromLibrary = 111687851;

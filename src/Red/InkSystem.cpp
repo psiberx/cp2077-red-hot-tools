@@ -1,7 +1,10 @@
 #include "InkSystem.hpp"
 
-Red::InkSystem* Red::InkSystem::Get()
+Red::InkSystem* Red::InkSystem::Get(bool aCompatMode)
 {
+    if (aCompatMode)
+        return Raw::inkSystem::Instance_Pre212a;
+
     return Raw::inkSystem::Instance;
 }
 

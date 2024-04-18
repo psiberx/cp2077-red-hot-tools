@@ -70,6 +70,8 @@ class InkWidgetCollector
     , public Core::HookingAgent
 {
 public:
+    InkWidgetCollector(bool aCompatMode);
+
     Red::DynArray<InkLayerExtendedData> CollectLayers();
     InkWidgetCollectionData CollectHoveredWidgets();
 
@@ -122,6 +124,8 @@ protected:
                                            Red::inkWidgetLibraryItemInstance* aItemInstance);
     static Red::Handle<App::InkLibraryItemInstanceData> GetLibraryItemInstanceData(
         const Red::Handle<Red::inkWidget>& aWidget);
+
+    static inline bool s_compatMode;
 };
 }
 

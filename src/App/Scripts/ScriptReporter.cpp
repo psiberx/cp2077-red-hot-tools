@@ -1,6 +1,10 @@
 #include "ScriptReporter.hpp"
 #include "Red/GameEngine.hpp"
-#include "Red/Logger.hpp"
+
+App::ScriptReporter::ScriptReporter(bool aCompatMode)
+    : m_compatMode(aCompatMode)
+{
+}
 
 void App::ScriptReporter::ShowErrorBox(const char* aCaption, const char* aMessage)
 {
@@ -51,7 +55,7 @@ bool App::ScriptReporter::OnLoadScripts(Red::CBaseEngine& aEngine, Red::CString&
     if (!aTimestamp)
         return false;
 
-    if (aEngine.scriptsCompilationErrors.Length() > 0 || aEngine.scriptsBlobPath.Length() == 0)
+    if (aEngine.scriptsCompilationErrors.Length() > 0 || (!m_compatMode && aEngine.scriptsBlobPath.Length() == 0))
     {
         ExitProcess(0xDEAD);
         return false;
