@@ -332,19 +332,19 @@ local function enableHighlight(target)
         end
     end
 
-    local showBoundindBox = false
+    local showBoundingBox = false
     if not target.isCollisionNode then
         if userState.boundingBoxMode == BoundingBoxMode.ForAreaNodes and (target.isAreaNode or target.isOccluderNode) then
-            showBoundindBox = true
+            showBoundingBox = true
         end
     end
 
-    if showMarker or showBoundindBox then
+    if showMarker or showBoundingBox then
         highlight.projections[target.hash] = {
             target = target,
             color = highlight.color,
             showMarker = showMarker,
-            showBoundindBox = showBoundindBox,
+            showBoundingBox = showBoundingBox,
         }
     end
 end
@@ -2521,7 +2521,7 @@ local function drawProjections()
         for _, projection in pairs(highlight.projections) do
             local target = projection.target
 
-            if projection.showBoundindBox and target.boundingBox then
+            if projection.showBoundingBox and target.boundingBox then
                 local insideColor = ImGuiEx.Fade(projection.color, 0x1D)
                 local faceColor = ImGuiEx.Fade(projection.color, 0x0D)
                 local edgeColor = ImGuiEx.Fade(projection.color, 0xF0)
