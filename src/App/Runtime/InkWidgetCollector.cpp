@@ -1,5 +1,4 @@
 #include "InkWidgetCollector.hpp"
-#include "Red/InkWidget.hpp"
 #include "Red/InkWindow.hpp"
 
 App::InkWidgetCollector::InkWidgetCollector(bool aCompatMode)
@@ -14,8 +13,12 @@ void App::InkWidgetCollector::OnBootstrap()
     HookAfter<Raw::InkSpawner::FinishAsyncSpawn>(&OnFinishAsyncSpawn);
     HookAfter<Raw::inkLayer::AttachLibraryInstance>(&OnAttachInstance);
 
-    Hook<Raw::inkWindow::TogglePointerInput>(&OnTogglePointerInput);
-    Hook<Raw::inkWidget::Draw>(&OnWidgetDraw);
+    HookAfter<Raw::inkWindow::Construct>(&OnWindowConstruct);
+    HookBefore<Raw::inkWindow::Destruct>(&OnWindowDestruct);
+    Hook<Raw::inkWindow::TogglePointerInput>(&OnWindowToggleInput);
+    HookAfter<Raw::inkPointerHandler::Reset>(&OnPointerHandlerReset);
+    HookAfter<Raw::inkPointerHandler::Override>(&OnPointerHandlerOverride);
+    HookBefore<Raw::inkWidget::Draw>(&OnWidgetDraw);
 }
 
 void App::InkWidgetCollector::OnSpawnRoot(Red::inkWidgetLibraryResource* aLibrary,
@@ -94,7 +97,7 @@ void App::InkWidgetCollector::OnAttachInstance(Red::inkLayer*,
 void App::InkWidgetCollector::AddLibraryItemInstanceData(Red::inkWidgetLibraryResource* aLibrary, Red::CName aItemName,
                                                          Red::inkWidgetLibraryItemInstance* aItemInstance)
 {
-    auto instanceData = Red::MakeHandle<App::InkLibraryItemInstanceData>();
+    auto instanceData = Red::MakeHandle<App::InkLibraryItemUserData>();
 
     instanceData->libraryPathHash = aLibrary->path;
     instanceData->libraryItemName = aItemName ? aItemName : "Root";
@@ -110,13 +113,13 @@ void App::InkWidgetCollector::AddLibraryItemInstanceData(Red::inkWidgetLibraryRe
     }
 }
 
-Red::Handle<App::InkLibraryItemInstanceData> App::InkWidgetCollector::GetLibraryItemInstanceData(
+Red::Handle<App::InkLibraryItemUserData> App::InkWidgetCollector::GetLibraryItemInstanceData(
     const Red::Handle<Red::inkWidget>& aWidget)
 {
     std::shared_lock _(aWidget->userDataLock);
     for (auto& userData : aWidget->userData)
     {
-        if (const auto& instanceData = Red::Cast<App::InkLibraryItemInstanceData>(userData))
+        if (const auto& instanceData = Red::Cast<App::InkLibraryItemUserData>(userData))
         {
             return instanceData;
         }
@@ -124,47 +127,55 @@ Red::Handle<App::InkLibraryItemInstanceData> App::InkWidgetCollector::GetLibrary
     return {};
 }
 
-void App::InkWidgetCollector::OnTogglePointerInput(Red::inkWindow* aWindow, bool aEnabled)
+void App::InkWidgetCollector::OnWindowConstruct(Red::inkWindow* aWindow)
 {
-    Raw::inkWindow::TogglePointerInput(aWindow, true);
+    auto overriddenHandler = Red::inkPointerHandler::Create();
+
+    std::unique_lock _{s_pointerHandlerLock};
+    s_pointerHandlersByWindow.insert_or_assign(aWindow, overriddenHandler);
+    s_pointerHandlersByHandler.insert_or_assign(Raw::inkWindow::PointerHandler::Ref(aWindow), overriddenHandler);
 }
 
-void App::InkWidgetCollector::OnWidgetDraw(Red::inkWidget* aWidget, void* a2)
+void App::InkWidgetCollector::OnWindowDestruct(Red::inkWindow* aWindow)
 {
-    bool isLayerAffected = IsLayerAffected(aWidget);
-    bool isWidgetAffected = IsWidgetAffected(aWidget);
+    std::unique_lock _{s_pointerHandlerLock};
+    s_pointerHandlersByWindow.erase(aWindow);
+    s_pointerHandlersByHandler.erase(Raw::inkWindow::PointerHandler::Ref(aWindow));
+}
 
-    if (isLayerAffected)
+void App::InkWidgetCollector::OnWindowToggleInput(Red::inkWindow* aWindow, bool aEnabled)
+{
+    // Raw::inkWindow::TogglePointerInput(aWindow, true);
+}
+
+void App::InkWidgetCollector::OnPointerHandlerReset(Red::inkPointerHandler* aHandler, int32_t* aArea)
+{
+    if (const auto& overriddenHandler = GetOverriddenPointerHandler(aHandler))
     {
-        aWidget->layerProxy->layer.instance->isInteractive = true;
-    }
-
-    if (isWidgetAffected)
-    {
-        aWidget->isInteractive = true;
-    }
-
-    Raw::inkWidget::Draw(aWidget, a2);
-
-    if (isWidgetAffected)
-    {
-        aWidget->isInteractive = false;
-    }
-
-    if (isLayerAffected)
-    {
-        aWidget->layerProxy->layer.instance->isInteractive = false;
+        overriddenHandler->Reset(aArea);
     }
 }
 
-bool App::InkWidgetCollector::IsLayerAffected(Red::inkWidget* aWidget)
+void App::InkWidgetCollector::OnPointerHandlerOverride(Red::inkPointerHandler* aHandler,
+                                                       const Red::SharedPtr<Red::inkPointerHandler>& aOverride,
+                                                       int32_t aIndex)
 {
-    return aWidget->layerProxy && !aWidget->layerProxy->layer.instance->isInteractive;
+    if (const auto& overriddenHandler = GetOverriddenPointerHandler(aHandler))
+    {
+        overriddenHandler->Override(aOverride, aIndex);
+    }
 }
 
-bool App::InkWidgetCollector::IsWidgetAffected(Red::inkWidget* aWidget)
+void App::InkWidgetCollector::OnWidgetDraw(Red::inkWidget* aWidget, Red::inkWidgetContext& aContext)
 {
-    return !aWidget->isInteractive && !aWidget->GetNativeType()->IsA(Red::GetClass<Red::inkCacheWidget>());
+    if (Raw::inkWidget::IsVisible(aWidget))
+    {
+        if (const auto& overriddenHandler = GetOverriddenPointerHandler(aContext.pointerHandler))
+        {
+            Red::inkWidgetContext overriddenContext{aContext, overriddenHandler};
+            overriddenContext.AddWidget(Red::AsWeakHandle(aWidget));
+        }
+    }
 }
 
 Red::DynArray<App::InkLayerExtendedData> App::InkWidgetCollector::CollectLayers()
@@ -345,7 +356,7 @@ bool App::InkWidgetCollector::CollectHoveredWidgets(Red::DynArray<InkWidgetExten
     if (!aWindow)
         return false;
 
-    const auto& pointerHandler = Raw::inkWindow::PointerHandler::Ref(aWindow);
+    const auto& pointerHandler = GetOverriddenPointerHandler(aWindow);
 
     if (!pointerHandler)
         return false;
@@ -379,10 +390,12 @@ bool App::InkWidgetCollector::CollectHoveredWidgets(Red::DynArray<InkWidgetExten
         if (Red::IsInstanceOf<Red::inkVirtualWindow>(widget))
             continue;
 
-        if (widget->name == "HUDMiddleWidget" || (widget->parentWidget.instance->name == "HUDMiddleWidget" && widget->size.X == 3840))
+        if (widget->name == "HUDMiddleWidget" ||
+            (widget->parentWidget.instance->name == "HUDMiddleWidget" && widget->size.X == 3840))
             continue;
 
-        if (widget->layerProxy && widget->layerProxy->resource && widget->layerProxy->resource.instance->path == 8110734472173950877ull)
+        if (widget->layerProxy && widget->layerProxy->resource &&
+            widget->layerProxy->resource.instance->path == 8110734472173950877ull)
             continue;
 
         aOut.PushBack({widget, reinterpret_cast<uint64_t>(widget.instance)});
@@ -400,7 +413,7 @@ App::InkWidgetSpawnData App::InkWidgetCollector::GetWidgetSpawnInfo(const Red::H
     auto& layerProxy = aWidget->layerProxy;
     if (layerProxy)
     {
-        if (const auto& instanceData = Red::Cast<InkLibraryItemInstanceData>(layerProxy->unk48.instance))
+        if (const auto& instanceData = Red::Cast<InkLibraryItemUserData>(layerProxy->unk48.instance))
         {
             spawnData.libraryPathHash = instanceData->libraryPathHash;
             spawnData.libraryItemName = instanceData->libraryItemName;
@@ -490,4 +503,18 @@ void App::InkWidgetCollector::EnsurePointerInput()
     }
 
     TogglePointerInput(true);
+}
+
+const Red::SharedPtr<Red::inkPointerHandler>& App::InkWidgetCollector::GetOverriddenPointerHandler(
+    Red::inkWindow* aWindow)
+{
+    std::shared_lock _{s_pointerHandlerLock};
+    return s_pointerHandlersByWindow[aWindow];
+}
+
+const Red::SharedPtr<Red::inkPointerHandler>& App::InkWidgetCollector::GetOverriddenPointerHandler(
+    Red::inkPointerHandler* aHandler)
+{
+    std::shared_lock _{s_pointerHandlerLock};
+    return s_pointerHandlersByHandler[aHandler];
 }

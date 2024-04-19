@@ -1,19 +1,18 @@
 #pragma once
 
-namespace Red
-{
-struct InkPointerHandler
-{
-    virtual ~InkPointerHandler() = 0; // 00
-    virtual void CollectWidgets(DynArray<Handle<inkWidget>>& aOut, Vector2& aPointerScreenPosition,
-                                Vector2& aPointerWindowPosition, Vector2& aPointerSize) = 0; // 08
-    virtual WeakHandle<inkVirtualWindow> GetActiveWindow() = 0;                              // 10
-};
-}
+#include "Red/InkInput.hpp"
 
 namespace Raw::inkWindow
 {
-using PointerHandler = Core::OffsetPtr<0x258, Red::SharedPtr<Red::InkPointerHandler>>;
+using PointerHandler = Core::OffsetPtr<0x258, Red::SharedPtr<Red::inkPointerHandler>>;
+
+constexpr auto Construct = Core::RawFunc<
+    /* addr = */ Red::AddressLib::InkWindow_ctor,
+    /* type = */ void (*)(Red::inkWindow* aWindow)>();
+
+constexpr auto Destruct = Core::RawFunc<
+    /* addr = */ Red::AddressLib::InkWindow_ctor,
+    /* type = */ void (*)(Red::inkWindow* aWindow)>();
 
 constexpr auto TogglePointerInput = Core::RawFunc<
     /* addr = */ Red::AddressLib::InkWindow_TogglePointerInput,

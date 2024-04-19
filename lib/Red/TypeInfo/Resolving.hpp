@@ -506,6 +506,11 @@ inline bool IsInstanceOf(ISerializable* aObject)
     return aObject->GetType()->IsA(Red::GetClass<T>());
 }
 
+inline bool IsInstanceOf(ISerializable* aObject, CName aClassName)
+{
+    return aObject->GetType()->IsA(Red::GetClass(aClassName));
+}
+
 template<typename T>
 inline bool IsInstanceOf(const WeakHandle<ISerializable>& aObject)
 {

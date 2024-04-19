@@ -21,13 +21,21 @@ constexpr uint32_t ISerializable_SetReference = 2587561854;
 
 constexpr uint32_t InkLayer_AttachLibraryInstance = 2019635589;
 
+constexpr uint32_t inkPointerHandler_Create = 630009171;
+constexpr uint32_t inkPointerHandler_Reset = 3695579637;
+constexpr uint32_t inkPointerHandler_Override = 4279316794;
+
 constexpr uint32_t InkSpawner_FinishAsyncSpawn = 2488155854;
 
 constexpr uint32_t InkSystem_Instance = 2755465343;
 constexpr uint32_t InkSystem_Instance_Pre212a = 2635337807;
 
 constexpr uint32_t InkWidget_Draw = 1737035665;
+constexpr uint32_t InkWidget_IsVisible = 3227716428;
 constexpr uint32_t InkWidget_SpawnFromLibrary = 111687851;
+
+constexpr uint32_t InkWidgetContext_Clone = 3823045541;
+constexpr uint32_t InkWidgetContext_AddWidget = 2526158623;
 
 constexpr uint32_t InkWidgetLibrary_AsyncSpawnFromExternal = 1396063719;
 constexpr uint32_t InkWidgetLibrary_AsyncSpawnFromLocal = 118698863;
@@ -35,6 +43,8 @@ constexpr uint32_t InkWidgetLibrary_SpawnFromExternal = 506278179;
 constexpr uint32_t InkWidgetLibrary_SpawnFromLocal = 1158555307;
 constexpr uint32_t InkWidgetLibrary_SpawnRoot = 3160221133;
 
+constexpr uint32_t InkWindow_ctor = 1410271027;
+constexpr uint32_t InkWindow_dtor = 1413416760;
 constexpr uint32_t InkWindow_TogglePointerInput = 1797656531;
 constexpr uint32_t InkWindow_IsPointerVisible = 2091454561;
 constexpr uint32_t InkWindow_SetPointerVisibility = 3741389418;

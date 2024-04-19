@@ -1,10 +1,16 @@
 #pragma once
 
+#include "Red/InkContext.hpp"
+
 namespace Raw::inkWidget
 {
 constexpr auto Draw = Core::RawFunc<
     /* addr = */ Red::AddressLib::InkWidget_Draw,
-    /* type = */ void (*)(Red::inkWidget*, void*)>();
+    /* type = */ void (*)(Red::inkWidget* aWidget, Red::inkWidgetContext& aContext)>();
+
+constexpr auto IsVisible = Core::RawFunc<
+    /* addr = */ Red::AddressLib::InkWidget_IsVisible,
+    /* type = */ bool (*)(Red::inkWidget*)>();
 
 constexpr auto SpawnFromLibrary = Core::RawFunc<
     /* addr = */ Red::AddressLib::InkWidget_SpawnFromLibrary,

@@ -243,6 +243,10 @@ local function updatePicker(collect)
             end
         end
     end
+
+    if inspector.target and inspector.target.widget and not IsDefined(inspector.target.widget) then
+        inspector.target = nil
+    end
 end
 
 -- GUI --
@@ -1498,6 +1502,10 @@ local function drawEditorContent()
         return
     end
 
+    if not IsDefined(inspector.target.widget) then
+        return
+    end
+
     ImGui.Separator()
     ImGui.Spacing()
 
@@ -2179,6 +2187,7 @@ local function onTogglePickerHotkey()
     if not viewState.isConsoleOpen then
         userState.isOnScreenDisplayActive = not userState.isOnScreenDisplayActive
         if userState.isOnScreenDisplayActive then
+            userState.isModuleActive = true
             if userState.enforcePointerOnActivation then
                 inspectionSystem:EnsurePointerInput()
             end
