@@ -334,7 +334,7 @@ local function enableHighlight(target)
 
     local showBoundindBox = false
     if not target.isCollisionNode then
-        if userState.boundingBoxMode == BoundingBoxMode.ForAreaNodes and target.isAreaNode then
+        if userState.boundingBoxMode == BoundingBoxMode.ForAreaNodes and (target.isAreaNode or target.isOccluderNode) then
             showBoundindBox = true
         end
     end
@@ -690,6 +690,7 @@ local function fillTargetNodeData(target, data)
 
     data.isNode = IsDefined(data.nodeInstance) or IsDefined(data.nodeDefinition) or isNotEmpty(data.nodeID)
     data.isAreaNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldAreaShapeNode')
+    data.isOccluderNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldStaticOccluderMeshNode')
     data.isProxyMeshNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldPrefabProxyMeshNode')
     data.isCommunityNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldCompiledCommunityAreaNode')
     data.isSpawnerNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldPopulationSpawnerNode')
@@ -706,20 +707,17 @@ local function fillTargetGeomertyData(target, data)
     data.collision = target.collision
     data.distance = target.distance
     data.position = target.position
+    data.orientation = target.orientation
+    data.boundingBox = target.boundingBox
 
-    if target.boundingBox and not target.boundingBox.Min:IsXYZZero() and target.boundingBox.Min.x <= target.boundingBox.Max.x then
-        data.boundingBox = target.boundingBox
-        data.position = Game['OperatorAdd;Vector4Vector4;Vector4'](data.boundingBox.Min, data.boundingBox:GetExtents())
+    if target.testBox and not target.testBox.Min:IsXYZZero() and target.testBox.Min.x <= target.testBox.Max.x then
+        data.testBox = target.testBox
+        data.position = Game['OperatorAdd;Vector4Vector4;Vector4'](data.testBox.Min, data.testBox:GetExtents())
     end
 
     if not data.position then
         if IsDefined(data.entity) then
             data.position = data.entity:GetWorldPosition()
-        elseif IsDefined(data.nodeInstance) then
-            local position = inspectionSystem:GetStreamedNodePosition(data.nodeInstance)
-            if not position:IsXYZZero() then
-                data.position = position
-            end
         end
     end
 end
@@ -2415,7 +2413,7 @@ local function drawProjectedMarker(screen, position, outerColor, innerColor, dis
     setScreenClamping(false)
 end
 
-local function drawProjectedBox(screen, box, faceColor, edgeColor, verticeColor, frame, fill, fadeWithDistance)
+local function makeCubeFromBox(box, position, orientation)
     local vertices = {
         ToVector4{ x = box.Min.x, y = box.Min.y, z = box.Min.z, w = 1.0 },
         ToVector4{ x = box.Min.x, y = box.Min.y, z = box.Max.z, w = 1.0 },
@@ -2427,6 +2425,16 @@ local function drawProjectedBox(screen, box, faceColor, edgeColor, verticeColor,
         ToVector4{ x = box.Max.x, y = box.Max.y, z = box.Max.z, w = 1.0 },
     }
 
+    for i, vertex in ipairs(vertices) do
+        vertex = orientation:Transform(vertex)
+        vertex = Game['OperatorAdd;Vector4Vector4;Vector4'](position, vertex)
+        vertices[i] = vertex
+    end
+
+    return vertices
+end
+
+local function drawProjectedCube(screen, vertices, faceColor, edgeColor, verticeColor, frame, fill, fadeWithDistance)
     if fill then
         local faces = {
             { vertices[1], vertices[2], vertices[4], vertices[3] },
@@ -2511,17 +2519,18 @@ local function drawProjections()
                 local faceColor = ImGuiEx.Fade(projection.color, 0x0D)
                 local edgeColor = ImGuiEx.Fade(projection.color, 0xF0)
                 local verticeColor = projection.color
+                local visualBox = makeCubeFromBox(target.boundingBox, target.position, target.orientation)
 
-                if insideBox(camera.position, target.boundingBox) then
+                if target.testBox and insideBox(camera.position, target.testBox) then
                     drawQuad(screen, insideColor)
-                    drawProjectedBox(screen, target.boundingBox, faceColor, edgeColor, verticeColor, true, false, true)
+                    drawProjectedCube(screen, visualBox, faceColor, edgeColor, verticeColor, true, false, true)
                 else
-                    drawProjectedBox(screen, target.boundingBox, faceColor, edgeColor, verticeColor, true, true, true)
+                    drawProjectedCube(screen, visualBox, faceColor, edgeColor, verticeColor, true, true, true)
                 end
             end
 
             if projection.showMarker and target.position then
-                local outerColor = projection.color -- ImGuiEx.Fade(projection.color, 0x77)
+                local outerColor = projection.color
                 local innerColor = projection.color
                 local distanceColor = projection.color
 
@@ -2774,8 +2783,7 @@ return {
     hotkeys = {
         { id = 'ToggleWorldInspector', group = 'World Inspector', label = 'Toggle overlay', callback = onToggleInspectorHotkey },
         { id = 'CycleTargetingMode', group = 'World Inspector', label = 'Cycle targeting modes', callback = onCycleTargetingModeHotkey },
-        --{ id = 'CycleHighlightColor', group = 'World Inspector', label = 'Cycle highlight colors', callback = onCycleHighlightColorHotkey },
-        --{ id = 'ToggleTargetState', group = 'World Inspector', label = 'Toggle target visibility', callback = onToggleTargetStateHotkey },
+        { id = 'ToggleTargetState', group = 'World Inspector', label = 'Toggle target visibility', callback = onToggleTargetStateHotkey },
         { id = 'SelectNextResult', group = 'Target Control', label = 'Select next target', callback = onSelectNextResultHotkey },
         { id = 'SelectPrevResult', group = 'Target Control', label = 'Select previous target', callback = onSelectPrevResultHotkey },
     },

@@ -134,9 +134,12 @@ void App::InspectionSystem::UpdateStreamedNodes()
             {
                 Red::Box boundingBox = meshResource->boundingBox;
                 Red::ScaleBox(boundingBox, scale);
+
+                streamedNode.boundingBox = boundingBox;
+
                 Red::TransformBox(boundingBox, transform);
 
-                streamedNode.boundingBoxes.push_back(boundingBox);
+                streamedNode.testBoxes.push_back(boundingBox);
                 streamedNode.isStaticMesh = !Red::IsInstanceOf<Red::worldTerrainProxyMeshNode>(nodeDefinition) &&
                                             !Red::IsInstanceOf<Red::worldRoadProxyMeshNode>(nodeDefinition);
             }
@@ -150,7 +153,8 @@ void App::InspectionSystem::UpdateStreamedNodes()
                  Red::IsInstanceOf<Red::worldBendedMeshNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldEntityNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition) ||
-                 Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition))
+                 Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition) ||
+                 Red::IsInstanceOf<Red::worldStaticOccluderMeshNode>(nodeDefinition))
         {
             Red::Box boundingBox{{1.0}, {-1.0}};
             Raw::WorldNode::GetBoundingBox(nodeDefinition, boundingBox);
@@ -158,11 +162,15 @@ void App::InspectionSystem::UpdateStreamedNodes()
             if (Red::IsValidBox(boundingBox))
             {
                 Red::ScaleBox(boundingBox, scale);
+
+                streamedNode.boundingBox = boundingBox;
+
                 Red::TransformBox(boundingBox, transform);
 
-                streamedNode.boundingBoxes.push_back(boundingBox);
+                streamedNode.testBoxes.push_back(boundingBox);
                 streamedNode.isStaticMesh = !Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition) &&
-                                            !Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition);
+                                            !Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition) &&
+                                            !Red::IsInstanceOf<Red::worldStaticOccluderMeshNode>(nodeDefinition);
             }
             else
             {
@@ -177,7 +185,7 @@ void App::InspectionSystem::UpdateStreamedNodes()
             {
                 for (const auto& instanceBox : instanceBoxes)
                 {
-                    streamedNode.boundingBoxes.push_back(instanceBox);
+                    streamedNode.testBoxes.push_back(instanceBox);
                     streamedNode.isStaticMesh = true;
                 }
             }
@@ -251,15 +259,15 @@ void App::InspectionSystem::UpdateFrustumNodes()
 #endif
 
             Red::FrustumResult frustumResult{};
-            Red::Box boundingBox{{1.0}, {-1.0}};
+            Red::Box testBox{{1.0}, {-1.0}};
 
-            if (!streamedNode.boundingBoxes.empty())
+            if (!streamedNode.testBoxes.empty())
             {
-                for (const auto& candidateBox : streamedNode.boundingBoxes)
+                for (const auto& candidateBox : streamedNode.testBoxes)
                 {
                     if ((frustumResult = cameraFrustum.Test(candidateBox)) != Red::FrustumResult::Outside)
                     {
-                        boundingBox = candidateBox;
+                        testBox = candidateBox;
                         break;
                     }
                 }
@@ -284,9 +292,9 @@ void App::InspectionSystem::UpdateFrustumNodes()
 #endif
 
             float distance;
-            if (Red::IsValidBox(boundingBox))
+            if (Red::IsValidBox(testBox))
             {
-                distance = Red::Distance(cameraPosition, boundingBox);
+                distance = Red::Distance(cameraPosition, testBox);
             }
             else
             {
@@ -296,10 +304,10 @@ void App::InspectionSystem::UpdateFrustumNodes()
             if (distance > FrustumMaxDistance)
                 continue;
 
-            if (streamedNode.isStaticMesh && Red::IsValidBox(boundingBox) &&
+            if (streamedNode.isStaticMesh && Red::IsValidBox(testBox) &&
                 distance >= 0.0001 && distance <= RayCastingMaxDistance)
             {
-                if (Red::Intersect(cameraPosition, cameraInverseDirection, boundingBox))
+                if (Red::Intersect(cameraPosition, cameraInverseDirection, testBox))
                 {
                     targetedNodeIndexes.push_back(frustumNodes.size);
                 }
@@ -311,8 +319,8 @@ void App::InspectionSystem::UpdateFrustumNodes()
 
             const auto instanceHash = reinterpret_cast<uint64_t>(streamedNode.nodeInstance.instance);
             frustumNodes.PushBack({streamedNode.nodeInstance, streamedNode.nodeDefinition,
-                                   transform.position, transform.orientation, boundingBox,
-                                   distance, instanceHash, true});
+                                   streamedNode.boundingBox, transform.position, transform.orientation,
+                                   testBox, distance, instanceHash, true});
         }
     }
 
@@ -441,7 +449,7 @@ App::WorldNodeRuntimeSceneData App::InspectionSystem::FindStreamedNode(uint64_t 
     if (!nodeInstanceWeak)
         return {};
 
-    return {nodeInstanceWeak, nodeDefinitionWeak, setup->transform.position, setup->transform.orientation};
+    return {nodeInstanceWeak, nodeDefinitionWeak};
 }
 
 Red::DynArray<App::WorldNodeRuntimeSceneData> App::InspectionSystem::GetStreamedNodesInFrustum()
@@ -459,16 +467,6 @@ Red::DynArray<App::WorldNodeRuntimeSceneData> App::InspectionSystem::GetStreamed
 int32_t App::InspectionSystem::GetFrustumMaxDistance()
 {
     return FrustumMaxDistance;
-}
-
-Red::Vector4 App::InspectionSystem::GetStreamedNodePosition(const Red::Handle<Red::worldINodeInstance>& aNodeInstance)
-{
-    auto setupInfo = Raw::WorldNodeInstance::SetupInfo::Ptr(aNodeInstance.instance);
-
-    if (!setupInfo || !*setupInfo)
-        return {};
-
-    return (*setupInfo)->transform.position;
 }
 
 bool App::InspectionSystem::SetNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aVisible)
