@@ -670,6 +670,12 @@ local function fillTargetNodeData(target, data)
                 table.insert(data.triggerNotifiers, inspectionSystem:GetTypeName(notifier).value)
             end
         end
+
+        if inspectionSystem:IsInstanceOf(node, 'worldStaticOccluderMeshNode')
+        or inspectionSystem:IsInstanceOf(node, 'worldInstancedOccluderNode') then
+            data.meshPath = inspectionSystem:ResolveResourcePath(node.mesh.hash)
+            data.occluderType = node.occluderType.value
+        end
     end
 
     if isNotEmpty(data.nodeID) then
@@ -1533,6 +1539,7 @@ local resultSchema = {
         { name = 'effectPath', label = 'Effect:', wrap = true },
         { name = 'triggerNotifiers', label = 'Trigger Notifiers:', format = formatArrayField, validate = validateArrayField },
         { name = 'lootTables', label = 'Loot Tables:', format = formatArrayField, validate = validateArrayField },
+        { name = 'occluderType', label = 'Occluder Type:' },
     },
     {
         { name = 'resolvedPath', label = 'Resource:', wrap = true },
