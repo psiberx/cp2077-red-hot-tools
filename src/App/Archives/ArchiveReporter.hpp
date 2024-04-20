@@ -12,7 +12,16 @@ class ArchiveReporter
     , public Core::LoggingAgent
 {
 protected:
+    struct ArchiveInfo
+    {
+        Red::ArchiveScope scope;
+        std::string_view path;
+    };
+
     void OnBootstrap() override;
-    static void OnRequestResource(Red::ResourceDepot* aDepot, uintptr_t* aHandle, Red::ResourcePath aPath, uintptr_t);
+    static void OnRequestResource(Red::ResourceDepot* aDepot, const uintptr_t* aResourceHandle,
+                                  Red::ResourcePath aResourcePath, const int32_t* aArchiveHandle);
+
+    static ArchiveInfo GetArchiveInfo(Red::ResourceDepot* aDepot, const int32_t* aArchiveHandle);
 };
 }

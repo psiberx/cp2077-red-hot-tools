@@ -12,7 +12,10 @@ constexpr auto LoadArchives = Core::RawFunc<
 
 constexpr auto RequestResource = Core::RawFunc<
     /* addr = */ Red::AddressLib::ResourceDepot_RequestResource,
-    /* type = */ uintptr_t* (*)(Red::ResourceDepot* aDepot, uintptr_t* aHandle, Red::ResourcePath aPath, uintptr_t)>{};
+    /* type = */ uintptr_t* (*)(Red::ResourceDepot* aDepot,
+                                const uintptr_t* aOutResourceHandle,
+                                Red::ResourcePath aPath,
+                                const int32_t* aArchiveHandle)>{};
 
 constexpr auto DestructArchives = Core::RawFunc<
     /* addr = */ Red::AddressLib::ResourceDepot_DestructArchives,
