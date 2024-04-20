@@ -400,10 +400,10 @@ App::ArchiveLoader::DepotLocker::DepotLocker()
 App::ArchiveLoader::DepotLocker::~DepotLocker()
 {
     // Unhook<Raw::ResourceDepot::RequestResource>();
-    s_bypass.clear();
+    // s_bypass.clear();
 }
 
 void App::ArchiveLoader::DepotLocker::Bypass(Red::ResourcePath aPath)
 {
-    s_bypass.emplace(aPath, true);
+    // s_bypass.emplace(aPath, true);
 }

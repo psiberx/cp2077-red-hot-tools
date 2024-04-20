@@ -1,5 +1,6 @@
 #include "Application.hpp"
 #include "App/Archives/ArchiveLoader.hpp"
+#include "App/Archives/ArchiveReporter.hpp"
 #include "App/Archives/ArchiveWatcher.hpp"
 #include "App/Environment.hpp"
 #include "App/Runtime/InkWidgetCollector.hpp"
@@ -29,6 +30,7 @@ App::Application::Application(HMODULE aHandle, const RED4ext::Sdk* aSdk)
 
     Register<App::ArchiveLoader>();
     Register<App::ArchiveWatcher>(Env::ArchiveHotDir());
+    Register<App::ArchiveReporter>();
 
     Register<App::ScriptLoader>(Env::ScriptSourceDir(), Env::ScriptBlobPath());
     Register<App::ScriptWatcher>(Env::ScriptHotFile());
