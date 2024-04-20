@@ -354,14 +354,6 @@ local function disableHighlight(target)
     highlight.projections = {}
 end
 
-local function highlightTarget(target)
-    if target and target.hash then
-        highlight.pending = target
-    else
-        highlight.pending = nil
-    end
-end
-
 local function disableHighlights()
     if highlight.target then
         disableHighlight(highlight.target)
@@ -385,6 +377,14 @@ local function updateHighlights()
     highlight.pending = nil
 
     enableHighlight(highlight.target)
+end
+
+local function highlightTarget(target)
+    if target and target.hash then
+        highlight.pending = target
+    else
+        highlight.pending = nil
+    end
 end
 
 -- Resolving --
@@ -2517,7 +2517,7 @@ local function drawProjections()
     ImGui.SetNextWindowSize(screen.width, screen.height, ImGuiCond.Always)
     ImGui.SetNextWindowPos(0, 0, ImGuiCond.Always)
 
-    if ImGui.Begin('World Inspector Projection##RHT:Projection', true, viewStyle.projectionWindowFlags) then
+    if ImGui.Begin('##RHT:WorldTools:Projections', true, viewStyle.projectionWindowFlags) then
         for _, projection in pairs(highlight.projections) do
             local target = projection.target
 

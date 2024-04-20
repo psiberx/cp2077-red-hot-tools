@@ -46,6 +46,46 @@ local function saveUserState()
     PersistentState.Flush(userState)
 end
 
+-- Highlighting --
+
+local highlight = {
+    target = nil,
+    pending = nil,
+    projections = {},
+}
+
+local function enableHighlight(target)
+    if target then
+        highlight.target = target
+        highlight.projections[target.hash] = {
+            target = target,
+            color = 0xFF32FF1D,
+        }
+    end
+end
+
+local function disableHighlights()
+    highlight.target = nil
+    highlight.projections = {}
+end
+
+local function updateHighlights()
+    disableHighlights()
+
+    if highlight.pending then
+        enableHighlight(highlight.pending)
+        highlight.pending = nil
+    end
+end
+
+local function highlightTarget(target)
+    if target and target.hash then
+        highlight.pending = target
+    else
+        highlight.pending = nil
+    end
+end
+
 -- Inspector --
 
 local inspector = {
@@ -53,24 +93,30 @@ local inspector = {
     target = nil,
 }
 
-local function updateInspector()
-    inspector.layers = inspectionSystem:CollectInkLayers()
+local function updateInspector(collect)
+    if collect then
+        inspector.layers = inspectionSystem:CollectInkLayers()
 
-    for _, layer in ipairs(inspector.layers) do
-        layer.scope = 'layer'
-        for _, window in ipairs(layer.windows) do
-            window.scope = 'window'
+        for _, layer in ipairs(inspector.layers) do
+            layer.scope = 'layer'
+            for _, window in ipairs(layer.windows) do
+                window.scope = 'window'
+            end
         end
     end
 
     if inspector.target and inspector.target.widget and not IsDefined(inspector.target.widget) then
         inspector.target = nil
     end
+
+    if inspector.target and IsDefined(inspector.target.widget) then
+        highlightTarget(inspector.target)
+    end
 end
 
 local function selectInspectedTarget(object, scope)
     if not inspector.layers then
-        updateInspector()
+        updateInspector(true)
     end
 
     local target = {}
@@ -244,9 +290,7 @@ local function updatePicker(collect)
         end
     end
 
-    if inspector.target and inspector.target.widget and not IsDefined(inspector.target.widget) then
-        inspector.target = nil
-    end
+    updateInspector(false)
 end
 
 -- GUI --
@@ -351,6 +395,11 @@ local function initializeViewStyle()
             + ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
             + ImGuiWindowFlags.NoTitleBar + ImGuiWindowFlags.NoCollapse
             + ImGuiWindowFlags.NoInputs + ImGuiWindowFlags.NoNav
+        viewStyle.projectionWindowFlags = ImGuiWindowFlags.NoSavedSettings
+            + ImGuiWindowFlags.NoInputs + ImGuiWindowFlags.NoNav
+            + ImGuiWindowFlags.NoResize + ImGuiWindowFlags.NoMove
+            + ImGuiWindowFlags.NoDecoration + ImGuiWindowFlags.NoBackground
+            + ImGuiWindowFlags.NoFocusOnAppearing + ImGuiWindowFlags.NoBringToFrontOnFocus
 
         viewStyle.inspectorFilterWidth = 85 * viewStyle.viewScale
 
@@ -2020,6 +2069,121 @@ local function drawHotkeysContent()
     viewState.openSelectedWidgetInEditor = false
 end
 
+-- GUI :: Drawing --
+
+local function getScreenDescriptor()
+    local screen = {}
+    screen.width, screen.height = GetDisplayResolution()
+
+    screen.centerX = screen.width / 2
+    screen.centerY = screen.height / 2
+
+    screen[1] = { x = 0, y = 0 }
+    screen[2] = { x = screen.width - 1, y = 0 }
+    screen[3] = { x = screen.width - 1, y = screen.height - 1 }
+    screen[4] = { x = 0, y = screen.height }
+
+    return screen
+end
+
+local clampScreenPoint = false
+
+local function setScreenClamping(enabled)
+    clampScreenPoint = enabled
+end
+
+local function getScreenPoint(screen, point)
+    local projected = inspectionSystem:ProjectWorldPoint(point)
+
+    local result = {
+        x = projected.x,
+        y = -projected.y,
+        off = projected.w <= 0.0 or projected.z <= 0.0,
+    }
+
+    if projected.w > 0.0 then
+        result.x = result.x / projected.w
+        result.y = result.y / projected.w
+    end
+
+    if clampScreenPoint then
+        result.x = MathEx.Clamp(result.x, -0.995, 0.995)
+        result.y = MathEx.Clamp(result.y, -0.999, 0.999)
+        result.off = false
+    end
+
+    result.x = screen.centerX + (result.x * screen.centerX)
+    result.y = screen.centerY + (result.y * screen.centerY)
+
+    return result
+end
+
+local function drawQuad(quad, color, thickness)
+    if thickness == nil then
+        ImGui.ImDrawListAddQuadFilled(ImGui.GetWindowDrawList(),
+            quad[1].x, quad[1].y,
+            quad[2].x, quad[2].y,
+            quad[3].x, quad[3].y,
+            quad[4].x, quad[4].y,
+            color)
+    else
+        ImGui.ImDrawListAddQuad(ImGui.GetWindowDrawList(),
+            quad[1].x, quad[1].y,
+            quad[2].x, quad[2].y,
+            quad[3].x, quad[3].y,
+            quad[4].x, quad[4].y,
+            color, thickness)
+    end
+end
+
+local function drawRectangle(min, max, color, thickness)
+    if thickness == nil then
+        ImGui.ImDrawListAddRectFilled(ImGui.GetWindowDrawList(),
+            min.X, min.Y,
+            max.X, max.Y,
+            color)
+    else
+        ImGui.ImDrawListAddRect(ImGui.GetWindowDrawList(),
+            min.X, min.Y,
+            max.X, max.Y,
+            color, thickness)
+    end
+end
+
+local function drawText(position, color, size, text)
+    ImGui.ImDrawListAddText(ImGui.GetWindowDrawList(), size, position.x, position.y, color, tostring(text))
+end
+
+local function drawProjectedWidget(widget, color)
+    local topLeftPoint = inkWidgetUtils.LocalToGlobal(widget, Vector2.new())
+    local bottomRightPoint = inkWidgetUtils.LocalToGlobal(widget, widget:GetDesiredSize())
+
+    drawRectangle(topLeftPoint, bottomRightPoint, color, 1)
+end
+
+local function drawProjections()
+    if not userState.isModuleActive then
+        return
+    end
+
+    if next(highlight.projections) == nil then
+        return
+    end
+
+    local screen = getScreenDescriptor(camera)
+
+    ImGui.SetNextWindowSize(screen.width, screen.height, ImGuiCond.Always)
+    ImGui.SetNextWindowPos(0, 0, ImGuiCond.Always)
+
+    if ImGui.Begin('##RHT:InkTools:Projections', true, viewStyle.projectionWindowFlags) then
+        for _, projection in pairs(highlight.projections) do
+            if IsDefined(projection.target.widget) then
+                drawProjectedWidget(projection.target.widget, projection.color)
+            end
+        end
+    end
+end
+
 -- GUI :: Windows --
 
 local function pushWindowStyle(isModal)
@@ -2153,11 +2317,11 @@ local function onDraw()
 
     if viewState.isConsoleOpen then
         if userState.isModuleActive and viewState.isWindowExpanded then
-            --drawHighlights()
+            --drawProjections()
         end
         drawMainWindow()
     elseif userState.isOnScreenDisplayActive then
-        --drawHighlights()
+        --drawProjections()
         drawPickerWindow()
     end
 end
@@ -2240,21 +2404,21 @@ local function onInit()
             if viewState.isConsoleOpen then
                 if viewState.isWindowExpanded then
                     if userState.selectedTab == MainTab.Inspect then
-                        updateInspector()
+                        updateInspector(true)
                     elseif userState.selectedTab == MainTab.Pick then
-                        updatePicker()
+                        updatePicker(false)
                     end
                 end
             elseif userState.isOnScreenDisplayActive then
                 updatePicker(true)
             end
         end
-        --updateHighlights()
+        updateHighlights()
     end)
 end
 
 local function onShutdown()
-    --disableHighlights()
+    disableHighlights()
     saveUserState()
 end
 
