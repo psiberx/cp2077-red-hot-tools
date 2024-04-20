@@ -11,8 +11,8 @@ Red::inkWidgetContext::inkWidgetContext(Red::inkWidgetContext& aOther, Red::inkP
     pointerHandler = aPointerHandler;
 }
 
-void Red::inkWidgetContext::AddWidget(const Red::WeakHandle<Red::inkWidget>& aWidget, bool aVisible,
-                                      bool aAffectsLayout)
+void Red::inkWidgetContext::AddInteractiveWidget(const Red::WeakHandle<Red::inkWidget>& aWidget,
+                                                 bool aVisible, bool aAffectsLayout)
 {
     Raw::inkWidgetContext::AddWidget(*this, aWidget, aVisible, aAffectsLayout);
 }

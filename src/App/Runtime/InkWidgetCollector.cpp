@@ -173,7 +173,7 @@ void App::InkWidgetCollector::OnWidgetDraw(Red::inkWidget* aWidget, Red::inkWidg
         if (const auto& overriddenHandler = GetOverriddenPointerHandler(aContext.pointerHandler))
         {
             Red::inkWidgetContext overriddenContext{aContext, overriddenHandler};
-            overriddenContext.AddWidget(Red::AsWeakHandle(aWidget));
+            overriddenContext.AddInteractiveWidget(Red::AsWeakHandle(aWidget));
         }
     }
 }
