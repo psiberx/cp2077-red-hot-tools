@@ -1853,7 +1853,7 @@ local function drawScannerContent()
             ImGui.PushStyleColor(ImGuiCol.TextDisabled, viewStyle.hintTextColor)
             local filter, filterChanged = ImGui.InputTextWithHint('##ScannerFilter', '', userState.scannerFilter, viewData.maxInputLen)
             if filterChanged then
-                userState.scannerFilter = ImGuiEx.SanitizeTextInput(filter)
+                userState.scannerFilter = ImGuiEx.SanitizeInputText(filter)
             end
             ImGui.PopStyleColor()
             ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, 0)
@@ -1972,7 +1972,7 @@ local function drawLookupContent()
     ImGui.PushStyleColor(ImGuiCol.TextDisabled, viewStyle.hintTextColor)
     local query, queryChanged = ImGui.InputTextWithHint('##LookupQuery', 'Enter node reference or entity id or hash', viewState.lookupQuery, viewData.maxInputLen)
     if queryChanged then
-        viewState.lookupQuery = ImGuiEx.SanitizeTextInput(query)
+        viewState.lookupQuery = ImGuiEx.SanitizeInputText(query)
     end
     ImGui.PopStyleColor()
 
