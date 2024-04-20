@@ -55,12 +55,16 @@ local highlight = {
 }
 
 local function enableHighlight(target)
-    if target then
-        highlight.target = target
-        highlight.projections[target.hash] = {
-            target = target,
-            color = 0xFF32FF1D,
-        }
+    if target and IsDefined(target.widget) then
+        local area = inspectionSystem:GetWidgetDrawRect(target.widget)
+        if area.width > 0 then
+            highlight.target = target
+            highlight.projections[target.hash] = {
+                widget = target.widget,
+                area = area,
+                color = 0xFF32FF1D,
+            }
+        end
     end
 end
 
@@ -2136,29 +2140,22 @@ local function drawQuad(quad, color, thickness)
     end
 end
 
-local function drawRectangle(min, max, color, thickness)
+local function drawRectangle(rect, color, thickness)
     if thickness == nil then
         ImGui.ImDrawListAddRectFilled(ImGui.GetWindowDrawList(),
-            min.X, min.Y,
-            max.X, max.Y,
+            rect.x, rect.y,
+            rect.x + rect.width, rect.y + rect.height,
             color)
     else
         ImGui.ImDrawListAddRect(ImGui.GetWindowDrawList(),
-            min.X, min.Y,
-            max.X, max.Y,
+            rect.x, rect.y,
+            rect.x + rect.width, rect.y + rect.height,
             color, thickness)
     end
 end
 
 local function drawText(position, color, size, text)
     ImGui.ImDrawListAddText(ImGui.GetWindowDrawList(), size, position.x, position.y, color, tostring(text))
-end
-
-local function drawProjectedWidget(widget, color)
-    local topLeftPoint = inkWidgetUtils.LocalToGlobal(widget, Vector2.new())
-    local bottomRightPoint = inkWidgetUtils.LocalToGlobal(widget, widget:GetDesiredSize())
-
-    drawRectangle(topLeftPoint, bottomRightPoint, color, 1)
 end
 
 local function drawProjections()
@@ -2177,8 +2174,8 @@ local function drawProjections()
 
     if ImGui.Begin('##RHT:InkTools:Projections', true, viewStyle.projectionWindowFlags) then
         for _, projection in pairs(highlight.projections) do
-            if IsDefined(projection.target.widget) then
-                drawProjectedWidget(projection.target.widget, projection.color)
+            if IsDefined(projection.widget) then
+                drawRectangle(projection.area, projection.color, 1)
             end
         end
     end

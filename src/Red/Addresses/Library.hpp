@@ -19,6 +19,8 @@ constexpr uint32_t FileSystem_Close = 1332290822;
 
 constexpr uint32_t ISerializable_SetReference = 2587561854;
 
+constexpr uint32_t InkDrawArea_GetBoundingRect = 446829303;
+
 constexpr uint32_t InkLayer_AttachLibraryInstance = 2019635589;
 
 constexpr uint32_t inkPointerHandler_Create = 630009171;

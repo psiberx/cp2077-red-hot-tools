@@ -4,6 +4,16 @@
 
 namespace Red
 {
+struct inkDrawContext
+{
+    static const inkDrawContext* Resolve(const Handle<inkWidget>& aWidget);
+
+    WeakHandle<inkWidget> widget; // 00
+    inkDrawArea drawArea;         // 10
+};
+RED4EXT_ASSERT_SIZE(inkDrawContext, 0x60);
+RED4EXT_ASSERT_OFFSET(inkDrawContext, drawArea, 0x10);
+
 struct inkWidgetContext
 {
     inkWidgetContext() = default;
@@ -19,6 +29,13 @@ struct inkWidgetContext
 };
 RED4EXT_ASSERT_SIZE(inkWidgetContext, 0x80);
 RED4EXT_ASSERT_OFFSET(inkWidgetContext, pointerHandler, 0x08);
+}
+
+namespace Raw::inkDrawArea
+{
+constexpr auto GetBoundingRect = Core::RawFunc<
+    /* addr = */ Red::AddressLib::InkDrawArea_GetBoundingRect,
+    /* type = */ void (*)(const Red::inkDrawArea& aArea, Red::inkRectangle& aOut, bool aGlobal)>();
 }
 
 namespace Raw::inkWidgetContext

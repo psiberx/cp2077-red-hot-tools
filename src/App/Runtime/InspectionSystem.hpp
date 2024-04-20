@@ -95,6 +95,7 @@ public:
     void TogglePointerInput();
     void EnsurePointerInput();
     Red::Vector2 GetPointerScreenPosition();
+    Red::inkRectangle GetWidgetDrawRect(const Red::Handle<Red::inkWidget>& aWidget);
 
 private:
     void OnWorldAttached(Red::world::RuntimeScene*) override;
@@ -205,4 +206,5 @@ RTTI_DEFINE_CLASS(App::InspectionSystem, {
     RTTI_METHOD(TogglePointerInput);
     RTTI_METHOD(EnsurePointerInput);
     RTTI_METHOD(GetPointerScreenPosition);
+    RTTI_METHOD(GetWidgetDrawRect);
 });

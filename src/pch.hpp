@@ -45,6 +45,7 @@
 #include <RED4ext/Scripting/Natives/Generated/ink/CacheWidget.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ink/CharacterEvent.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ink/ControllerProcessor.hpp>
+#include <RED4ext/Scripting/Natives/Generated/ink/DrawArea.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ink/EAnchor.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ink/HUDLayer.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ink/HUDLayerDefinition.hpp>
@@ -59,6 +60,7 @@
 #include <RED4ext/Scripting/Natives/Generated/ink/MenuLayer.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ink/MultiChildren.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ink/PropertyManager.hpp>
+#include <RED4ext/Scripting/Natives/Generated/ink/Rectangle.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ink/SpawningProcessor.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ink/StyleResourceWrapper.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ink/UserData.hpp>

@@ -570,10 +570,23 @@ local function fillTargetEntityData(target, data)
             data.templatePath = ('%u'):format(templatePath.hash)
         end
 
+        data.inventory = {}
+
         if entity:IsA('gameObject') then
             local recordID = entity:GetTDBID()
             if TDBID.IsValid(recordID) then
                 data.recordID = TDBID.ToStringDEBUG(recordID)
+            end
+
+            local success, items = transactionSystem:GetItemList(entity)
+            if success then
+                for _, item in ipairs(items) do
+                    local itemID = item:GetID().id.value
+                    if isNotEmpty(itemID) then
+                        table.insert(data.inventory, itemID)
+                    end
+                end
+                table.sort(data.inventory)
             end
         end
 
@@ -586,17 +599,6 @@ local function fillTargetEntityData(target, data)
             end
         end
 
-        data.inventory = {}
-        local success, items = transactionSystem:GetItemList(entity)
-        if success then
-            for _, item in ipairs(items) do
-                local itemID = item:GetID().id.value
-                if isNotEmpty(itemID) then
-                    table.insert(data.inventory, itemID)
-                end
-            end
-            table.sort(data.inventory)
-        end
         data.hasInventory = (#data.inventory > 0)
 
         data.components = resolveComponents(entity)

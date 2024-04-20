@@ -4,6 +4,8 @@
 
 namespace Raw::inkWidget
 {
+using DrawContexts = Core::OffsetPtr<0x1D0, Red::DynArray<Red::inkDrawContext>*>;
+
 constexpr auto Draw = Core::RawFunc<
     /* addr = */ Red::AddressLib::InkWidget_Draw,
     /* type = */ void (*)(Red::inkWidget* aWidget, Red::inkWidgetContext& aContext)>();

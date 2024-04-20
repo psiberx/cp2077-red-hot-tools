@@ -820,3 +820,15 @@ Red::Vector2 App::InspectionSystem::GetPointerScreenPosition()
 {
     return Red::InkSystem::Get()->pointerScreenPosition;
 }
+
+Red::inkRectangle App::InspectionSystem::GetWidgetDrawRect(const Red::Handle<Red::inkWidget>& aWidget)
+{
+    Red::inkRectangle drawRect{};
+
+    if (const auto drawContext = Red::inkDrawContext::Resolve(aWidget))
+    {
+        Raw::inkDrawArea::GetBoundingRect(drawContext->drawArea, drawRect, true);
+    }
+
+    return drawRect;
+}
