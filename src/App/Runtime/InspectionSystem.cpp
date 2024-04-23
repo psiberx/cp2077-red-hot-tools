@@ -304,7 +304,8 @@ void App::InspectionSystem::UpdateFrustumNodes()
             if (distance > FrustumMaxDistance)
                 continue;
 
-            if (streamedNode.isStaticMesh && Red::IsValidBox(testBox) &&
+            if (streamedNode.nodeDefinition.instance->isVisibleInGame &&
+                streamedNode.isStaticMesh && Red::IsValidBox(testBox) &&
                 distance >= 0.0001 && distance <= RayCastingMaxDistance)
             {
                 if (Red::Intersect(cameraPosition, cameraInverseDirection, testBox))

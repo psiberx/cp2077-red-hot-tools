@@ -91,7 +91,7 @@ local function drawArchivesContent()
     ImGui.Text('Status:')
     ImGui.SameLine()
     ImGui.PushStyleColor(ImGuiCol.Text, 0xcc00ff00)
-    ImGui.Text('Enabled')
+    ImGui.Text('Active')
     ImGui.PopStyleColor()
 
     ImGui.Spacing()
