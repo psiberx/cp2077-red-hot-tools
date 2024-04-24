@@ -17,7 +17,8 @@ constexpr uint32_t EntityID_ToStringDEBUG = 3457552837;
 constexpr uint32_t FileSystem_Instance = 3788966949;
 constexpr uint32_t FileSystem_Close = 1332290822;
 
-constexpr uint32_t ISerializable_SetReference = 2587561854;
+// constexpr uint32_t ISerializable_SetReference = 2587561854;
+constexpr uint32_t ISerializable_Clone = 2601784524;
 
 constexpr uint32_t InkDrawArea_GetBoundingRect = 446829303;
 
