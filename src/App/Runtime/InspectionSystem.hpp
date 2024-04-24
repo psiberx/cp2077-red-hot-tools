@@ -86,6 +86,7 @@ public:
     Red::CName GetTypeName(const Red::WeakHandle<Red::ISerializable>& aInstace);
     bool IsInstanceOf(const Red::WeakHandle<Red::ISerializable>& aInstace, Red::CName aType);
     uint64_t GetObjectHash(const Red::WeakHandle<Red::ISerializable>& aInstace);
+    Red::Handle<Red::ISerializable> CloneObject(const Red::Handle<Red::ISerializable>& aInstace);
 
     Red::DynArray<InkLayerExtendedData> CollectInkLayers();
     InkWidgetCollectionData CollectHoveredWidgets();
@@ -192,6 +193,7 @@ RTTI_DEFINE_CLASS(App::InspectionSystem, {
     RTTI_METHOD(GetTypeName);
     RTTI_METHOD(GetObjectHash);
     RTTI_METHOD(IsInstanceOf);
+    RTTI_METHOD(CloneObject);
     RTTI_METHOD(GetComponents);
     RTTI_METHOD(GetTemplatePath);
     RTTI_METHOD(ApplyHighlightEffect);

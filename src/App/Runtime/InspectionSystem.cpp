@@ -782,6 +782,13 @@ uint64_t App::InspectionSystem::GetObjectHash(const Red::WeakHandle<Red::ISerial
     return reinterpret_cast<uint64_t>(aInstace.instance);
 }
 
+Red::Handle<Red::ISerializable> App::InspectionSystem::CloneObject(const Red::Handle<Red::ISerializable>& aInstace)
+{
+    Red::Handle<Red::ISerializable> clone;
+    Raw::ISerializable::Clone(clone, aInstace);
+    return clone;
+}
+
 Red::DynArray<App::InkLayerExtendedData> App::InspectionSystem::CollectInkLayers()
 {
     return m_inkWidgetService->CollectLayers();

@@ -213,7 +213,7 @@ local function getChildIndex(target, hash)
     return index
 end
 
-local function describeTarget(target, withContent, maxTextLength)
+local function describeTarget(target, withName, withContent, maxTextLength)
     if not maxTextLength then
         maxTextLength = 32
     end
@@ -223,10 +223,12 @@ local function describeTarget(target, withContent, maxTextLength)
     table.insert(description, inspectionSystem:GetTypeName(target).value)
 
     if inspectionSystem:IsInstanceOf(target, 'inkWidget') then
-        local name = target:GetName().value
-        if name ~= '' and name ~= 'None' and name ~= 'UNINITIALIZED_WIDGET' and name ~= 'Base Window' then
-            table.insert(description, '#')
-            table.insert(description, name)
+        if withName then
+            local name = target:GetName().value
+            if name ~= '' and name ~= 'None' and name ~= 'UNINITIALIZED_WIDGET' and name ~= 'Base Window' then
+                table.insert(description, '#')
+                table.insert(description, name)
+            end
         end
 
         if withContent then
@@ -305,6 +307,7 @@ local viewState = {
     isWindowOpen = true,
     isWindowExpanded = true,
     isEditorFirstTabOpen = true,
+    clipboard = nil,
 }
 
 local viewData = {
@@ -663,9 +666,9 @@ local function drawLayoutFieldset(target)
         target:SetHAlign(input)
     end
 
-    input, changed = drawEditorEnumInput('HAlign', layout.HAlign, viewData.inkEVerticalAlign, viewStyle.editorInputHalfWidth)
+    input, changed = drawEditorEnumInput('VAlign', layout.VAlign, viewData.inkEVerticalAlign, viewStyle.editorInputHalfWidth)
     if changed then
-        target:SetHAlign(input)
+        target:SetVAlign(input)
     end
 
     input, changed = drawEditorMarginInput('margin', layout.margin, '%.2f', viewStyle.editorInputFullWidth)
@@ -1687,6 +1690,14 @@ end
 
 -- GUI :: Inspector --
 
+local function cloneWidget(target)
+    local clone = inspectionSystem:CloneObject(target)
+    if clone:IsA('inkImageWidget') then
+        clone:SetAtlasResource(target.textureAtlas)
+    end
+    return clone
+end
+
 local function drawInspectorTreeNode(node, scope)
     local hash, target, targetOwner, hasChildren
     if scope then
@@ -1704,7 +1715,7 @@ local function drawInspectorTreeNode(node, scope)
         target = node
     end
 
-    local caption = describeTarget(target, true)
+    local caption = describeTarget(target, true, true)
     if targetOwner then
         caption = caption .. ' @ ' .. targetOwner
     end
@@ -1747,60 +1758,86 @@ local function drawInspectorTreeNode(node, scope)
     if scope ~= 'layer' and ImGui.BeginPopupContextItem('##InspectorContextMenu:' .. tostring(hash)) then
         local isWidget = not target:IsA('inkWindow')
         local isContainer = target:IsA('inkCompoundWidget')
-        local hasSelection = IsDefined(viewState.widgetToMove) and viewState.widgetToMove.hash ~= hash
-        local selection = hasSelection and viewState.widgetToMove or nil
 
-        if hasSelection then
+        if viewState.clipboard and IsDefined(viewState.clipboard.widget) then
             ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.contextCaptionColor)
             ImGui.SetWindowFontScale(viewStyle.contextCaptionSize)
-            ImGui.Text(describeTarget(selection))
+            ImGui.Text(describeTarget(viewState.clipboard.widget))
             ImGui.SetWindowFontScale(1.0)
             ImGui.PopStyleColor()
 
-            local canMove = true
-            if isWidget and selection.isContainer then
-                local parent = target.parentWidget
+            viewState.clipboard.parent = viewState.clipboard.widget.parentWidget
+
+            local isMoving = viewState.clipboard.move or false
+            local isMovingAllowed = true
+            if isWidget and isMoving and viewState.clipboard.widget:IsA('inkCompoundWidget') then
+                local parent = target
                 while not parent:IsA('inkWindow') do
-                    if inspectionSystem:GetObjectHash(parent) == selection.hash then
-                        canMove = false
+                    if inspectionSystem:GetObjectHash(parent) == viewState.clipboard.hash then
+                        isMovingAllowed = false
                         break
                     end
                     parent = parent.parentWidget
                 end
             end
 
-            if canMove then
-                local isSameParent = inspectionSystem:GetObjectHash(selection.parentWidget) == hash
-                local isInsideSameParent = inspectionSystem:GetObjectHash(target.parentWidget) == inspectionSystem:GetObjectHash(selection.parentWidget)
+            if not isMoving or isMovingAllowed then
+                local parent = target.parentWidget
+                local isSameParent = inspectionSystem:GetObjectHash(viewState.clipboard.parent) == hash
+                local isInsideSameParent = inspectionSystem:GetObjectHash(parent) == inspectionSystem:GetObjectHash(viewState.clipboard.parent)
 
-                if isContainer and not isSameParent then
-                    if ImGui.MenuItem('Insert into') then
-                        selection:Reparent(target, -1)
-                        --viewState.widgetToMove = nil
+                if isContainer and (not isSameParent or not isMoving) then
+                    if isMoving then
+                        if ImGui.MenuItem('Move into') then
+                            viewState.clipboard.widget:Reparent(target, -1)
+                            viewState.clipboard = nil
+                        end
+                    else
+                        if ImGui.MenuItem('Paste into') then
+                            local newWidget = cloneWidget(viewState.clipboard.widget)
+                            newWidget:Reparent(target, -1)
+                            viewState.clipboard = nil
+                        end
                     end
                 end
 
                 if isWidget then
-                    local moveRelative
-                    if ImGui.MenuItem('Move before') then
-                        moveRelative = 0
-                    end
-                    if ImGui.MenuItem('Move after') then
-                        moveRelative = 1
-                    end
-                    if moveRelative then
-                        if isInsideSameParent then
-                            print('isInsideSameParent')
-                            target.parentWidget:RemoveChild(selection)
+                    local relativeIndex
+                    if isMoving then
+                        if ImGui.MenuItem('Move before') then
+                            relativeIndex = 0
                         end
-                        local targetIndex = getChildIndex(target, hash)
-                        print(targetIndex)
-                        selection:Reparent(target.parentWidget, targetIndex + moveRelative)
-                        --viewState.widgetToMove = nil
+                        if ImGui.MenuItem('Move after') then
+                            relativeIndex = 1
+                        end
+                        if relativeIndex then
+                            local targetIndex = getChildIndex(target, hash)
+                            if isInsideSameParent then
+                                parent:ReorderChild(viewState.clipboard.widget, targetIndex + relativeIndex)
+                            else
+                                viewState.clipboard.widget:Reparent(parent, targetIndex + relativeIndex)
+                            end
+                            viewState.clipboard = nil
+                        end
+                    else
+                        if ImGui.MenuItem('Paste before') then
+                            relativeIndex = 0
+                        end
+                        if ImGui.MenuItem('Paste after') then
+                            relativeIndex = 1
+                        end
+                        if relativeIndex then
+                            local targetIndex = getChildIndex(target, hash)
+                            local newWidget = cloneWidget(viewState.clipboard.widget)
+                            newWidget:Reparent(parent, targetIndex + relativeIndex)
+                            viewState.clipboard = nil
+                        end
                     end
                 end
             else
+                ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
                 ImGui.Text('Can\'t move into itself')
+                ImGui.PopStyleColor()
             end
 
             if isContainer or isWidget then
@@ -1811,23 +1848,40 @@ local function drawInspectorTreeNode(node, scope)
         end
 
         if isWidget then
-            if ImGui.MenuItem('Select widget') then
-                viewState.widgetToMove = target
-                viewState.widgetToMove.hash = hash
-                viewState.widgetToMove.isContainer = isContainer
+            if ImGui.MenuItem('Copy') then
+                viewState.clipboard = {
+                    widget = target,
+                    hash = hash,
+                    copy = true,
+                }
             end
-            if ImGui.MenuItem('Remove widget') then
+            if ImGui.MenuItem('Cut') then
+                viewState.clipboard = {
+                    widget = target,
+                    hash = hash,
+                    move = true,
+                }
+            end
+            if ImGui.MenuItem('Remove') then
                 target.parentWidget:RemoveChild(target)
+                viewState.clipboard = nil
+            end
+
+            if isContainer then
+                ImGui.Spacing()
+                ImGui.Separator()
+                ImGui.Spacing()
             end
         end
 
         if isContainer then
-            if ImGui.BeginMenu('Add widget') then
+            if ImGui.BeginMenu('Create') then
                 for _, widgetType in ipairs(viewData.widgetTypes) do
                     if ImGui.MenuItem(widgetType) then
                         local newWidget = NewObject(widgetType)
                         newWidget:Reparent(target, -1)
                         selectInspectedTarget(newWidget)
+                        viewState.clipboard = nil
                     end
                 end
                 ImGui.EndMenu()
@@ -1977,7 +2031,7 @@ local function drawPickerContent(isModal)
     for _, result in ipairs(picker.results) do
         local widget = result.handle
         if IsDefined(widget) then
-            local itemCaption = describeTarget(widget, true)
+            local itemCaption = describeTarget(widget, true, true)
 
             if result.isInteractive then
                 itemCaption = itemCaption .. ' ^'
