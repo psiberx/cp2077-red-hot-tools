@@ -58,6 +58,13 @@ local function exportStateData(t, max, depth, result)
 	end
 end
 
+local function getValue(value)
+    if type(value) == 'function' then
+        return value()
+    end
+    return value
+end
+
 function PersistentState.Initialize(state, filePath, dataSchema)
 	state._filePath = filePath
 	state._dataSchema = dataSchema
@@ -74,11 +81,11 @@ function PersistentState.Initialize(state, filePath, dataSchema)
     for field, schema in pairs(dataSchema) do
         if type(schema.type) == 'string' then
             if state[field] == nil or type(state[field]) ~= schema.type then
-                state[field] = schema.default
+                state[field] = getValue(schema.default)
             end
         elseif type(schema.type) == 'table' then
             if state[field] == nil or schema.type[state[field]] ~= state[field] then
-                state[field] = schema.default
+                state[field] = getValue(schema.default)
             end
         end
     end

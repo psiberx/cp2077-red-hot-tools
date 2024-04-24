@@ -55,6 +55,8 @@ local userStateSchema = {
     scannerFilter = { type = 'string', default = '' },
     scannerGroup = { type = 'string', default = '' },
     scannerDistance = { type = 'number', default = 25.0 },
+    frustumDistance = { type = 'number', default = 0.0 },
+    targetingDistance = { type = 'number', default = 0.0 },
     highlightColor = { type = ColorScheme, default = ColorScheme.Red },
     outlineMode = { type = OutlineMode, default = OutlineMode.ForSupportedObjects },
     markerMode = { type = MarkerMode, default = MarkerMode.ForStaticMeshes },
@@ -69,8 +71,18 @@ local userStateSchema = {
     keepLastHoveredResultHighlighted = { type = 'boolean', default = true },
 }
 
+local function syncInspectionSystemState()
+    inspectionSystem:SetFrustumDistance(userState.frustumDistance)
+    inspectionSystem:SetTargetingDistance(userState.targetingDistance)
+
+    userState.frustumDistance = inspectionSystem:GetFrustumDistance()
+    userState.targetingDistance = inspectionSystem:GetTargetingDistance()
+    userState.scannerDistance = MathEx.Clamp(userState.scannerDistance, 0.5, userState.frustumDistance)
+end
+
 local function initializeUserState()
     PersistentState.Initialize(userState, modulePath .. '/.state', userStateSchema)
+    syncInspectionSystemState()
 end
 
 local function saveUserState()
@@ -117,11 +129,7 @@ local extendedCollisionGroups = {
     { name = 'Dynamic+' },
 }
 
-local frustumMaxDistance = 100
-
 local function initializeTargeting()
-    frustumMaxDistance = inspectionSystem:GetFrustumMaxDistance()
-
     for _, collision in ipairs(collisionGroups) do
         collision.name = StringToName(collision.name)
     end
@@ -159,7 +167,7 @@ local function getCameraData(distance)
 end
 
 local function getLookAtTargets(maxDistance)
-	local camera = getCameraData(maxDistance or frustumMaxDistance)
+	local camera = getCameraData(maxDistance or userState.targetingDistance)
 
 	if not camera then
         return
@@ -1877,9 +1885,9 @@ local function drawScannerContent()
             ImGui.Text('Distance:')
             ImGui.SameLine()
             ImGui.SetNextItemWidth(viewStyle.windowWidth + viewStyle.windowPaddingX - ImGui.GetCursorPosX())
-            local distance, distanceChanged = ImGui.InputFloat('##ScannerDistance', userState.scannerDistance, 0.5, 1.0, '%.1fm', ImGuiInputTextFlags.None)
+            local distance, distanceChanged = ImGui.InputFloat('##ScannerDistance', userState.scannerDistance, 1.0, 10.0, '%.1fm', ImGuiInputTextFlags.None)
             if distanceChanged then
-                userState.scannerDistance = MathEx.Clamp(distance, 0.5, frustumMaxDistance)
+                userState.scannerDistance = MathEx.Clamp(distance, 0.5, userState.frustumDistance)
             end
 
             ImGui.Spacing()
@@ -2166,6 +2174,17 @@ local function drawSettingsContent()
 
     ImGui.BeginGroup()
     ImGui.AlignTextToFramePadding()
+    ImGui.Text('Max targeting distance:')
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsMiddleInputWidth)
+    state, changed = ImGui.InputFloat('##TargetingDistance', userState.targetingDistance, 1.0, 10.0, '%.1fm', ImGuiInputTextFlags.None)
+    if changed then
+        userState.targetingDistance = state
+        syncInspectionSystemState()
+    end
+
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
     ImGui.Text('Max static targets:')
     ImGui.SameLine()
     ImGui.SetNextItemWidth(viewStyle.settingsShortInputWidth)
@@ -2195,6 +2214,17 @@ local function drawSettingsContent()
     ImGui.SetWindowFontScale(1.0)
     ImGui.PopStyleColor()
 
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Max scanning distance:')
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsMiddleInputWidth)
+    state, changed = ImGui.InputFloat('##FrustumDistance', userState.frustumDistance, 1.0, 10.0, '%.1fm', ImGuiInputTextFlags.None)
+    if changed then
+        userState.frustumDistance = state
+        syncInspectionSystemState()
+    end
+
     ImGui.Spacing()
 
     state, changed = ImGui.Checkbox('Highlight scanned target when hover over', userState.highlightScannerResult)
@@ -2215,6 +2245,7 @@ local function drawSettingsContent()
     end
     --ImGui.Unindent(ImGui.GetFrameHeightWithSpacing())
 
+    --[[
     ImGui.Spacing()
     ImGui.Separator()
     ImGui.Spacing()
@@ -2231,6 +2262,7 @@ local function drawSettingsContent()
     if changed then
         userState.highlightLookupResult = state
     end
+    --]]
 end
 
 -- GUI :: Hotkeys --
@@ -2374,12 +2406,12 @@ local function drawProjectedQuad(screen, quad, color, thickness)
     end
 end
 
-local function drawProjectedText(screen, position, color, size, text)
-    local projected = getScreenPoint(screen, position)
-    if not isOffScreenPoint(projected) then
-        drawText(projected, color, size, text)
-    end
-end
+--local function drawProjectedText(screen, position, color, size, text)
+--    local projected = getScreenPoint(screen, position)
+--    if not isOffScreenPoint(projected) then
+--        drawText(projected, color, size, text)
+--    end
+--end
 
 local function drawProjectedDistance(screen, position, offsetX, offsetY, textColor, fontSize, fontBold)
     local projected = getScreenPoint(screen, position)
@@ -2716,17 +2748,17 @@ local function onCycleTargetingModeHotkey()
     end
 end
 
-local function onCycleHighlightColorHotkey()
-    if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
-        local nextColorIndex = ColorScheme.values[userState.highlightColor] + 1
-        if nextColorIndex > #ColorScheme.values then
-            nextColorIndex = 1
-        end
-        userState.highlightColor = ColorScheme.values[nextColorIndex]
-        initializeHighlighting()
-        saveUserState()
-    end
-end
+--local function onCycleHighlightColorHotkey()
+--    if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
+--        local nextColorIndex = ColorScheme.values[userState.highlightColor] + 1
+--        if nextColorIndex > #ColorScheme.values then
+--            nextColorIndex = 1
+--        end
+--        userState.highlightColor = ColorScheme.values[nextColorIndex]
+--        initializeHighlighting()
+--        saveUserState()
+--    end
+--end
 
 -- Module --
 

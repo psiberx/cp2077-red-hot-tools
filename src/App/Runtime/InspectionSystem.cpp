@@ -9,6 +9,7 @@
 #include "Red/NodeRef.hpp"
 #include "Red/Physics.hpp"
 #include "Red/Rendering.hpp"
+#include "Red/Scripting.hpp"
 #include "Red/Transform.hpp"
 #include "Red/WorldNode.hpp"
 
@@ -301,12 +302,12 @@ void App::InspectionSystem::UpdateFrustumNodes()
                 distance = Red::Distance(cameraPosition, transform.position);
             }
 
-            if (distance > FrustumMaxDistance)
+            if (distance > m_frustumDistance)
                 continue;
 
             if (streamedNode.nodeDefinition.instance->isVisibleInGame &&
                 streamedNode.isStaticMesh && Red::IsValidBox(testBox) &&
-                distance >= 0.0001 && distance <= RayCastingMaxDistance)
+                distance >= 0.0001 && distance <= m_targetingDistance)
             {
                 if (Red::Intersect(cameraPosition, cameraInverseDirection, testBox))
                 {
@@ -465,9 +466,24 @@ Red::DynArray<App::WorldNodeRuntimeSceneData> App::InspectionSystem::GetStreamed
     return m_targetedNodes;
 }
 
-int32_t App::InspectionSystem::GetFrustumMaxDistance()
+float App::InspectionSystem::GetFrustumDistance() const
 {
-    return FrustumMaxDistance;
+    return m_frustumDistance;
+}
+
+void App::InspectionSystem::SetFrustumDistance(float aDistance)
+{
+    m_frustumDistance = std::clamp(aDistance, FrustumMinDistance, FrustumMaxDistance);
+}
+
+float App::InspectionSystem::GetTargetingDistance() const
+{
+    return m_targetingDistance;
+}
+
+void App::InspectionSystem::SetTargetingDistance(float aDistance)
+{
+    m_targetingDistance = std::clamp(aDistance, FrustumMinDistance, m_frustumDistance);
 }
 
 bool App::InspectionSystem::SetNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aVisible)
