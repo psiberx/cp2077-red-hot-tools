@@ -1578,7 +1578,7 @@ local function drawEditorContent()
         local labelW = ImGui.CalcTextSize(label)
         local paddingX = ImGui.GetStyle().FramePadding.x * 2
         local regionW = ImGui.GetContentRegionMax()
-        ImGui.SetCursorPosX(regionW - textW - paddingX)
+        ImGui.SetCursorPosX(regionW - labelW - paddingX)
         if ImGui.Button(label) then
             userState.selectedTab = MainTab.Inspect
             viewState.isFirstOpen = true
