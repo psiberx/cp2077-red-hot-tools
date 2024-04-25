@@ -1572,6 +1572,19 @@ local function drawEditorContent()
         ImGui.SetClipboardText(targetType)
     end
 
+    if userState.selectedTab == MainTab.Pick then
+        ImGui.SameLine()
+        local label = 'Open in tree'
+        local labelW = ImGui.CalcTextSize(label)
+        local paddingX = ImGui.GetStyle().FramePadding.x * 2
+        local regionW = ImGui.GetContentRegionMax()
+        ImGui.SetCursorPosX(regionW - textW - paddingX)
+        if ImGui.Button(label) then
+            userState.selectedTab = MainTab.Inspect
+            viewState.isFirstOpen = true
+        end
+    end
+
     ImGui.Spacing()
     ImGui.BeginTabBar('##EditorTabBar')
 
@@ -1926,7 +1939,7 @@ local function drawInspectorContent()
 
     if inspector.target --[[and inspector.target.scope ~= 'layer']] then
         ImGui.SameLine()
-        if ImGui.Button('Go to target') then
+        if ImGui.Button('Scroll to selection') then
             viewState.openSelectedWidgetInTree = true
         end
     end
