@@ -43,6 +43,7 @@ struct WorldNodeRuntimeSceneData
     Red::Quaternion orientation;
     Red::Box testBox;
     float distance;
+    bool frustum;
     uint64_t hash;
     bool resolved;
 };

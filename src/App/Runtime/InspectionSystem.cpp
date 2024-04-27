@@ -283,12 +283,6 @@ void App::InspectionSystem::UpdateFrustumNodes()
 
 #ifndef NDEBUG
             resolveDuration += std::chrono::steady_clock::now() - resolveStart;
-#endif
-
-            if (frustumResult == Red::FrustumResult::Outside)
-                continue;
-
-#ifndef NDEBUG
             const auto raycastStart = std::chrono::steady_clock::now();
 #endif
 
@@ -302,17 +296,22 @@ void App::InspectionSystem::UpdateFrustumNodes()
                 distance = Red::Distance(cameraPosition, transform.position);
             }
 
-            if (distance > m_frustumDistance)
-                continue;
-
-            if (streamedNode.nodeDefinition.instance->isVisibleInGame &&
-                streamedNode.isStaticMesh && Red::IsValidBox(testBox) &&
-                distance >= 0.0001 && distance <= m_targetingDistance)
+            auto inFrustum = (frustumResult != Red::FrustumResult::Outside && distance <= m_frustumDistance);
+            if (inFrustum)
             {
-                if (Red::Intersect(cameraPosition, cameraInverseDirection, testBox))
+                if (streamedNode.nodeDefinition.instance->isVisibleInGame &&
+                    streamedNode.isStaticMesh && Red::IsValidBox(testBox) &&
+                    distance >= 0.0001 && distance <= m_targetingDistance)
                 {
-                    targetedNodeIndexes.push_back(frustumNodes.size);
+                    if (Red::Intersect(cameraPosition, cameraInverseDirection, testBox))
+                    {
+                        targetedNodeIndexes.push_back(frustumNodes.size);
+                    }
                 }
+            }
+            else
+            {
+                continue;
             }
 
 #ifndef NDEBUG
@@ -322,7 +321,7 @@ void App::InspectionSystem::UpdateFrustumNodes()
             const auto instanceHash = reinterpret_cast<uint64_t>(streamedNode.nodeInstance.instance);
             frustumNodes.PushBack({streamedNode.nodeInstance, streamedNode.nodeDefinition,
                                    streamedNode.boundingBox, transform.position, transform.orientation,
-                                   testBox, distance, instanceHash, true});
+                                   testBox, distance, inFrustum, instanceHash, true});
         }
     }
 
@@ -338,12 +337,12 @@ void App::InspectionSystem::UpdateFrustumNodes()
 
     {
         std::unique_lock _(m_frustumNodesLock);
-        m_frustumNodes = frustumNodes;
+        m_frustumNodes = std::move(frustumNodes);
 
         m_targetedNodes.Clear();
         for (const auto& index : targetedNodeIndexes)
         {
-            m_targetedNodes.PushBack(frustumNodes[index]);
+            m_targetedNodes.PushBack(m_frustumNodes[index]);
         }
     }
 
