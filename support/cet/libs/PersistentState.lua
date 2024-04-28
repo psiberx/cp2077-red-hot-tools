@@ -14,13 +14,15 @@ local function exportStateData(t, max, depth, result)
 	table.insert(output, '{\n')
 
 	for k, v in pairs(t) do
-		if not k:find('^_') then
+		if type(k) ~= 'string' or not k:find('^_') then
             local ktype = type(k)
             local vtype = type(v)
 
             local kstr = ''
             if ktype == 'string' then
                 kstr = string.format('[%q] = ', k)
+            elseif ktype == 'number' then
+                kstr = string.format('[%d] = ', k)
             end
 
             local vstr = ''
@@ -28,7 +30,7 @@ local function exportStateData(t, max, depth, result)
                 vstr = string.format('%q', v)
             elseif vtype == 'table' then
                 if depth < max then
-                    exportStateData(v, max, depth + 1, output)
+                    vstr = exportStateData(v, max, depth + 1)
                 end
             elseif vtype == 'userdata' then
                 vstr = tostring(v)
@@ -71,9 +73,12 @@ function PersistentState.Initialize(state, filePath, dataSchema)
 
 	local chunk = loadfile(filePath)
 	if type(chunk) == 'function' then
-        for k, v in pairs(chunk()) do
-            if dataSchema[k] then
-                state[k] = v
+        local data = chunk()
+        if type(data) == 'table' then
+            for k, v in pairs(data) do
+                if dataSchema[k] then
+                    state[k] = v
+                end
             end
         end
 	end
@@ -85,6 +90,10 @@ function PersistentState.Initialize(state, filePath, dataSchema)
             end
         elseif type(schema.type) == 'table' then
             if state[field] == nil or schema.type[state[field]] ~= state[field] then
+                state[field] = getValue(schema.default)
+            end
+        else
+            if state[field] == nil then
                 state[field] = getValue(schema.default)
             end
         end

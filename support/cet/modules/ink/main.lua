@@ -36,6 +36,10 @@ local userStateSchema = {
     autoSnapOnScreenDisplay = { type = 'boolean', default = true },
     disablePickerOnConsoleOpen = { type = 'boolean', default = true },
     enforcePointerOnActivation = { type = 'boolean', default = true },
+    highlightHoveredInTree = { type = 'boolean', default = true },
+    highlightHoveredInPicker = { type = 'boolean', default = true },
+    highlightBorderColor = { default = { 0.0, 1.0, 0.0, 1.0 } },
+    highlightFillColor = { default = { 0.0, 1.0, 0.0, 0.05 }},
 }
 
 local function initializeUserState()
@@ -49,42 +53,112 @@ end
 -- Highlighting --
 
 local highlight = {
-    target = nil,
     pending = nil,
-    projections = {},
+    target = nil,
+    wrapper = nil,
+    id = nil,
 }
 
-local function enableHighlight(target)
-    if target and IsDefined(target.widget) then
-        local area = inspectionSystem:GetWidgetDrawRect(target.widget)
-        if area.width > 0 then
-            highlight.target = target
-            highlight.projections[target.hash] = {
-                widget = target.widget,
-                area = area,
-                color = 0xFF32FF1D,
-            }
-        end
+local function applyHighlightingColors()
+	highlight.border:SetOpacity(userState.highlightBorderColor[4])
+	highlight.border:SetTintColor(HDRColor.new({
+	    Red = userState.highlightBorderColor[1],
+	    Green = userState.highlightBorderColor[2],
+	    Blue = userState.highlightBorderColor[3],
+	    Alpha = 1.0,
+    }))
+
+	highlight.fill:SetOpacity(userState.highlightFillColor[4])
+	highlight.fill:SetTintColor(HDRColor.new({
+	    Red = userState.highlightFillColor[1],
+	    Green = userState.highlightFillColor[2],
+	    Blue = userState.highlightFillColor[3],
+	    Alpha = 1.0,
+    }))
+end
+
+local function initializeHighlighting()
+    local wrapper = inkCanvas.new()
+    wrapper:SetName(StringToName('##RHT:Highlight'))
+	wrapper:SetAnchor(inkEAnchor.TopLeft)
+
+    local fill = inkRectangleWidget.new()
+	fill:SetAnchor(inkEAnchor.Fill)
+	fill:Reparent(wrapper, -1)
+
+    local border = inkBorderWidget.new()
+	border:SetAnchor(inkEAnchor.Fill)
+	border:SetThickness(2.0)
+	border:Reparent(wrapper, -1)
+
+	highlight.id = wrapper.name
+	highlight.wrapper = wrapper
+	highlight.border = border
+	highlight.fill = fill
+
+	applyHighlightingColors()
+end
+
+local function disableHighlight()
+    local parent = highlight.wrapper.parentWidget
+    if IsDefined(parent) then
+        parent:RemoveChild(highlight.wrapper)
     end
 end
 
-local function disableHighlights()
-    highlight.target = nil
-    highlight.projections = {}
+local function enableHighlight(widget)
+    if not IsDefined(widget) then
+        disableHighlight()
+        return false
+    end
+
+    local window = widget.parentWidget
+    while IsDefined(window) do
+        if window:IsA('inkWindow') then
+            break
+        end
+        window = window.parentWidget
+    end
+
+    if not IsDefined(window) then
+        disableHighlight()
+        return false
+    end
+
+    disableHighlight()
+
+    local area = inspectionSystem:GetWidgetDrawRect(widget)
+    local scale = window.renderTransform.scale
+
+    area.x = area.x / scale.X
+    area.y = area.y / scale.Y
+    area.width = area.width / scale.X
+    area.height = area.height / scale.Y
+
+    highlight.wrapper:SetMargin(inkMargin.new({ left = area.x, top = area.y }))
+    highlight.wrapper:SetSize(Vector2.new({ X = area.width, Y = area.height }))
+
+    highlight.wrapper:Reparent(window, -1)
+
+    return true
 end
 
 local function updateHighlights()
-    disableHighlights()
-
-    if highlight.pending then
-        enableHighlight(highlight.pending)
-        highlight.pending = nil
+    if enableHighlight(highlight.pending) then
+        highlight.target = highlight.pending
+    else
+        highlight.target = nil
     end
+    highlight.pending = nil
 end
 
-local function highlightTarget(target)
-    if target and target.hash then
-        highlight.pending = target
+local function disableHighlights()
+    disableHighlight()
+end
+
+local function highlightTarget(widget)
+    if widget and IsDefined(widget) then
+        highlight.pending = widget
     else
         highlight.pending = nil
     end
@@ -111,10 +185,6 @@ local function updateInspector(collect)
 
     if inspector.target and inspector.target.widget and not IsDefined(inspector.target.widget) then
         inspector.target = nil
-    end
-
-    if inspector.target and IsDefined(inspector.target.widget) then
-        highlightTarget(inspector.target)
     end
 end
 
@@ -238,6 +308,7 @@ local function describeTarget(target, withName, withContent, maxTextLength)
                 if content == '' then
                     content = GetLocalizedTextByKey(target:GetLocalizationKey())
                 end
+                content = content:gsub('%c', ' ')
                 if content:len() > maxTextLength then
                     content = content:sub(0, maxTextLength) .. '...'
                 end
@@ -494,6 +565,17 @@ local function drawEditorTextInput(label, value, rowWidth)
     ensureEditorInputWidth(rowWidth)
     ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, viewStyle.editorInputPaddingX, viewStyle.editorInputPaddingY)
     local input, changed = ImGui.InputText('##' .. label, value, 32768)
+    ImGui.PopStyleVar()
+    ImGui.EndGroup()
+    return input, changed
+end
+
+local function drawEditorMultilineTextInput(label, value, rowWidth)
+    ImGui.BeginGroup()
+    drawEditorLabel(label)
+    ensureEditorInputWidth(rowWidth)
+    ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, viewStyle.editorInputPaddingX, viewStyle.editorInputPaddingY)
+    local input, changed = ImGui.InputTextMultiline('##' .. label, value, 32768, 0, viewStyle.editorInputHeight * 1.5)
     ImGui.PopStyleVar()
     ImGui.EndGroup()
     return input, changed
@@ -871,10 +953,10 @@ end
 local function drawTextContentFieldset(target)
     drawEditorGroupCaption('TEXT')
 
-    local input, changed = drawEditorTextInput('text', target.text, viewStyle.editorInputFullWidth)
+    local input, changed = drawEditorMultilineTextInput('text', target.text, viewStyle.editorInputFullWidth)
     if changed then
         target:SetLocalizationKey(CName.new())
-        target:SetTextDirect(input)
+        target:SetText(input)
     end
 
 	-- TODO: localizationString : LocalizationString
@@ -1726,6 +1808,9 @@ local function drawInspectorTreeNode(node, scope)
         end
     else
         target = node
+        if target.name == highlight.id then
+            return
+        end
     end
 
     local caption = describeTarget(target, true, true)
@@ -1766,6 +1851,10 @@ local function drawInspectorTreeNode(node, scope)
         selectInspectedTarget(node, scope)
 
         viewState.preserveCurrentEditorTab = true
+    end
+
+    if userState.highlightHoveredInTree and ImGui.IsItemHovered() then
+        highlightTarget(target)
     end
 
     if scope ~= 'layer' and ImGui.BeginPopupContextItem('##InspectorContextMenu:' .. tostring(hash)) then
@@ -2058,6 +2147,10 @@ local function drawPickerContent(isModal)
                 isItemSelected = true
             end
 
+            if userState.highlightHoveredInPicker and ImGui.IsItemHovered() then
+                highlightTarget(widget)
+            end
+
             if isItemSelected then
                 isSelectedWidgetFound = true
             end
@@ -2103,6 +2196,57 @@ local function drawSettingsContent()
 
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
     ImGui.SetWindowFontScale(viewStyle.groupCaptionSize)
+    ImGui.Text('HIGHLIGHTING')
+    ImGui.SetWindowFontScale(1.0)
+    ImGui.PopStyleColor()
+
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Border color:')
+    ImGui.SameLine()
+    state, changed = ImGui.ColorEdit4('##HighlightBorderColor', userState.highlightBorderColor,
+        ImGuiColorEditFlags.NoInputs + ImGuiColorEditFlags.AlphaPreviewHalf + ImGuiColorEditFlags.AlphaBar + ImGuiColorEditFlags.Float + ImGuiColorEditFlags.HDR)
+    if changed then
+        userState.highlightBorderColor = state
+        applyHighlightingColors()
+    end
+    ImGui.EndGroup()
+
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Fill color:')
+    ImGui.SameLine()
+    state, changed = ImGui.ColorEdit4('##HighlightFillColor', userState.highlightFillColor,
+        ImGuiColorEditFlags.NoInputs + ImGuiColorEditFlags.AlphaPreviewHalf + ImGuiColorEditFlags.AlphaBar + ImGuiColorEditFlags.Float + ImGuiColorEditFlags.HDR)
+    if changed then
+        userState.highlightFillColor = state
+        applyHighlightingColors()
+    end
+    ImGui.EndGroup()
+
+    ImGui.Spacing()
+    ImGui.Separator()
+    ImGui.Spacing()
+
+    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+    ImGui.SetWindowFontScale(viewStyle.groupCaptionSize)
+    ImGui.Text('WIDGET INSPECTOR')
+    ImGui.SetWindowFontScale(1.0)
+    ImGui.PopStyleColor()
+
+    ImGui.Spacing()
+
+    state, changed = ImGui.Checkbox('Highlight widget when hover over in the tree', userState.highlightHoveredInTree)
+    if changed then
+        userState.highlightHoveredInTree = state
+    end
+
+    ImGui.Spacing()
+    ImGui.Separator()
+    ImGui.Spacing()
+
+    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+    ImGui.SetWindowFontScale(viewStyle.groupCaptionSize)
     ImGui.Text('WIDGET PICKER')
     ImGui.SetWindowFontScale(1.0)
     ImGui.PopStyleColor()
@@ -2124,6 +2268,11 @@ local function drawSettingsContent()
         userState.autoSnapOnScreenDisplay = state
     end
 
+    state, changed = ImGui.Checkbox('Highlight widget when hover over in results', userState.highlightHoveredInPicker)
+    if changed then
+        userState.highlightHoveredInPicker = state
+    end
+
     viewState.openSelectedWidgetInEditor = false
 end
 
@@ -2133,114 +2282,6 @@ local function drawHotkeysContent()
     app.drawHotkeys(moduleID)
 
     viewState.openSelectedWidgetInEditor = false
-end
-
--- GUI :: Drawing --
-
-local function getScreenDescriptor()
-    local screen = {}
-    screen.width, screen.height = GetDisplayResolution()
-
-    screen.centerX = screen.width / 2
-    screen.centerY = screen.height / 2
-
-    screen[1] = { x = 0, y = 0 }
-    screen[2] = { x = screen.width - 1, y = 0 }
-    screen[3] = { x = screen.width - 1, y = screen.height - 1 }
-    screen[4] = { x = 0, y = screen.height }
-
-    return screen
-end
-
-local clampScreenPoint = false
-
-local function setScreenClamping(enabled)
-    clampScreenPoint = enabled
-end
-
-local function getScreenPoint(screen, point)
-    local projected = inspectionSystem:ProjectWorldPoint(point)
-
-    local result = {
-        x = projected.x,
-        y = -projected.y,
-        off = projected.w <= 0.0 or projected.z <= 0.0,
-    }
-
-    if projected.w > 0.0 then
-        result.x = result.x / projected.w
-        result.y = result.y / projected.w
-    end
-
-    if clampScreenPoint then
-        result.x = MathEx.Clamp(result.x, -0.995, 0.995)
-        result.y = MathEx.Clamp(result.y, -0.999, 0.999)
-        result.off = false
-    end
-
-    result.x = screen.centerX + (result.x * screen.centerX)
-    result.y = screen.centerY + (result.y * screen.centerY)
-
-    return result
-end
-
-local function drawQuad(quad, color, thickness)
-    if thickness == nil then
-        ImGui.ImDrawListAddQuadFilled(ImGui.GetWindowDrawList(),
-            quad[1].x, quad[1].y,
-            quad[2].x, quad[2].y,
-            quad[3].x, quad[3].y,
-            quad[4].x, quad[4].y,
-            color)
-    else
-        ImGui.ImDrawListAddQuad(ImGui.GetWindowDrawList(),
-            quad[1].x, quad[1].y,
-            quad[2].x, quad[2].y,
-            quad[3].x, quad[3].y,
-            quad[4].x, quad[4].y,
-            color, thickness)
-    end
-end
-
-local function drawRectangle(rect, color, thickness)
-    if thickness == nil then
-        ImGui.ImDrawListAddRectFilled(ImGui.GetWindowDrawList(),
-            rect.x, rect.y,
-            rect.x + rect.width, rect.y + rect.height,
-            color)
-    else
-        ImGui.ImDrawListAddRect(ImGui.GetWindowDrawList(),
-            rect.x, rect.y,
-            rect.x + rect.width, rect.y + rect.height,
-            color, thickness)
-    end
-end
-
-local function drawText(position, color, size, text)
-    ImGui.ImDrawListAddText(ImGui.GetWindowDrawList(), size, position.x, position.y, color, tostring(text))
-end
-
-local function drawProjections()
-    if not userState.isModuleActive then
-        return
-    end
-
-    if next(highlight.projections) == nil then
-        return
-    end
-
-    local screen = getScreenDescriptor(camera)
-
-    ImGui.SetNextWindowSize(screen.width, screen.height, ImGuiCond.Always)
-    ImGui.SetNextWindowPos(0, 0, ImGuiCond.Always)
-
-    if ImGui.Begin('##RHT:InkTools:Projections', true, viewStyle.projectionWindowFlags) then
-        for _, projection in pairs(highlight.projections) do
-            if IsDefined(projection.widget) then
-                drawRectangle(projection.area, projection.color, 1)
-            end
-        end
-    end
 end
 
 -- GUI :: Windows --
@@ -2456,6 +2497,7 @@ end
 local function onInit()
     initializeSystems()
     initializeUserState()
+    initializeHighlighting()
     initializeViewData()
 
     Cron.Every(0.2, function()
