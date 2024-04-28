@@ -2,10 +2,10 @@
 
 This plugin aims to help in the Cyberpunk 2077 mods development, offering the following features:
 
+- Inspect game entities and world nodes
+- Inspect ink layers and widgets (user interface)
 - Hot reload archives, scripts and tweaks
-- See scripts validation and binding errors 
 - Prevent game from starting if scripts compilation fails
-- Inspect entities and world nodes
 
 For greater convenience it integrates with other tools:
 
@@ -18,7 +18,7 @@ For greater convenience it integrates with other tools:
 ### Compatibility
 
 - Cyberpunk 2077 2.12a+
-- [ArchiveXL](https://github.com/psiberx/cp2077-archive-xl) 1.12.2+
+- [ArchiveXL](https://github.com/psiberx/cp2077-archive-xl) 1.13.0+
 - [Cyber Engine Tweaks](https://github.com/yamashi/CyberEngineTweaks) 1.32.0+
 
 ### Installation
