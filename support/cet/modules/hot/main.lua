@@ -31,15 +31,19 @@ local function reloadArchives()
     RedHotTools.ReloadArchives()
 end
 
-local function reloadScripts()
-    RedHotTools.ReloadScripts()
-end
-
 local function reloadTweaks()
     --RedHotTools.ReloadTweaks()
     if TweakXL then
         TweakXL.Reload()
     end
+end
+
+local function reloadScripts()
+    RedHotTools.ReloadScripts()
+end
+
+local function collectGarbage()
+    collectgarbage()
 end
 
 -- GUI --
@@ -265,5 +269,6 @@ return {
         { id = 'ReloadArchives', label = 'Reload ArchiveXL extensions', callback = reloadArchives },
         { id = 'ReloadTweaks', label = 'Reload TweakXL tweaks', callback = reloadTweaks },
         { id = 'ReloadScripts', label = 'Reload Redscript scripts', callback = reloadScripts },
+        { id = 'CollectGarbage', label = 'Recycle game object refs', callback = collectGarbage },
     },
 }

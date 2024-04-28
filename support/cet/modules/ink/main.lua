@@ -1949,11 +1949,6 @@ local function drawInspectorContent()
         userState.inspectorTreeID = userState.inspectorTreeID + 1
     end
 
-    --ImGui.SameLine()
-    --if ImGui.Button('Purge orphans') then
-    --    collectgarbage()
-    --end
-
     if viewState.openSelectedWidgetInTree == true and inspector.target then
         viewState.openSelectedWidgetInTree = inspector.target.hashPathMap
     end
