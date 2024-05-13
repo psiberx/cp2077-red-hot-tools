@@ -768,7 +768,7 @@ local function drawLayoutFieldset(target)
         target:SetSizeRule(input)
     end
 
-    input, changed = drawEditorFloatInput('sizeCoefficient', layout.sizeCoefficient, '%.f', 0.001, 0.1, viewStyle.editorInputHalfWidth)
+    input, changed = drawEditorFloatInput('sizeCoefficient', layout.sizeCoefficient, '%.4f', 0.001, 0.1, viewStyle.editorInputHalfWidth)
     if changed then
         target:SetSizeCoefficient(input)
     end
@@ -1055,7 +1055,7 @@ local function drawTextSettingsFieldset(target)
         target.wrappingInfo = wrappingInfo
     end
 
-    input, changed = drawEditorFloatInput('wrappingAtPosition', wrappingInfo.wrappingAtPosition, '%.f', 1.0, 10.0, viewStyle.editorInputHalfWidth)
+    input, changed = drawEditorFloatInput('wrappingAtPosition', wrappingInfo.wrappingAtPosition, '%.4f', 1.0, 10.0, viewStyle.editorInputHalfWidth)
     if changed then
         wrappingInfo.wrappingAtPosition = input
         target.wrappingInfo = wrappingInfo
@@ -1071,7 +1071,7 @@ local function drawTextSettingsFieldset(target)
 
     drawEditorGroupCaption('TEXT SCROLLING')
 
-    input, changed = drawEditorFloatInput('scrollTextSpeed', target.scrollTextSpeed, '%.f', 1.0, 10.0, viewStyle.editorInputHalfWidth)
+    input, changed = drawEditorFloatInput('scrollTextSpeed', target.scrollTextSpeed, '%.4f', 1.0, 10.0, viewStyle.editorInputHalfWidth)
     if changed then
         target:SetScrollTextSpeed(input)
     end
@@ -1154,12 +1154,12 @@ local function drawImageSettingsFieldset(target)
         target.tileVAlign = input
     end
 
-    input, changed = drawEditorFloatInput('horizontalTileCrop', target.horizontalTileCrop, '%.f', 1.0, 10.0, viewStyle.editorInputHalfWidth)
+    input, changed = drawEditorFloatInput('horizontalTileCrop', target.horizontalTileCrop, '%.4f', 1.0, 10.0, viewStyle.editorInputHalfWidth)
     if changed then
         target.horizontalTileCrop = input
     end
 
-    input, changed = drawEditorFloatInput('verticalTileCrop', target.verticalTileCrop, '%.f', 1.0, 10.0, viewStyle.editorInputHalfWidth)
+    input, changed = drawEditorFloatInput('verticalTileCrop', target.verticalTileCrop, '%.4f', 1.0, 10.0, viewStyle.editorInputHalfWidth)
     if changed then
         target.verticalTileCrop = input
     end
@@ -1245,7 +1245,7 @@ local function drawShapeFieldset(target)
         target.shapeVariant = input
     end
 
-    input, changed = drawEditorFloatInput('lineThickness', target.lineThickness, '%.f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
+    input, changed = drawEditorFloatInput('lineThickness', target.lineThickness, '%.4f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
     if changed then
         target.lineThickness = input
     end
@@ -1303,7 +1303,7 @@ end
 local function drawBorderFieldset(target)
 	drawEditorGroupCaption('APPEARANCE')
 
-    local input, changed = drawEditorFloatInput('thickness', target.thickness, '%.f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
+    local input, changed = drawEditorFloatInput('thickness', target.thickness, '%.4f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
     if changed then
         target.thickness = input
     end
@@ -1327,7 +1327,7 @@ local function drawGradientFieldset(target)
         target.endColor = input
     end
 
-    input, changed = drawEditorFloatInput('angle', target.angle, '%.f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
+    input, changed = drawEditorFloatInput('angle', target.angle, '%.4f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
     if changed then
         target.angle = input
     end
@@ -1341,27 +1341,27 @@ local function drawLinePatternFieldset(target)
         target.patternDirection = input
     end
 
-    input, changed = drawEditorFloatInput('spacing', target.spacing, '%.f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
+    input, changed = drawEditorFloatInput('spacing', target.spacing, '%.4f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
     if changed then
         target.spacing = input
     end
 
-    input, changed = drawEditorFloatInput('looseSpacing', target.looseSpacing, '%.f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
+    input, changed = drawEditorFloatInput('looseSpacing', target.looseSpacing, '%.4f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
     if changed then
         target.looseSpacing = input
     end
 
-    input, changed = drawEditorFloatInput('startOffset', target.startOffset, '%.f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
+    input, changed = drawEditorFloatInput('startOffset', target.startOffset, '%.4f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
     if changed then
         target.startOffset = input
     end
 
-    input, changed = drawEditorFloatInput('endOffset', target.endOffset, '%.f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
+    input, changed = drawEditorFloatInput('endOffset', target.endOffset, '%.4f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
     if changed then
         target.endOffset = input
     end
 
-    input, changed = drawEditorFloatInput('fadeInLength', target.fadeInLength, '%.f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
+    input, changed = drawEditorFloatInput('fadeInLength', target.fadeInLength, '%.4f', 0.1, 1.0, viewStyle.editorInputHalfWidth)
     if changed then
         target.fadeInLength = input
     end
