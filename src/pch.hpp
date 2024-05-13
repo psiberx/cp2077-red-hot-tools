@@ -90,7 +90,6 @@
 #include <RED4ext/Scripting/Natives/Generated/world/GenericProxyMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/GeometryShapeNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/GlobalNodeID.hpp>
-#include <RED4ext/Scripting/Natives/Generated/world/GlobalNodeRef.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/INodeInstance.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/IRuntimeSystem.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/InstancedDestructibleMeshNodeInstance.hpp>
