@@ -1,5 +1,4 @@
-local app, modulePath = ...
-local moduleID = 'WorldTools'
+local app, moduleID, modulePath = ...
 
 -- Deps --
 
@@ -2810,7 +2809,6 @@ local function onShutdown()
 end
 
 return {
-    id = moduleID,
     events = {
         onInit = onInit,
         onShutdown = onShutdown,
@@ -2819,7 +2817,7 @@ return {
         onDraw = onDraw,
     },
     tools = {
-        { id = 'WorldTools', label = 'World Inspector', isActive = isActive, setActive = setActive }
+        { id = 'WorldInspector', label = 'World Inspector', isActive = isActive, setActive = setActive }
     },
     hotkeys = {
         { id = 'ToggleWorldInspector', group = 'World Inspector', label = 'Toggle overlay', callback = onToggleInspectorHotkey },

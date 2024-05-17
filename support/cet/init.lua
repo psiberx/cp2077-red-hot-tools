@@ -303,7 +303,8 @@ local modules = {}
 
 local function loadModules(paths)
     for _, path in ipairs(paths) do
-        local module = loadfile(path .. '/main.lua')(privateApi, path)
+        local id = #modules + 1
+        local module = loadfile(path .. '/main.lua')(privateApi, id, path)
 
         if module.events then
             for event, _ in pairs(events) do
@@ -315,21 +316,21 @@ local function loadModules(paths)
 
         if module.tools then
             for _, tool in ipairs(module.tools) do
-                tool.module = module.id
+                tool.module = id
                 addTool(tool)
             end
         end
 
         if module.actions then
             for _, action in ipairs(module.actions) do
-                action.module = module.id
+                action.module = id
                 addAction(action)
             end
         end
 
         if module.hotkeys then
             for _, hotkey in ipairs(module.hotkeys) do
-                hotkey.module = module.id
+                hotkey.module = id
                 addHotkey(hotkey)
             end
         end
@@ -350,7 +351,7 @@ local function loadModules(paths)
             end
         end
 
-        table.insert(modules, module)
+        modules[id] = module
     end
 end
 

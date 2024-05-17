@@ -1,5 +1,4 @@
-local app, modulePath = ...
-local moduleID = 'Hot'
+local app, moduleID, modulePath = ...
 
 -- Deps --
 
@@ -254,7 +253,6 @@ local function onDraw()
 end
 
 return {
-    id = moduleID,
     events = {
         onInit = onInit,
         onShutdown = onShutdown,

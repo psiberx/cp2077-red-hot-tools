@@ -1,5 +1,4 @@
-local app, modulePath = ...
-local moduleID = 'InkTools'
+local app, moduleID, modulePath = ...
 
 -- Deps --
 
@@ -100,9 +99,11 @@ local function initializeHighlighting()
 end
 
 local function disableHighlight()
-    local parent = highlight.wrapper.parentWidget
-    if IsDefined(parent) then
-        parent:RemoveChild(highlight.wrapper)
+    if IsDefined(highlight.wrapper) then
+        local parent = highlight.wrapper.parentWidget
+        if IsDefined(parent) then
+            parent:RemoveChild(highlight.wrapper)
+        end
     end
 end
 
@@ -2524,7 +2525,6 @@ local function onShutdown()
 end
 
 return {
-    id = moduleID,
     events = {
         onInit = onInit,
         onShutdown = onShutdown,
@@ -2533,7 +2533,7 @@ return {
         onDraw = onDraw,
     },
     tools = {
-        { id = 'InkTools', label = 'Ink Inspector', isActive = isActive, setActive = setActive }
+        { id = 'InkInspector', label = 'Ink Inspector', isActive = isActive, setActive = setActive }
     },
     hotkeys = {
         { id = 'ToggleWidgetPicker', group = 'Widget Picker', label = 'Toggle overlay', callback = onTogglePickerHotkey },
