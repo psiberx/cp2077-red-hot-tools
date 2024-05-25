@@ -2655,6 +2655,8 @@ local function drawMainWindow()
             end
         end
 
+        ImGui.EndTabBar()
+
         userState.selectedTab = selectedTab
         viewState.isFirstOpen = false
     end
