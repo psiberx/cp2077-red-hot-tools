@@ -23,5 +23,7 @@ protected:
                                   Red::ResourcePath aResourcePath, const int32_t* aArchiveHandle);
 
     static ArchiveInfo GetArchiveInfo(Red::ResourceDepot* aDepot, const int32_t* aArchiveHandle);
+
+    static Core::Set<Red::ResourcePath> s_knownBrokenPaths;
 };
 }

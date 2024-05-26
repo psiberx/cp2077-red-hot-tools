@@ -13,6 +13,9 @@ void App::ArchiveReporter::OnRequestResource(Red::ResourceDepot* aDepot, const u
 {
     if (!*aResourceHandle)
     {
+        if (s_knownBrokenPaths.contains(aResourcePath))
+            return;
+
         auto archiveInfo = GetArchiveInfo(aDepot, aArchiveHandle);
 
         if (archiveInfo.scope == Red::ArchiveScope::Content || archiveInfo.scope == Red::ArchiveScope::DLC)
