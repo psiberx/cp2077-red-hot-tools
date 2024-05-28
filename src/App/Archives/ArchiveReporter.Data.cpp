@@ -729,4 +729,6 @@ Core::Set<Red::ResourcePath> App::ArchiveReporter::s_knownBrokenPaths = {
     6967409598428628181ull, // ep1\quest\main_quests\q306\scenes\lipsync\en\q306_08_control_tower\reed.anims
     16387054771389605592ull, // ep1\quest\main_quests\q306\scenes\lipsync\en\q306_08_control_tower\sec_high_m_03_afam_40.anims
     4174999170848356766ull, // ep1\quest\main_quests\q306\scenes\lipsync\en\q306_08_control_tower\sec_high_m_05_jap_30_big.anims
+    1084624965500646977ull, // base\movies\fullscreen\common\intro_after_splash_screens.bkz
+    14618483362567724708ull, // base\quest\main_quests\part1\q110\entities\q110_escalator_light_box.w2mesh
 };
