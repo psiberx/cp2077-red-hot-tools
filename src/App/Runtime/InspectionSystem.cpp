@@ -209,6 +209,7 @@ void App::InspectionSystem::UpdateStreamedNodes()
     if (!postponedRequests.empty())
     {
         std::unique_lock requestLock(m_pendingRequestsLock);
+        m_pendingRequests.reserve(postponedRequests.size());
         for (const auto& request : postponedRequests)
         {
             m_pendingRequests.insert(request);
@@ -226,8 +227,14 @@ void App::InspectionSystem::UpdateFrustumNodes()
     const auto updateStart = std::chrono::steady_clock::now();
 #endif
 
-    Red::DynArray<WorldNodeRuntimeSceneData> frustumNodes{};
+    Core::Vector<WorldNodeRuntimeSceneData> frustumNodes{};
     Core::Vector<uint32_t> targetedNodeIndexes{};
+
+    {
+        std::shared_lock _(m_frustumNodesLock);
+        frustumNodes.reserve(m_frustumNodes.size);
+        targetedNodeIndexes.reserve(m_targetedNodes.size);
+    }
 
     Red::Frustum cameraFrustum;
     Red::Vector4 cameraPosition{};
@@ -305,7 +312,7 @@ void App::InspectionSystem::UpdateFrustumNodes()
                 {
                     if (Red::Intersect(cameraPosition, cameraInverseDirection, testBox))
                     {
-                        targetedNodeIndexes.push_back(frustumNodes.size);
+                        targetedNodeIndexes.push_back(frustumNodes.size());
                     }
                 }
             }
@@ -319,9 +326,9 @@ void App::InspectionSystem::UpdateFrustumNodes()
 #endif
 
             const auto instanceHash = reinterpret_cast<uint64_t>(streamedNode.nodeInstance.instance);
-            frustumNodes.PushBack({streamedNode.nodeInstance, streamedNode.nodeDefinition,
-                                   streamedNode.boundingBox, transform.position, transform.orientation,
-                                   testBox, distance, inFrustum, instanceHash, true});
+            frustumNodes.push_back({streamedNode.nodeInstance, streamedNode.nodeDefinition,
+                                    streamedNode.boundingBox, transform.position, transform.orientation,
+                                    testBox, distance, inFrustum, instanceHash, true});
         }
     }
 
@@ -337,9 +344,16 @@ void App::InspectionSystem::UpdateFrustumNodes()
 
     {
         std::unique_lock _(m_frustumNodesLock);
-        m_frustumNodes = std::move(frustumNodes);
+
+        m_frustumNodes.Clear();
+        m_frustumNodes.Reserve(frustumNodes.size());
+        for (const auto& node : frustumNodes)
+        {
+            m_frustumNodes.PushBack(node);
+        }
 
         m_targetedNodes.Clear();
+        m_targetedNodes.Reserve(targetedNodeIndexes.size());
         for (const auto& index : targetedNodeIndexes)
         {
             m_targetedNodes.PushBack(m_frustumNodes[index]);
