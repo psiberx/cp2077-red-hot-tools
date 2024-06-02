@@ -564,6 +564,77 @@ local function resolveComponents(entity)
     return components
 end
 
+local function resolveAttachments(entity)
+    if not entity:IsA('gameObject') then
+        return {}
+    end
+
+    local recordID = entity:GetTDBID()
+
+    if not recordID then
+        return {}
+    end
+
+    local isItem = entity:IsA('gameItemObject')
+    local isGarment = entity:IsA('gameGarmentItemObject')
+
+    local slotIDs = {}
+
+    if isItem then
+        for _, slotID in ipairs(entity:GetItemData():GetUsedSlotsOnItem()) do
+            table.insert(slotIDs, slotID)
+        end
+        for _, slotID in ipairs(entity:GetItemData():GetEmptySlotsOnItem()) do
+            table.insert(slotIDs, slotID)
+        end
+    elseif not isGarment then
+        slotIDs = TweakDB:GetFlat(TweakDBID.new(recordID, '.attachmentSlots'))
+    end
+
+    if not slotIDs or #slotIDs == 0 then
+        return {}
+    end
+
+    local attachments = {}
+
+    for _, slotID in ipairs(slotIDs) do
+        local data = {}
+        data.slotID = slotID.value
+
+        local item = transactionSystem:GetItemInSlot(entity, slotID)
+        if IsDefined(item) then
+            data.itemID = item:GetItemID().tdbid.value
+            data.itemType = item:GetClassName().value
+
+            if not item:IsA('gameweaponObject') then
+                local templatePath = inspectionSystem:GetTemplatePath(item)
+                data.templatePath = inspectionSystem:ResolveResourcePath(templatePath.hash)
+                data.appearanceName = transactionSystem:GetItemAppearance(entity, item:GetItemID()).value
+                if isEmpty(data.templatePath) and isNotEmpty(templatePath.hash) then
+                    data.templatePath = ('%u'):format(templatePath.hash)
+                end
+            end
+
+            data.components = resolveComponents(item)
+            data.attachments = resolveAttachments(item)
+
+            data.hasComponents = (#data.components > 0)
+            data.hasAttachments = (#data.attachments > 0)
+
+            data.hash = inspectionSystem:GetObjectHash(item)
+        elseif isItem then
+             local partID = entity:GetItemData():GetItemPart(slotID):GetItemID().tdbid
+             if TDBID.IsValid(partID) then
+                 data.itemID = partID.value
+             end
+        end
+
+        table.insert(attachments, data)
+    end
+
+    return attachments
+end
+
 local function fillTargetEntityData(target, data)
     if IsDefined(target.entity) then
         local entity = target.entity
@@ -582,7 +653,7 @@ local function fillTargetEntityData(target, data)
         if entity:IsA('gameObject') then
             local recordID = entity:GetTDBID()
             if TDBID.IsValid(recordID) then
-                data.recordID = TDBID.ToStringDEBUG(recordID)
+                data.recordID = recordID.value
             end
 
             local success, items = transactionSystem:GetItemList(entity)
@@ -606,10 +677,12 @@ local function fillTargetEntityData(target, data)
             end
         end
 
-        data.hasInventory = (#data.inventory > 0)
-
         data.components = resolveComponents(entity)
+        data.attachments = resolveAttachments(entity)
+
+        data.hasInventory = (#data.inventory > 0)
         data.hasComponents = (#data.components > 0)
+        data.hasAttachments = (#data.attachments > 0)
     end
 
     data.entity = target.entity
@@ -1566,6 +1639,14 @@ local componentSchema = {
     { name = 'chunkMask', label = 'Chunk Mask:', wrap = true, format = formatChunkMask, validate = isValidChunkMask },
 }
 
+local attachmentSchema = {
+    { name = 'slotID', label = 'Slot ID:' },
+    { name = 'itemID', label = 'Item ID:' },
+    { name = 'itemType', label = 'Item Type:' },
+    { name = 'templatePath', label = 'Item Template:', wrap = true },
+    { name = 'appearanceName', label = 'Item Appearance:' },
+}
+
 local function isVisibleField(field, data)
     if type(field.validate) == 'function' then
         if not field.validate(data, field) then
@@ -1649,6 +1730,54 @@ local function drawComponents(components, maxComponents)
     end
 end
 
+local function drawAttachments(attachments, maxRows)
+    if maxRows == nil then
+        maxRows = 10
+    end
+
+    if maxRows > 0 then
+        local visibleRows = math.min(maxRows, #attachments)
+        ImGui.BeginChildFrame(1, 0, visibleRows * ImGui.GetFrameHeightWithSpacing())
+    end
+
+    for _, attachmentData in ipairs(attachments) do
+        local flags = ImGuiTreeNodeFlags.SpanFullWidth
+        if not attachmentData.itemID then
+            flags = flags + ImGuiTreeNodeFlags.Leaf
+        end
+
+        if ImGui.TreeNodeEx(attachmentData.slotID .. '##' .. tostring(attachmentData.hash), flags) then
+            if attachmentData.itemID then
+                for _, field in ipairs(attachmentSchema) do
+                    if isVisibleField(field, attachmentData) then
+                        drawField(field, attachmentData)
+                    end
+                end
+
+                if attachmentData.hasComponents then
+                    if ImGui.TreeNodeEx(('Components (%d)##Components'):format(#attachmentData.components), ImGuiTreeNodeFlags.SpanFullWidth) then
+                        drawComponents(attachmentData.components, 0)
+                        ImGui.TreePop()
+                    end
+                end
+
+                if attachmentData.hasAttachments then
+                    if ImGui.TreeNodeEx(('Attachments (%d)##Attachments'):format(#attachmentData.attachments), ImGuiTreeNodeFlags.SpanFullWidth) then
+                        drawAttachments(attachmentData.attachments, 0)
+                        ImGui.TreePop()
+                    end
+                end
+            end
+
+            ImGui.TreePop()
+        end
+    end
+
+    if maxRows > 0 then
+        ImGui.EndChildFrame()
+    end
+end
+
 local function drawInventory(items, maxItems)
     if maxItems == nil then
         maxItems = 10
@@ -1709,7 +1838,7 @@ local function drawFieldset(targetData, withInputs, maxComponents, withSeparator
     end
 
     if withInputs then
-        if withSeparators and (targetData.hasComponents or targetData.hasInventory) then
+        if withSeparators and (targetData.hasComponents or targetData.hasAttachments or targetData.hasInventory) then
             ImGui.Spacing()
             ImGui.Separator()
             ImGui.Spacing()
@@ -1718,6 +1847,13 @@ local function drawFieldset(targetData, withInputs, maxComponents, withSeparator
         if targetData.hasComponents then
             if ImGui.TreeNodeEx(('Components (%d)##Components'):format(#targetData.components), ImGuiTreeNodeFlags.SpanFullWidth) then
                 drawComponents(targetData.components, maxComponents)
+                ImGui.TreePop()
+            end
+        end
+
+        if targetData.hasAttachments then
+            if ImGui.TreeNodeEx(('Attachments (%d)##Attachments'):format(#targetData.attachments), ImGuiTreeNodeFlags.SpanFullWidth) then
+                drawAttachments(targetData.attachments, maxComponents)
                 ImGui.TreePop()
             end
         end
