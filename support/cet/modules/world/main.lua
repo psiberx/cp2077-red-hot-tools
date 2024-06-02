@@ -823,10 +823,20 @@ local function fillTargetGeomertyData(target, data)
         data.position = Game['OperatorAdd;Vector4Vector4;Vector4'](data.testBox.Min, data.testBox:GetExtents())
     end
 
-    if not data.position then
-        if IsDefined(data.entity) then
-            data.position = data.entity:GetWorldPosition()
+    if IsDefined(data.nodeInstance) then
+        if target.testBox then
+            data.nodePosition = data.position
+            data.nodeOrientation = data.orientation
+        else
+            local transform = inspectionSystem:GetStreamedNodeTransform(data.nodeInstance)
+            data.nodePosition = transform.position
+            data.nodeOrientation = transform.orientation
         end
+    end
+
+    if not data.nodePosition and IsDefined(data.entity) then
+        data.entityPosition = data.entity:GetWorldPosition()
+        data.entityOrientation = data.entity:GetWorldOrientation()
     end
 end
 
@@ -1629,55 +1639,80 @@ local function isValidChunkMask(data)
     return type(data.chunkMask) == 'cdata' or type(data.chunkMask) == 'number'
 end
 
+local function validatePosition(data, field)
+    local vec = data[field.name]
+    return vec and (vec.x ~= 0 or vec.y ~= 0 or vec.z ~= 0)
+end
+
+local function formatPosition(data, field)
+    local vec = data[field.name]
+    return ('(%.3f, %.3f, %.3f, %.3f)'):format(vec.x, vec.y, vec.z, vec.w):gsub('%.000', '.0')
+end
+
+local function validateOrientation(data, field)
+    local quat = data[field.name]
+    return quat and (quat.i ~= 0 or quat.j ~= 0 or quat.k ~= 0 or quat.r ~= 1)
+end
+
+local function formatOrientation(data, field)
+    local quat = data[field.name]
+    return ('(%.3f, %.3f, %.3f, %.3f)'):format(quat.i, quat.j, quat.k, quat.r):gsub('%.000', '.0')
+end
+
 local resultSchema = {
     {
         { name = 'nodeType', label = 'Node Type:' },
         { name = 'nodeID', label = 'Node ID:', format = '%u' },
         { name = 'nodeRef', label = 'Node Ref:', wrap = true },
         { name = 'parentRef', label = 'Parent Ref:', wrap = true },
+        { name = 'nodePosition', label = 'Node Position:', format = formatPosition, validate = validatePosition },
+        { name = 'nodeOrientation', label = 'Node Orientation:', format = formatOrientation, validate = validateOrientation },
         --{ name = 'nodeIndex', label = 'Node Index:', format = '%d', validate = isValidNodeIndex },
         --{ name = 'nodeCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
         { name = 'instanceIndex', label = 'Node Instance:', format = '%d', validate = isValidInstanceIndex },
         { name = 'instanceCount', label = '/', format = '%d', inline = true, validate = isValidInstanceIndex },
         { name = 'sectorPath', label = 'World Sector:', wrap = true },
+        --{ name = 'nodeScale', label = 'Node Scale:', format = formatScale },
     },
     {
         { name = 'entityType', label = 'Entity Type:' },
         { name = 'entityID', label = 'Entity ID:', format = '%u' },
         { name = 'recordID', label = 'Record ID:' },
         { name = 'templatePath', label = 'Entity Template:', wrap = true },
-        { name = 'appearanceName', label = 'Entity Appearance:' },
+        { name = 'appearanceName', label = 'Entity Appearance:', wrap = true },
         { name = 'deviceClass', label = 'Device Class:' },
         { name = 'meshPath', label = 'Mesh Resource:', wrap = true },
-        { name = 'meshAppearance', label = 'Mesh Appearance:' },
+        { name = 'meshAppearance', label = 'Mesh Appearance:', wrap = true },
         { name = 'materialPath', label = 'Material:', wrap = true },
         { name = 'effectPath', label = 'Effect:', wrap = true },
         { name = 'triggerNotifiers', label = 'Trigger Notifiers:', format = formatArrayField, validate = validateArrayField },
         { name = 'lootTables', label = 'Loot Tables:', format = formatArrayField, validate = validateArrayField },
         { name = 'occluderType', label = 'Occluder Type:' },
+        { name = 'entityPosition', label = 'Entity Position:', format = formatPosition },
+        { name = 'entityOrientation', label = 'Entity Orientation:', format = formatOrientation },
     },
     {
         { name = 'resolvedPath', label = 'Resource:', wrap = true },
-        { name = 'resolvedName', label = 'CName:' },
-        { name = 'resolvedTDBID', label = 'TweakDBID:' },
+        { name = 'resolvedName', label = 'CName:', wrap = true },
+        { name = 'resolvedTDBID', label = 'TweakDBID:', wrap = true },
     }
 }
 
 local componentSchema = {
     { name = 'componentType', label = 'Component Type:' },
-    { name = 'componentName', label = 'Component Name:' },
+    { name = 'componentName', label = 'Component Name:', wrap = true },
     { name = 'meshPath', label = 'Mesh Resource:', wrap = true },
     { name = 'morphPath', label = 'Morph Target:', wrap = true },
-    { name = 'meshAppearance', label = 'Mesh Appearance:' },
+    { name = 'meshAppearance', label = 'Mesh Appearance:', wrap = true },
     { name = 'chunkMask', label = 'Chunk Mask:', wrap = true, format = formatChunkMask, validate = isValidChunkMask },
 }
 
 local attachmentSchema = {
     { name = 'slotID', label = 'Slot ID:' },
-    { name = 'itemID', label = 'Item ID:' },
+    { name = 'itemID', label = 'Item ID:', wrap = true },
     { name = 'itemType', label = 'Item Type:' },
     { name = 'templatePath', label = 'Item Template:', wrap = true },
-    { name = 'appearanceName', label = 'Item Appearance:' },
+    { name = 'appearanceName', label = 'Item Appearance:', wrap = true },
 }
 
 local function isVisibleField(field, data)

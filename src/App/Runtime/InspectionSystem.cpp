@@ -464,7 +464,7 @@ App::WorldNodeRuntimeSceneData App::InspectionSystem::FindStreamedNode(uint64_t 
     if (!nodeInstanceWeak)
         return {};
 
-    return {nodeInstanceWeak, nodeDefinitionWeak};
+    return {nodeInstanceWeak, nodeDefinitionWeak, {}, setup->transform.position, setup->transform.orientation};
 }
 
 Red::DynArray<App::WorldNodeRuntimeSceneData> App::InspectionSystem::GetStreamedNodesInFrustum()
@@ -477,6 +477,16 @@ Red::DynArray<App::WorldNodeRuntimeSceneData> App::InspectionSystem::GetStreamed
 {
     std::shared_lock _(m_frustumNodesLock);
     return m_targetedNodes;
+}
+
+Red::Transform App::InspectionSystem::GetStreamedNodeTransform(const Red::WeakHandle<Red::worldINodeInstance>& aNode)
+{
+    const auto& [setup, nodeInstanceWeak, nodeDefinitionWeak] = m_worldNodeRegistry->GetNodeRuntimeData(aNode);
+
+    if (!setup)
+        return {};
+
+    return setup->transform;
 }
 
 float App::InspectionSystem::GetFrustumDistance() const

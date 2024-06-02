@@ -76,6 +76,7 @@ public:
     WorldNodeRuntimeSceneData FindStreamedNode(uint64_t aNodeID);
     Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedNodesInFrustum();
     Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedNodesInCrosshair();
+    Red::Transform GetStreamedNodeTransform(const Red::WeakHandle<Red::worldINodeInstance>& aNode);
 
     [[nodiscard]] float GetFrustumDistance() const;
     void SetFrustumDistance(float aDistance);
@@ -194,6 +195,7 @@ RTTI_DEFINE_CLASS(App::InspectionSystem, {
     RTTI_METHOD(FindStreamedNode);
     RTTI_METHOD(GetStreamedNodesInFrustum);
     RTTI_METHOD(GetStreamedNodesInCrosshair);
+    RTTI_METHOD(GetStreamedNodeTransform);
     RTTI_METHOD(GetFrustumDistance);
     RTTI_METHOD(SetFrustumDistance);
     RTTI_METHOD(GetTargetingDistance);
