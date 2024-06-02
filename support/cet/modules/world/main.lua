@@ -1359,15 +1359,18 @@ local function forgetTarget(entity)
 
     local key = tostring(entity:GetEntityID().hash)
 
-    watcher.targets[key] = nil
-    watcher.results[key] = nil
-    watcher.numTargets = watcher.numTargets - 1
+    if watcher.targets[key] then
+        watcher.targets[key] = nil
+        watcher.results[key] = nil
+        watcher.numTargets = watcher.numTargets - 1
 
-    collectgarbage()
+        collectgarbage()
+    end
 end
 
 local function initializeWatcher()
     watchTarget(GetPlayer())
+    watchTarget(GetMountedVehicle(GetPlayer()))
 
     ObserveAfter('PlayerPuppet', 'OnGameAttached', function(this)
         watchTarget(this)
@@ -1393,6 +1396,16 @@ local function initializeWatcher()
 
     ObserveBefore('PhotoModePlayerEntityComponent', 'ClearInventory', function(this)
         forgetTarget(this.fakePuppet)
+    end)
+
+    ObserveAfter('vehicleBaseObject', 'OnVehicleFinishedMounting', function(this, event)
+        if this:IsPlayerVehicle() then
+            if event.character:IsPlayer() and event.isMounting then
+                watchTarget(this)
+            else
+                forgetTarget(this)
+            end
+        end
     end)
 end
 
