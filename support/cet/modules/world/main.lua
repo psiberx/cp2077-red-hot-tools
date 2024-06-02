@@ -564,6 +564,22 @@ local function resolveComponents(entity)
     return components
 end
 
+local function resolveVisualTags(entity, owner)
+    local visualTags = {}
+
+    for _, tag in ipairs(inspectionSystem:GetVisualTags(entity)) do
+        table.insert(visualTags, tag.value)
+    end
+
+    if entity:IsA('gameItemObject') then
+        for _, tag in ipairs(transactionSystem:GetVisualTagsByItemID(entity:GetItemID(), owner)) do
+            table.insert(visualTags, tag.value)
+        end
+    end
+
+    return visualTags
+end
+
 local function resolveAttachments(entity)
     if not entity:IsA('gameObject') then
         return {}
@@ -617,9 +633,11 @@ local function resolveAttachments(entity)
 
             data.components = resolveComponents(item)
             data.attachments = resolveAttachments(item)
+            data.visualTags = resolveVisualTags(item, entity)
 
             data.hasComponents = (#data.components > 0)
             data.hasAttachments = (#data.attachments > 0)
+            data.hasVisualTags = (#data.visualTags > 0)
 
             data.hash = inspectionSystem:GetObjectHash(item)
         elseif isItem then
@@ -679,10 +697,12 @@ local function fillTargetEntityData(target, data)
 
         data.components = resolveComponents(entity)
         data.attachments = resolveAttachments(entity)
+        data.visualTags = resolveVisualTags(entity)
 
         data.hasInventory = (#data.inventory > 0)
         data.hasComponents = (#data.components > 0)
         data.hasAttachments = (#data.attachments > 0)
+        data.hasVisualTags = (#data.visualTags > 0)
     end
 
     data.entity = target.entity
@@ -1743,6 +1763,28 @@ local function drawComponents(components, maxComponents)
     end
 end
 
+local function drawItemList(items, maxItems)
+    if maxItems == nil then
+        maxItems = 10
+    end
+
+    if maxItems > 0 then
+        local visibleItems = math.min(maxItems, #items)
+        ImGui.BeginChildFrame(1, 0, visibleItems * ImGui.GetFrameHeightWithSpacing())
+    end
+
+    for _, item in ipairs(items) do
+        ImGui.Selectable(tostring(item))
+        if ImGui.IsItemClicked(ImGuiMouseButton.Middle) then
+            ImGui.SetClipboardText(tostring(item))
+        end
+    end
+
+    if maxItems > 0 then
+        ImGui.EndChildFrame()
+    end
+end
+
 local function drawAttachments(attachments, maxRows)
     if maxRows == nil then
         maxRows = 10
@@ -1780,6 +1822,13 @@ local function drawAttachments(attachments, maxRows)
                         ImGui.TreePop()
                     end
                 end
+
+                if attachmentData.hasVisualTags then
+                    if ImGui.TreeNodeEx(('Visual Tags (%d)##VisualTags'):format(#attachmentData.visualTags), ImGuiTreeNodeFlags.SpanFullWidth) then
+                        drawItemList(attachmentData.visualTags, 0)
+                        ImGui.TreePop()
+                    end
+                end
             end
 
             ImGui.TreePop()
@@ -1787,28 +1836,6 @@ local function drawAttachments(attachments, maxRows)
     end
 
     if maxRows > 0 then
-        ImGui.EndChildFrame()
-    end
-end
-
-local function drawInventory(items, maxItems)
-    if maxItems == nil then
-        maxItems = 10
-    end
-
-    if maxItems > 0 then
-        local visibleItems = math.min(maxItems, #items)
-        ImGui.BeginChildFrame(1, 0, visibleItems * ImGui.GetFrameHeightWithSpacing())
-    end
-
-    for _, itemID in ipairs(items) do
-        ImGui.Selectable(itemID)
-        if ImGui.IsItemClicked(ImGuiMouseButton.Middle) then
-            ImGui.SetClipboardText(itemID)
-        end
-    end
-
-    if maxItems > 0 then
         ImGui.EndChildFrame()
     end
 end
@@ -1851,7 +1878,7 @@ local function drawFieldset(targetData, withInputs, maxComponents, withSeparator
     end
 
     if withInputs then
-        if withSeparators and (targetData.hasComponents or targetData.hasAttachments or targetData.hasInventory) then
+        if withSeparators and (targetData.hasComponents or targetData.hasAttachments or targetData.hasInventory or targetData.hasVisualTags) then
             ImGui.Spacing()
             ImGui.Separator()
             ImGui.Spacing()
@@ -1873,7 +1900,14 @@ local function drawFieldset(targetData, withInputs, maxComponents, withSeparator
 
         if targetData.hasInventory then
             if ImGui.TreeNodeEx(('Items (%d)##Inventory'):format(#targetData.inventory), ImGuiTreeNodeFlags.SpanFullWidth) then
-                drawInventory(targetData.inventory, maxComponents)
+                drawItemList(targetData.inventory, maxComponents)
+                ImGui.TreePop()
+            end
+        end
+
+        if targetData.hasVisualTags then
+            if ImGui.TreeNodeEx(('Visual Tags (%d)##VisualTags'):format(#targetData.visualTags), ImGuiTreeNodeFlags.SpanFullWidth) then
+                drawItemList(targetData.visualTags, maxComponents)
                 ImGui.TreePop()
             end
         end

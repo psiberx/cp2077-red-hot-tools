@@ -70,6 +70,7 @@ public:
 
     Red::DynArray<Red::Handle<Red::IComponent>> GetComponents(const Red::WeakHandle<Red::Entity>& aEntity);
     Red::ResourceAsyncReference<> GetTemplatePath(const Red::WeakHandle<Red::Entity>& aEntity);
+    Red::DynArray<Red::CName> GetVisualTags(const Red::WeakHandle<Red::Entity>& aEntity);
     PhysicsTraceResultObject GetPhysicsTraceObject(Red::ScriptRef<Red::physicsTraceResult>& aTrace);
 
     WorldNodeRuntimeSceneData FindStreamedNode(uint64_t aNodeID);
@@ -207,6 +208,7 @@ RTTI_DEFINE_CLASS(App::InspectionSystem, {
     RTTI_METHOD(CloneObject);
     RTTI_METHOD(GetComponents);
     RTTI_METHOD(GetTemplatePath);
+    RTTI_METHOD(GetVisualTags);
     RTTI_METHOD(ApplyHighlightEffect);
     RTTI_METHOD(GetPhysicsTraceObject);
     RTTI_METHOD(ProjectWorldPoint);

@@ -730,6 +730,14 @@ Red::ResourceAsyncReference<> App::InspectionSystem::GetTemplatePath(const Red::
     return Raw::Entity::TemplatePath::Ref(aEntity.instance);
 }
 
+Red::DynArray<Red::CName> App::InspectionSystem::GetVisualTags(const Red::WeakHandle<Red::Entity>& aEntity)
+{
+    if (aEntity.Expired())
+        return {};
+
+    return aEntity.instance->visualTags.tags;
+}
+
 App::PhysicsTraceResultObject App::InspectionSystem::GetPhysicsTraceObject(Red::ScriptRef<Red::physicsTraceResult>& aTrace)
 {
     PhysicsTraceResultObject result{};
