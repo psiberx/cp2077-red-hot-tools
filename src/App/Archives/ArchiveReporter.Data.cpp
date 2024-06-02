@@ -731,4 +731,16 @@ Core::Set<Red::ResourcePath> App::ArchiveReporter::s_knownBrokenPaths = {
     4174999170848356766ull, // ep1\quest\main_quests\q306\scenes\lipsync\en\q306_08_control_tower\sec_high_m_05_jap_30_big.anims
     1084624965500646977ull, // base\movies\fullscreen\common\intro_after_splash_screens.bkz
     14618483362567724708ull, // base\quest\main_quests\part1\q110\entities\q110_escalator_light_box.w2mesh
+    11651092464969086858ull, // base\open_world\entities\phone_device.ent
+    17699684318072432430ull, // base\animations\npc\gameplay\woman_average\gang\unarmed\wa_gang_unarmed_reaction_ranged_twitch.anims
+    6797464383529485744ull, // base\quest\main_quests\prologue\q005\entities\interactive_objects\q005_interaction_entity.ent
+    2965490835550308936ull,
+    14228935583248207666ull,
+    6641183355929330097ull, // base\characters\appearances\citizen\proxy\citizen__nightlife_wa_hood_hottie_wa_22\citizen__nightlife_wa_hood_hottie_wa_22_n.xbm
+    17989776109324758754ull, // base\quest\main_quests\prologue\q005\afterlife\scenes\lipsync\en\00_afterlife_global_scene\civ_high_f_09_afam_30.anims
+    773343548254554943ull, // base\quest\main_quests\prologue\q005\afterlife\scenes\lipsync\en\00_afterlife_global_scene\civ_mid_m_21_enus_25.anims
+    11574223278973522291ull, // base\items\interactive\misc\int_misc_001__electric_guitar_d\int_misc_001__electric_guitar_d.mesh
+    16913330955692710019ull, // base\items\interactive\misc\int_misc_001__electric_guitar_a\int_misc_001__electric_guitar_a.mesh
+    4278970978671007791ull, // base\items\interactive\misc\int_misc_001__electric_guitar_c\int_misc_001__electric_guitar_c.mesh
+    1649818027137861327ull, // base\items\interactive\misc\int_misc_001__electric_guitar_b\int_misc_001__electric_guitar_b.mesh
 };
