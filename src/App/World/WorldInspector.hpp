@@ -1,20 +1,11 @@
 #pragma once
 
-#include "App/Runtime/InkWidgetCollector.hpp"
-#include "App/Runtime/ResourceRegistry.hpp"
-#include "App/Runtime/WorldNodeRegistry.hpp"
+#include "App/Shared/ResourceRegistry.hpp"
+#include "App/World/PhysicsTraceResult.hpp"
+#include "App/World/WorldNodeRegistry.hpp"
 
 namespace App
 {
-struct PhysicsTraceResultObject
-{
-    Red::WeakHandle<Red::worldINodeInstance> nodeInstance;
-    Red::WeakHandle<Red::worldNode> nodeDefinition;
-    Red::WeakHandle<Red::entEntity> entity;
-    uint64_t hash;
-    bool resolved;
-};
-
 struct WorldNodeStreamingRequest
 {
     bool streaming;
@@ -48,7 +39,7 @@ struct WorldNodeRuntimeSceneData
     bool resolved;
 };
 
-class InspectionSystem
+class WorldInspector
     : public Red::IGameSystem
     , public IWorldNodeInstanceWatcher
 {
@@ -57,9 +48,12 @@ public:
     static constexpr auto FrustumMinDistance = 120.0f;
     static constexpr auto FrustumMaxDistance = 999.0f;
 
-    InspectionSystem() = default;
+    WorldInspector() = default;
 
-    Red::CString ResolveResourcePath(uint64_t aResourceHash);
+    [[nodiscard]] float GetFrustumDistance() const;
+    void SetFrustumDistance(float aDistance);
+    [[nodiscard]] float GetTargetingDistance() const;
+    void SetTargetingDistance(float aDistance);
 
     WorldNodeInstanceStaticData ResolveSectorDataFromNodeID(uint64_t aNodeID);
     WorldNodeInstanceStaticData ResolveSectorDataFromNodeInstance(const Red::WeakHandle<Red::worldINodeInstance>& aNodeInstance);
@@ -68,42 +62,18 @@ public:
     uint64_t ComputeNodeRefHash(const Red::CString& aNodeRef);
     Red::EntityID ResolveCommunityIDFromEntityID(uint64_t aEntityID);
 
-    Red::DynArray<Red::Handle<Red::IComponent>> GetComponents(const Red::WeakHandle<Red::Entity>& aEntity);
-    Red::ResourceAsyncReference<> GetTemplatePath(const Red::WeakHandle<Red::Entity>& aEntity);
-    Red::DynArray<Red::CName> GetVisualTags(const Red::WeakHandle<Red::Entity>& aEntity);
-    PhysicsTraceResultObject GetPhysicsTraceObject(Red::ScriptRef<Red::physicsTraceResult>& aTrace);
-
     WorldNodeRuntimeSceneData FindStreamedNode(uint64_t aNodeID);
     Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedNodesInFrustum();
     Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedNodesInCrosshair();
     Red::Transform GetStreamedNodeTransform(const Red::WeakHandle<Red::worldINodeInstance>& aNode);
 
-    [[nodiscard]] float GetFrustumDistance() const;
-    void SetFrustumDistance(float aDistance);
-    [[nodiscard]] float GetTargetingDistance() const;
-    void SetTargetingDistance(float aDistance);
-
+    bool ApplyHighlightEffect(const Red::Handle<Red::ISerializable>& aObject,
+                              const Red::Handle<Red::entRenderHighlightEvent>& aEffect);
     bool SetNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aVisible);
     bool ToggleNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance);
 
-    bool ApplyHighlightEffect(const Red::Handle<Red::ISerializable>& aObject,
-                              const Red::Handle<Red::entRenderHighlightEvent>& aEffect);
+    PhysicsTraceResultObject GetPhysicsTraceObject(Red::ScriptRef<Red::physicsTraceResult>& aTrace);
     Red::Vector4 ProjectWorldPoint(const Red::Vector4& aPoint);
-
-    Red::CName GetTypeName(const Red::WeakHandle<Red::ISerializable>& aInstace);
-    bool IsInstanceOf(const Red::WeakHandle<Red::ISerializable>& aInstace, Red::CName aType);
-    uint64_t GetObjectHash(const Red::WeakHandle<Red::ISerializable>& aInstace);
-    Red::Handle<Red::ISerializable> CloneObject(const Red::Handle<Red::ISerializable>& aInstace);
-
-    Red::DynArray<InkLayerExtendedData> CollectInkLayers();
-    InkWidgetCollectionData CollectHoveredWidgets();
-    InkWidgetSpawnData GetWidgetSpawnInfo(const Red::Handle<Red::inkWidget>& aWidget);
-    void EnablePointerInput();
-    void DisablePointerInput();
-    void TogglePointerInput();
-    void EnsurePointerInput();
-    Red::Vector2 GetPointerScreenPosition();
-    Red::inkRectangle GetWidgetDrawRect(const Red::Handle<Red::inkWidget>& aWidget);
 
 private:
     void OnWorldAttached(Red::world::RuntimeScene*) override;
@@ -128,10 +98,7 @@ private:
     bool SetEntityHighlightEffect(const Red::Handle<Red::entEntity>& aEntity,
                                   const Red::Handle<Red::entRenderHighlightEvent>& aEffect);
 
-    Core::SharedPtr<ResourceRegistry> m_resourceRegistry;
-    Core::SharedPtr<WorldNodeRegistry> m_worldNodeRegistry;
-    Core::SharedPtr<InkWidgetCollector> m_inkWidgetService;
-
+    Core::SharedPtr<WorldNodeRegistry> m_nodeRegistry;
     Red::gameICameraSystem* m_cameraSystem;
 
     std::shared_mutex m_pendingRequestsLock;
@@ -149,7 +116,7 @@ private:
     float m_frustumDistance{FrustumMinDistance};
     float m_targetingDistance{FrustumMinDistance};
 
-    RTTI_IMPL_TYPEINFO(App::InspectionSystem);
+    RTTI_IMPL_TYPEINFO(App::WorldInspector);
     RTTI_IMPL_ALLOCATOR();
 };
 }
@@ -176,16 +143,14 @@ RTTI_DEFINE_CLASS(App::WorldNodeRuntimeSceneData, {
     RTTI_PROPERTY(hash);
 });
 
-RTTI_DEFINE_CLASS(App::PhysicsTraceResultObject, {
-    RTTI_PROPERTY(nodeInstance);
-    RTTI_PROPERTY(nodeDefinition);
-    RTTI_PROPERTY(entity);
-    RTTI_PROPERTY(resolved);
-    RTTI_PROPERTY(hash);
-});
+RTTI_DEFINE_CLASS(App::WorldInspector, {
+    // RTTI_METHOD(GetStatus);
+    // RTTI_METHOD(SetStatus);
 
-RTTI_DEFINE_CLASS(App::InspectionSystem, {
-    RTTI_METHOD(ResolveResourcePath);
+    RTTI_METHOD(GetFrustumDistance);
+    RTTI_METHOD(SetFrustumDistance);
+    RTTI_METHOD(GetTargetingDistance);
+    RTTI_METHOD(SetTargetingDistance);
 
     RTTI_METHOD(ResolveSectorDataFromNodeID);
     RTTI_METHOD(ResolveSectorDataFromNodeInstance);
@@ -196,32 +161,11 @@ RTTI_DEFINE_CLASS(App::InspectionSystem, {
     RTTI_METHOD(GetStreamedNodesInFrustum);
     RTTI_METHOD(GetStreamedNodesInCrosshair);
     RTTI_METHOD(GetStreamedNodeTransform);
-    RTTI_METHOD(GetFrustumDistance);
-    RTTI_METHOD(SetFrustumDistance);
-    RTTI_METHOD(GetTargetingDistance);
-    RTTI_METHOD(SetTargetingDistance);
 
+    RTTI_METHOD(ApplyHighlightEffect);
     RTTI_METHOD(SetNodeVisibility);
     RTTI_METHOD(ToggleNodeVisibility);
 
-    RTTI_METHOD(GetTypeName);
-    RTTI_METHOD(GetObjectHash);
-    RTTI_METHOD(IsInstanceOf);
-    RTTI_METHOD(CloneObject);
-    RTTI_METHOD(GetComponents);
-    RTTI_METHOD(GetTemplatePath);
-    RTTI_METHOD(GetVisualTags);
-    RTTI_METHOD(ApplyHighlightEffect);
     RTTI_METHOD(GetPhysicsTraceObject);
     RTTI_METHOD(ProjectWorldPoint);
-
-    RTTI_METHOD(CollectInkLayers);
-    RTTI_METHOD(CollectHoveredWidgets);
-    RTTI_METHOD(GetWidgetSpawnInfo);
-    RTTI_METHOD(EnablePointerInput);
-    RTTI_METHOD(DisablePointerInput);
-    RTTI_METHOD(TogglePointerInput);
-    RTTI_METHOD(EnsurePointerInput);
-    RTTI_METHOD(GetPointerScreenPosition);
-    RTTI_METHOD(GetWidgetDrawRect);
 });

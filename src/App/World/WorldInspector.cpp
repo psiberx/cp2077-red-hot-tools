@@ -1,34 +1,29 @@
-#include "InspectionSystem.hpp"
 #include "Core/Facades/Container.hpp"
 #include "Core/Facades/Log.hpp"
 #include "Red/CameraSystem.hpp"
 #include "Red/Debug.hpp"
 #include "Red/Entity.hpp"
-#include "Red/InkSystem.hpp"
 #include "Red/Math.hpp"
-#include "Red/NodeRef.hpp"
 #include "Red/Physics.hpp"
 #include "Red/Rendering.hpp"
-#include "Red/Scripting.hpp"
 #include "Red/Transform.hpp"
 #include "Red/WorldNode.hpp"
+#include "WorldInspector.hpp"
 
-void App::InspectionSystem::OnWorldAttached(Red::world::RuntimeScene*)
+void App::WorldInspector::OnWorldAttached(Red::world::RuntimeScene*)
 {
-    m_resourceRegistry = Core::Resolve<ResourceRegistry>();
-    m_inkWidgetService = Core::Resolve<InkWidgetCollector>();
-    m_worldNodeRegistry = Core::Resolve<WorldNodeRegistry>();
-    m_worldNodeRegistry->RegisterWatcher(this);
+    m_nodeRegistry = Core::Resolve<WorldNodeRegistry>();
+    m_nodeRegistry->RegisterWatcher(this);
 
     m_cameraSystem = Red::GetGameSystem<Red::gameICameraSystem>();
 
     m_nodesUpdateDelay = 0;
 }
 
-void App::InspectionSystem::OnAfterWorldDetach()
+void App::WorldInspector::OnAfterWorldDetach()
 {
-    m_worldNodeRegistry->UnregisterWatcher(this);
-    m_worldNodeRegistry->ClearRuntimeData();
+    m_nodeRegistry->UnregisterWatcher(this);
+    m_nodeRegistry->ClearRuntimeData();
 
     {
         std::unique_lock _(m_streamedNodesLock);
@@ -42,9 +37,9 @@ void App::InspectionSystem::OnAfterWorldDetach()
     }
 }
 
-void App::InspectionSystem::OnRegisterUpdates(Red::UpdateRegistrar* aRegistrar)
+void App::WorldInspector::OnRegisterUpdates(Red::UpdateRegistrar* aRegistrar)
 {
-    aRegistrar->RegisterUpdate(Red::UpdateTickGroup::FrameBegin, this, "InspectionSystem/UpdateNodes",
+    aRegistrar->RegisterUpdate(Red::UpdateTickGroup::FrameBegin, this, "WorldInspector/UpdateNodes",
                                [this](Red::FrameInfo& aFrame, Red::JobQueue&)
                                {
                                    if (!m_nodesUpdating)
@@ -66,7 +61,7 @@ void App::InspectionSystem::OnRegisterUpdates(Red::UpdateRegistrar* aRegistrar)
                                });
 }
 
-void App::InspectionSystem::OnNodeStreamedIn(uint64_t aNodeHash,
+void App::WorldInspector::OnNodeStreamedIn(uint64_t aNodeHash,
                                              Red::worldNode* aNodeDefinition,
                                              Red::worldINodeInstance* aNodeInstance,
                                              Red::CompiledNodeInstanceSetupInfo* aNodeSetup)
@@ -76,13 +71,13 @@ void App::InspectionSystem::OnNodeStreamedIn(uint64_t aNodeHash,
                                     Red::AsWeakHandle(aNodeDefinition), aNodeSetup};
 }
 
-void App::InspectionSystem::OnNodeStreamedOut(uint64_t aNodeHash)
+void App::WorldInspector::OnNodeStreamedOut(uint64_t aNodeHash)
 {
     std::unique_lock _(m_pendingRequestsLock);
     m_pendingRequests[aNodeHash] = {false, aNodeHash};
 }
 
-void App::InspectionSystem::UpdateStreamedNodes()
+void App::WorldInspector::UpdateStreamedNodes()
 {
 #ifndef NDEBUG
     const auto updateStart = std::chrono::steady_clock::now();
@@ -217,7 +212,7 @@ void App::InspectionSystem::UpdateStreamedNodes()
     }
 }
 
-void App::InspectionSystem::UpdateFrustumNodes()
+void App::WorldInspector::UpdateFrustumNodes()
 {
 #ifndef NDEBUG
     std::chrono::duration<double, std::milli> initDuration{};
@@ -373,12 +368,7 @@ void App::InspectionSystem::UpdateFrustumNodes()
 #endif
 }
 
-Red::CString App::InspectionSystem::ResolveResourcePath(uint64_t aResourceHash)
-{
-    return m_resourceRegistry->ResolveResorcePath(aResourceHash);
-}
-
-App::WorldNodeInstanceStaticData App::InspectionSystem::ResolveSectorDataFromNodeID(uint64_t aNodeID)
+App::WorldNodeInstanceStaticData App::WorldInspector::ResolveSectorDataFromNodeID(uint64_t aNodeID)
 {
     {
         static const Red::GlobalNodeRef context{Red::NodeRef::GlobalRoot};
@@ -393,16 +383,16 @@ App::WorldNodeInstanceStaticData App::InspectionSystem::ResolveSectorDataFromNod
         }
     }
 
-    return m_worldNodeRegistry->GetNodeStaticData(aNodeID);
+    return m_nodeRegistry->GetNodeStaticData(aNodeID);
 }
 
-App::WorldNodeInstanceStaticData App::InspectionSystem::ResolveSectorDataFromNodeInstance(
+App::WorldNodeInstanceStaticData App::WorldInspector::ResolveSectorDataFromNodeInstance(
     const Red::WeakHandle<Red::worldINodeInstance>& aNodeInstance)
 {
-    return m_worldNodeRegistry->GetNodeStaticData(aNodeInstance);
+    return m_nodeRegistry->GetNodeStaticData(aNodeInstance);
 }
 
-Red::CString App::InspectionSystem::ResolveNodeRefFromNodeHash(uint64_t aNodeID)
+Red::CString App::WorldInspector::ResolveNodeRefFromNodeHash(uint64_t aNodeID)
 {
     if (!aNodeID)
         return {};
@@ -436,12 +426,12 @@ Red::CString App::InspectionSystem::ResolveNodeRefFromNodeHash(uint64_t aNodeID)
     return {};
 }
 
-uint64_t App::InspectionSystem::ComputeNodeRefHash(const Red::CString& aNodeRef)
+uint64_t App::WorldInspector::ComputeNodeRefHash(const Red::CString& aNodeRef)
 {
     return Red::NodeRef(aNodeRef.c_str());
 }
 
-Red::EntityID App::InspectionSystem::ResolveCommunityIDFromEntityID(uint64_t aEntityID)
+Red::EntityID App::WorldInspector::ResolveCommunityIDFromEntityID(uint64_t aEntityID)
 {
     auto entityStubSystem = Red::GetGameSystem<Red::IEntityStubSystem>();
     auto entityStub = entityStubSystem->FindStub(aEntityID);
@@ -452,14 +442,14 @@ Red::EntityID App::InspectionSystem::ResolveCommunityIDFromEntityID(uint64_t aEn
     return entityStub->stubState->spawnerId.entityId;
 }
 
-App::WorldNodeRuntimeSceneData App::InspectionSystem::FindStreamedNode(uint64_t aNodeID)
+App::WorldNodeRuntimeSceneData App::WorldInspector::FindStreamedNode(uint64_t aNodeID)
 {
-    auto nodeInstance = m_worldNodeRegistry->FindStreamedNodeInstance(aNodeID);
+    auto nodeInstance = m_nodeRegistry->FindStreamedNodeInstance(aNodeID);
 
     if (!nodeInstance)
         return {};
 
-    const auto& [setup, nodeInstanceWeak, nodeDefinitionWeak] = m_worldNodeRegistry->GetNodeRuntimeData(nodeInstance);
+    const auto& [setup, nodeInstanceWeak, nodeDefinitionWeak] = m_nodeRegistry->GetNodeRuntimeData(nodeInstance);
 
     if (!nodeInstanceWeak)
         return {};
@@ -467,21 +457,21 @@ App::WorldNodeRuntimeSceneData App::InspectionSystem::FindStreamedNode(uint64_t 
     return {nodeInstanceWeak, nodeDefinitionWeak, {}, setup->transform.position, setup->transform.orientation};
 }
 
-Red::DynArray<App::WorldNodeRuntimeSceneData> App::InspectionSystem::GetStreamedNodesInFrustum()
+Red::DynArray<App::WorldNodeRuntimeSceneData> App::WorldInspector::GetStreamedNodesInFrustum()
 {
     std::shared_lock _(m_frustumNodesLock);
     return m_frustumNodes;
 }
 
-Red::DynArray<App::WorldNodeRuntimeSceneData> App::InspectionSystem::GetStreamedNodesInCrosshair()
+Red::DynArray<App::WorldNodeRuntimeSceneData> App::WorldInspector::GetStreamedNodesInCrosshair()
 {
     std::shared_lock _(m_frustumNodesLock);
     return m_targetedNodes;
 }
 
-Red::Transform App::InspectionSystem::GetStreamedNodeTransform(const Red::WeakHandle<Red::worldINodeInstance>& aNode)
+Red::Transform App::WorldInspector::GetStreamedNodeTransform(const Red::WeakHandle<Red::worldINodeInstance>& aNode)
 {
-    const auto& [setup, nodeInstanceWeak, nodeDefinitionWeak] = m_worldNodeRegistry->GetNodeRuntimeData(aNode);
+    const auto& [setup, nodeInstanceWeak, nodeDefinitionWeak] = m_nodeRegistry->GetNodeRuntimeData(aNode);
 
     if (!setup)
         return {};
@@ -489,37 +479,37 @@ Red::Transform App::InspectionSystem::GetStreamedNodeTransform(const Red::WeakHa
     return setup->transform;
 }
 
-float App::InspectionSystem::GetFrustumDistance() const
+float App::WorldInspector::GetFrustumDistance() const
 {
     return m_frustumDistance;
 }
 
-void App::InspectionSystem::SetFrustumDistance(float aDistance)
+void App::WorldInspector::SetFrustumDistance(float aDistance)
 {
     m_frustumDistance = std::clamp(aDistance, FrustumMinDistance, FrustumMaxDistance);
 }
 
-float App::InspectionSystem::GetTargetingDistance() const
+float App::WorldInspector::GetTargetingDistance() const
 {
     return m_targetingDistance;
 }
 
-void App::InspectionSystem::SetTargetingDistance(float aDistance)
+void App::WorldInspector::SetTargetingDistance(float aDistance)
 {
     m_targetingDistance = std::clamp(aDistance, FrustumMinDistance, m_frustumDistance);
 }
 
-bool App::InspectionSystem::SetNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aVisible)
+bool App::WorldInspector::SetNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aVisible)
 {
     return UpdateNodeVisibility(aNodeInstance, false, true);
 }
 
-bool App::InspectionSystem::ToggleNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance)
+bool App::WorldInspector::ToggleNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance)
 {
     return UpdateNodeVisibility(aNodeInstance, true, true);
 }
 
-bool App::InspectionSystem::UpdateNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance,
+bool App::WorldInspector::UpdateNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance,
                                                  bool aToggle, bool aVisible)
 {
     if (Red::IsInstanceOf<Red::worldEntityNodeInstance>(aNodeInstance))
@@ -580,7 +570,7 @@ bool App::InspectionSystem::UpdateNodeVisibility(const Red::Handle<Red::worldINo
 }
 
 template<typename TRenderProxy>
-bool App::InspectionSystem::SetRenderProxyVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance,
+bool App::WorldInspector::SetRenderProxyVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance,
                                                      bool aToggle, bool aVisible)
 {
     if constexpr (Red::IsArray<typename TRenderProxy::Type>)
@@ -614,7 +604,7 @@ bool App::InspectionSystem::SetRenderProxyVisibility(const Red::Handle<Red::worl
     }
 }
 
-bool App::InspectionSystem::ApplyHighlightEffect(const Red::Handle<Red::ISerializable>& aObject,
+bool App::WorldInspector::ApplyHighlightEffect(const Red::Handle<Red::ISerializable>& aObject,
                                                  const Red::Handle<Red::entRenderHighlightEvent>& aEffect)
 {
     if (auto& entity = Red::Cast<Red::entEntity>(aObject))
@@ -675,7 +665,7 @@ bool App::InspectionSystem::ApplyHighlightEffect(const Red::Handle<Red::ISeriali
 }
 
 template<typename TRenderProxy>
-bool App::InspectionSystem::SetRenderProxyHighlightEffect(const Red::Handle<Red::worldINodeInstance>& aNodeInstance,
+bool App::WorldInspector::SetRenderProxyHighlightEffect(const Red::Handle<Red::worldINodeInstance>& aNodeInstance,
                                                           const Red::Handle<Red::entRenderHighlightEvent>& aEffect)
 {
     if constexpr (Red::IsArray<typename TRenderProxy::Type>)
@@ -711,7 +701,7 @@ bool App::InspectionSystem::SetRenderProxyHighlightEffect(const Red::Handle<Red:
     }
 }
 
-bool App::InspectionSystem::SetEntityHighlightEffect(const Red::Handle<Red::entEntity>& aEntity,
+bool App::WorldInspector::SetEntityHighlightEffect(const Red::Handle<Red::entEntity>& aEntity,
                                                      const Red::Handle<Red::entRenderHighlightEvent>& aEffect)
 {
     if (!aEntity)
@@ -723,32 +713,7 @@ bool App::InspectionSystem::SetEntityHighlightEffect(const Red::Handle<Red::entE
     return true;
 }
 
-Red::DynArray<Red::Handle<Red::IComponent>> App::InspectionSystem::GetComponents(
-    const Red::WeakHandle<Red::Entity>& aEntity)
-{
-    if (aEntity.Expired())
-        return {};
-
-    return Raw::Entity::ComponentsStorage::Ptr(aEntity.instance)->components;
-}
-
-Red::ResourceAsyncReference<> App::InspectionSystem::GetTemplatePath(const Red::WeakHandle<Red::Entity>& aEntity)
-{
-    if (aEntity.Expired())
-        return {};
-
-    return Raw::Entity::TemplatePath::Ref(aEntity.instance);
-}
-
-Red::DynArray<Red::CName> App::InspectionSystem::GetVisualTags(const Red::WeakHandle<Red::Entity>& aEntity)
-{
-    if (aEntity.Expired())
-        return {};
-
-    return aEntity.instance->visualTags.tags;
-}
-
-App::PhysicsTraceResultObject App::InspectionSystem::GetPhysicsTraceObject(Red::ScriptRef<Red::physicsTraceResult>& aTrace)
+App::PhysicsTraceResultObject App::WorldInspector::GetPhysicsTraceObject(Red::ScriptRef<Red::physicsTraceResult>& aTrace)
 {
     PhysicsTraceResultObject result{};
 
@@ -778,7 +743,7 @@ App::PhysicsTraceResultObject App::InspectionSystem::GetPhysicsTraceObject(Red::
                 const auto& entityID = Raw::Entity::EntityID::Ref(entity.instance);
                 if (entityID.IsStatic())
                 {
-                    nodeInstance = m_worldNodeRegistry->FindStreamedNodeInstance(entityID.hash);
+                    nodeInstance = m_nodeRegistry->FindStreamedNodeInstance(entityID.hash);
                     if (nodeInstance)
                     {
                         result.nodeInstance = nodeInstance;
@@ -800,7 +765,7 @@ App::PhysicsTraceResultObject App::InspectionSystem::GetPhysicsTraceObject(Red::
     return result;
 }
 
-Red::Vector4 App::InspectionSystem::ProjectWorldPoint(const Red::Vector4& aPoint)
+Red::Vector4 App::WorldInspector::ProjectWorldPoint(const Red::Vector4& aPoint)
 {
     auto* camera = Raw::CameraSystem::Camera::Ptr(m_cameraSystem);
     auto& point = *reinterpret_cast<const Red::Vector3*>(&aPoint);
@@ -809,81 +774,4 @@ Red::Vector4 App::InspectionSystem::ProjectWorldPoint(const Red::Vector4& aPoint
     Raw::Camera::ProjectPoint(camera, result, point);
 
     return result;
-}
-
-Red::CName App::InspectionSystem::GetTypeName(const Red::WeakHandle<Red::ISerializable>& aInstace)
-{
-    if (!aInstace)
-        return {};
-
-    return aInstace.instance->GetType()->GetName();
-}
-
-bool App::InspectionSystem::IsInstanceOf(const Red::WeakHandle<Red::ISerializable>& aInstace, Red::CName aType)
-{
-    return aInstace && aInstace.instance->GetType()->IsA(Red::GetType(aType));
-}
-
-uint64_t App::InspectionSystem::GetObjectHash(const Red::WeakHandle<Red::ISerializable>& aInstace)
-{
-    return reinterpret_cast<uint64_t>(aInstace.instance);
-}
-
-Red::Handle<Red::ISerializable> App::InspectionSystem::CloneObject(const Red::Handle<Red::ISerializable>& aInstace)
-{
-    Red::Handle<Red::ISerializable> clone;
-    Raw::ISerializable::Clone(clone, aInstace);
-    return clone;
-}
-
-Red::DynArray<App::InkLayerExtendedData> App::InspectionSystem::CollectInkLayers()
-{
-    return m_inkWidgetService->CollectLayers();
-}
-
-App::InkWidgetCollectionData App::InspectionSystem::CollectHoveredWidgets()
-{
-    return m_inkWidgetService->CollectHoveredWidgets();
-}
-
-App::InkWidgetSpawnData App::InspectionSystem::GetWidgetSpawnInfo(const Red::Handle<Red::inkWidget>& aWidget)
-{
-    return m_inkWidgetService->GetWidgetSpawnInfo(aWidget);
-}
-
-void App::InspectionSystem::EnablePointerInput()
-{
-    m_inkWidgetService->TogglePointerInput(true);
-}
-
-void App::InspectionSystem::DisablePointerInput()
-{
-    m_inkWidgetService->TogglePointerInput(false);
-}
-
-void App::InspectionSystem::TogglePointerInput()
-{
-    m_inkWidgetService->TogglePointerInput();
-}
-
-void App::InspectionSystem::EnsurePointerInput()
-{
-    m_inkWidgetService->EnsurePointerInput();
-}
-
-Red::Vector2 App::InspectionSystem::GetPointerScreenPosition()
-{
-    return Red::InkSystem::Get()->pointerScreenPosition;
-}
-
-Red::inkRectangle App::InspectionSystem::GetWidgetDrawRect(const Red::Handle<Red::inkWidget>& aWidget)
-{
-    Red::inkRectangle drawRect{};
-
-    if (const auto drawContext = Red::inkDrawContext::Resolve(aWidget))
-    {
-        Raw::inkDrawArea::GetBoundingRect(drawContext->drawArea, drawRect, true);
-    }
-
-    return drawRect;
 }

@@ -6,7 +6,7 @@
 
 namespace App
 {
-class ArchiveReporter
+class ArchiveLogger
     : public Core::Feature
     , public Core::HookingAgent
     , public Core::LoggingAgent

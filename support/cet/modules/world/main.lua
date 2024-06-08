@@ -32,7 +32,7 @@ local function initializeSystems()
     targetingSystem = Game.GetTargetingSystem()
     spatialQuerySystem = Game.GetSpatialQueriesSystem()
     transactionSystem = Game.GetTransactionSystem()
-    inspectionSystem = Game.GetInspectionSystem()
+    inspectionSystem = Game.GetWorldInspector()
 end
 
 -- User State --
@@ -180,7 +180,7 @@ local function getLookAtTargets(maxDistance)
             table.insert(results, {
                 resolved = true,
                 entity = Ref.Weak(entity),
-                hash = inspectionSystem:GetObjectHash(entity),
+                hash = RedHotTools.GetObjectHash(entity),
                 distance = Vector4.Distance(camera.position, ToVector4(entity:GetWorldPosition())),
                 collision = extendedCollisionGroups[2],
             })
@@ -524,7 +524,7 @@ local nodeGroupMapping = {
 local function resolveComponents(entity)
     local components = {}
 
-    for _, component in ipairs(inspectionSystem:GetComponents(entity)) do
+    for _, component in ipairs(RedHotTools.GetEntityComponents(entity)) do
         local data = {
             componentName = component:GetName().value,
             componentType = component:GetClassName().value,
@@ -534,7 +534,7 @@ local function resolveComponents(entity)
         }
 
         if component:IsA('entMeshComponent') or component:IsA('entSkinnedMeshComponent') then
-            data.meshPath = inspectionSystem:ResolveResourcePath(component.mesh.hash)
+            data.meshPath = RedHotTools.GetResourcePath(component.mesh.hash)
             data.meshAppearance = component.meshAppearance.value
             data.chunkMask = component.chunkMask
 
@@ -544,7 +544,7 @@ local function resolveComponents(entity)
         end
 
         if component:IsA('entMorphTargetSkinnedMeshComponent') then
-            data.morphPath = inspectionSystem:ResolveResourcePath(component.morphResource.hash)
+            data.morphPath = RedHotTools.GetResourcePath(component.morphResource.hash)
             data.meshAppearance = component.meshAppearance.value
             data.chunkMask = component.chunkMask
 
@@ -556,7 +556,7 @@ local function resolveComponents(entity)
         local description = { data.componentType, data.componentName }
         data.description = table.concat(description, ' | ')
 
-        data.hash = inspectionSystem:GetObjectHash(component)
+        data.hash = RedHotTools.GetObjectHash(component)
 
         table.insert(components, data)
     end
@@ -567,7 +567,7 @@ end
 local function resolveVisualTags(entity, owner)
     local visualTags = {}
 
-    for _, tag in ipairs(inspectionSystem:GetVisualTags(entity)) do
+    for _, tag in ipairs(RedHotTools.GetEntityVisualTags(entity)) do
         table.insert(visualTags, tag.value)
     end
 
@@ -623,8 +623,8 @@ local function resolveAttachments(entity)
             data.itemType = item:GetClassName().value
 
             if not item:IsA('gameweaponObject') then
-                local templatePath = inspectionSystem:GetTemplatePath(item)
-                data.templatePath = inspectionSystem:ResolveResourcePath(templatePath.hash)
+                local templatePath = RedHotTools.GetEntityTemplatePath(item)
+                data.templatePath = RedHotTools.GetResourcePath(templatePath.hash)
                 data.appearanceName = transactionSystem:GetItemAppearance(entity, item:GetItemID()).value
                 if isEmpty(data.templatePath) and isNotEmpty(templatePath.hash) then
                     data.templatePath = ('%u'):format(templatePath.hash)
@@ -639,7 +639,7 @@ local function resolveAttachments(entity)
             data.hasAttachments = (#data.attachments > 0)
             data.hasVisualTags = (#data.visualTags > 0)
 
-            data.hash = inspectionSystem:GetObjectHash(item)
+            data.hash = RedHotTools.GetObjectHash(item)
         elseif isItem then
              local partID = entity:GetItemData():GetItemPart(slotID):GetItemID().tdbid
              if TDBID.IsValid(partID) then
@@ -659,8 +659,8 @@ local function fillTargetEntityData(target, data)
         data.entityID = entity:GetEntityID().hash
         data.entityType = entity:GetClassName().value
 
-        local templatePath = inspectionSystem:GetTemplatePath(entity)
-        data.templatePath = inspectionSystem:ResolveResourcePath(templatePath.hash)
+        local templatePath = RedHotTools.GetEntityTemplatePath(entity)
+        data.templatePath = RedHotTools.GetResourcePath(templatePath.hash)
         data.appearanceName = entity:GetCurrentAppearanceName().value
         if isEmpty(data.templatePath) and isNotEmpty(templatePath.hash) then
             data.templatePath = ('%u'):format(templatePath.hash)
@@ -717,7 +717,7 @@ local function fillTargetNodeData(target, data)
         sectorData = inspectionSystem:ResolveSectorDataFromNodeID(target.nodeID)
     end
     if sectorData and sectorData.sectorHash ~= 0 then
-        data.sectorPath = inspectionSystem:ResolveResourcePath(sectorData.sectorHash)
+        data.sectorPath = RedHotTools.GetResourcePath(sectorData.sectorHash)
         data.instanceIndex = sectorData.instanceIndex
         data.instanceCount = sectorData.instanceCount
         data.nodeIndex = sectorData.nodeIndex
@@ -729,53 +729,53 @@ local function fillTargetNodeData(target, data)
 
     if IsDefined(target.nodeDefinition) then
         local node = target.nodeDefinition
-        data.nodeType = inspectionSystem:GetTypeName(node).value
+        data.nodeType = RedHotTools.GetTypeName(node).value
 
-        if inspectionSystem:IsInstanceOf(node, 'worldMeshNode')
-        or inspectionSystem:IsInstanceOf(node, 'worldInstancedMeshNode')
-        or inspectionSystem:IsInstanceOf(node, 'worldBendedMeshNode')
-        or inspectionSystem:IsInstanceOf(node, 'worldFoliageNode')
-        or inspectionSystem:IsInstanceOf(node, 'worldPhysicalDestructionNode') then
-            data.meshPath = inspectionSystem:ResolveResourcePath(node.mesh.hash)
+        if RedHotTools.IsInstanceOf(node, 'worldMeshNode')
+        or RedHotTools.IsInstanceOf(node, 'worldInstancedMeshNode')
+        or RedHotTools.IsInstanceOf(node, 'worldBendedMeshNode')
+        or RedHotTools.IsInstanceOf(node, 'worldFoliageNode')
+        or RedHotTools.IsInstanceOf(node, 'worldPhysicalDestructionNode') then
+            data.meshPath = RedHotTools.GetResourcePath(node.mesh.hash)
             data.meshAppearance = node.meshAppearance.value
         end
 
-        if inspectionSystem:IsInstanceOf(node, 'worldTerrainMeshNode') then
-            data.meshPath = inspectionSystem:ResolveResourcePath(node.meshRef.hash)
+        if RedHotTools.IsInstanceOf(node, 'worldTerrainMeshNode') then
+            data.meshPath = RedHotTools.GetResourcePath(node.meshRef.hash)
         end
 
-        if inspectionSystem:IsInstanceOf(node, 'worldStaticDecalNode') then
-            data.materialPath = inspectionSystem:ResolveResourcePath(node.material.hash)
+        if RedHotTools.IsInstanceOf(node, 'worldStaticDecalNode') then
+            data.materialPath = RedHotTools.GetResourcePath(node.material.hash)
         end
 
-        if inspectionSystem:IsInstanceOf(node, 'worldEffectNode') then
-            data.effectPath = inspectionSystem:ResolveResourcePath(node.effect.hash)
+        if RedHotTools.IsInstanceOf(node, 'worldEffectNode') then
+            data.effectPath = RedHotTools.GetResourcePath(node.effect.hash)
         end
 
-        if inspectionSystem:IsInstanceOf(node, 'worldPopulationSpawnerNode') then
+        if RedHotTools.IsInstanceOf(node, 'worldPopulationSpawnerNode') then
             data.recordID = node.objectRecordId.value
             data.appearanceName = node.appearanceName.value
         end
 
-        if inspectionSystem:IsInstanceOf(node, 'worldEntityNode') then
-            data.templatePath = inspectionSystem:ResolveResourcePath(node.entityTemplate.hash)
+        if RedHotTools.IsInstanceOf(node, 'worldEntityNode') then
+            data.templatePath = RedHotTools.GetResourcePath(node.entityTemplate.hash)
             data.appearanceName = node.appearanceName.value
         end
 
-        if inspectionSystem:IsInstanceOf(node, 'worldDeviceNode') then
+        if RedHotTools.IsInstanceOf(node, 'worldDeviceNode') then
             data.deviceClass = node.deviceClassName.value
         end
 
-        if inspectionSystem:IsInstanceOf(node, 'worldTriggerAreaNode') then
+        if RedHotTools.IsInstanceOf(node, 'worldTriggerAreaNode') then
             data.triggerNotifiers = {}
             for _, notifier in ipairs(node.notifiers) do
-                table.insert(data.triggerNotifiers, inspectionSystem:GetTypeName(notifier).value)
+                table.insert(data.triggerNotifiers, RedHotTools.GetTypeName(notifier).value)
             end
         end
 
-        if inspectionSystem:IsInstanceOf(node, 'worldStaticOccluderMeshNode')
-        or inspectionSystem:IsInstanceOf(node, 'worldInstancedOccluderNode') then
-            data.meshPath = inspectionSystem:ResolveResourcePath(node.mesh.hash)
+        if RedHotTools.IsInstanceOf(node, 'worldStaticOccluderMeshNode')
+        or RedHotTools.IsInstanceOf(node, 'worldInstancedOccluderNode') then
+            data.meshPath = RedHotTools.GetResourcePath(node.mesh.hash)
             data.occluderType = node.occluderType.value
         end
     end
@@ -797,14 +797,14 @@ local function fillTargetNodeData(target, data)
     data.nodeInstance = target.nodeInstance
 
     data.isNode = IsDefined(data.nodeInstance) or IsDefined(data.nodeDefinition) or isNotEmpty(data.nodeID)
-    data.isAreaNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldAreaShapeNode')
-    data.isOccluderNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldStaticOccluderMeshNode')
-    data.isProxyMeshNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldPrefabProxyMeshNode')
-    data.isCommunityNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldCompiledCommunityAreaNode')
-    data.isSpawnerNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldPopulationSpawnerNode')
+    data.isAreaNode = data.isNode and RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldAreaShapeNode')
+    data.isOccluderNode = data.isNode and RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldStaticOccluderMeshNode')
+    data.isProxyMeshNode = data.isNode and RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldPrefabProxyMeshNode')
+    data.isCommunityNode = data.isNode and RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldCompiledCommunityAreaNode')
+    data.isSpawnerNode = data.isNode and RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldPopulationSpawnerNode')
     data.isVisibleNode = data.isNode and (isNotEmpty(data.meshPath) or isNotEmpty(data.materialPath) or isNotEmpty(data.templatePath))
-        or inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldStaticLightNode')
-    data.isCollisionNode = data.isNode and inspectionSystem:IsInstanceOf(data.nodeDefinition, 'worldCollisionNode')
+        or RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldStaticLightNode')
+    data.isCollisionNode = data.isNode and RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldCollisionNode')
 
     if isNotEmpty(data.nodeType) then
         data.nodeGroup = nodeGroupMapping[data.nodeType]
@@ -899,11 +899,11 @@ local function fillTargetHash(target, data)
     if isNotEmpty(target.hash) then
         data.hash = target.hash
     elseif IsDefined(target.nodeInstance) then
-        data.hash = inspectionSystem:GetObjectHash(target.nodeInstance)
+        data.hash = RedHotTools.GetObjectHash(target.nodeInstance)
     elseif IsDefined(target.nodeDefinition) then
-        data.hash = inspectionSystem:GetObjectHash(target.nodeDefinition)
+        data.hash = RedHotTools.GetObjectHash(target.nodeDefinition)
     elseif IsDefined(target.entity) then
-        data.hash = inspectionSystem:GetObjectHash(target.entity)
+        data.hash = RedHotTools.GetObjectHash(target.entity)
     end
 end
 
@@ -1329,7 +1329,7 @@ local function lookupTarget(lookupQuery)
     local data = resolveTargetData(target) or {}
 
     if isNotEmpty(target.resourceHash) then
-        data.resolvedPath = inspectionSystem:ResolveResourcePath(target.resourceHash)
+        data.resolvedPath = RedHotTools.GetResourcePath(target.resourceHash)
     end
 
     if isNotEmpty(target.tdbidHash) then

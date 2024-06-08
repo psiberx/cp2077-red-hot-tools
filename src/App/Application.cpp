@@ -1,18 +1,18 @@
 #include "Application.hpp"
 #include "App/Archives/ArchiveLoader.hpp"
-#include "App/Archives/ArchiveReporter.hpp"
+#include "App/Archives/ArchiveLogger.hpp"
 #include "App/Archives/ArchiveWatcher.hpp"
 #include "App/Environment.hpp"
-#include "App/Runtime/InkWidgetCollector.hpp"
-#include "App/Runtime/ResourceRegistry.hpp"
-#include "App/Runtime/WorldNodeRegistry.hpp"
 #include "App/Scripts/ObjectRegistry.hpp"
 #include "App/Scripts/ScriptLoader.hpp"
 #include "App/Scripts/ScriptLogger.hpp"
 #include "App/Scripts/ScriptReporter.hpp"
 #include "App/Scripts/ScriptWatcher.hpp"
+#include "App/Shared/ResourceRegistry.hpp"
 #include "App/Tweaks/TweakLoader.hpp"
 #include "App/Tweaks/TweakWatcher.hpp"
+#include "App/UI/InkWidgetCollector.hpp"
+#include "App/World/WorldNodeRegistry.hpp"
 #include "Core/Foundation/RuntimeProvider.hpp"
 #include "Support/MinHook/MinHookProvider.hpp"
 #include "Support/RED4ext/RED4extProvider.hpp"
@@ -30,7 +30,7 @@ App::Application::Application(HMODULE aHandle, const RED4ext::Sdk* aSdk)
 
     Register<App::ArchiveLoader>();
     Register<App::ArchiveWatcher>(Env::ArchiveHotDir());
-    Register<App::ArchiveReporter>();
+    Register<App::ArchiveLogger>();
 
     Register<App::ScriptLoader>(Env::ScriptSourceDir(), Env::ScriptBlobPath());
     Register<App::ScriptWatcher>(Env::ScriptHotFile());

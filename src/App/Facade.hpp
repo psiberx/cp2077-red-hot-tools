@@ -13,6 +13,17 @@ public:
     static void ReloadScripts();
     static void ReloadTweaks();
 
+    static Red::CName GetTypeName(const Red::WeakHandle<Red::ISerializable>& aInstace);
+    static bool IsInstanceOf(const Red::WeakHandle<Red::ISerializable>& aInstace, Red::CName aType);
+    static uint64_t GetObjectHash(const Red::WeakHandle<Red::ISerializable>& aInstace);
+    static Red::Handle<Red::ISerializable> CloneObject(const Red::Handle<Red::ISerializable>& aInstace);
+
+    static Red::DynArray<Red::Handle<Red::IComponent>> GetEntityComponents(const Red::WeakHandle<Red::Entity>& aEntity);
+    static Red::ResourceAsyncReference<> GetEntityTemplatePath(const Red::WeakHandle<Red::Entity>& aEntity);
+    static Red::DynArray<Red::CName> GetEntityVisualTags(const Red::WeakHandle<Red::Entity>& aEntity);
+
+    static Red::CString GetResourcePath(uint64_t aHash);
+
     RTTI_IMPL_TYPEINFO(Facade);
 };
 }
@@ -20,7 +31,19 @@ public:
 RTTI_DEFINE_CLASS(App::Facade, App::Project::Name, {
     RTTI_ABSTRACT();
     RTTI_METHOD(GetVersion, "Version");
+
     RTTI_METHOD(ReloadArchives);
     RTTI_METHOD(ReloadScripts);
     RTTI_METHOD(ReloadTweaks);
+
+    RTTI_METHOD(GetTypeName);
+    RTTI_METHOD(IsInstanceOf);
+    RTTI_METHOD(GetObjectHash);
+    RTTI_METHOD(CloneObject);
+
+    RTTI_METHOD(GetEntityComponents);
+    RTTI_METHOD(GetEntityTemplatePath);
+    RTTI_METHOD(GetEntityVisualTags);
+
+    RTTI_METHOD(GetResourcePath);
 })

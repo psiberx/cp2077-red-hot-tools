@@ -12,7 +12,7 @@ local ImGuiEx = require('libs/ImGuiEx')
 local inspectionSystem
 
 local function initializeSystems()
-    inspectionSystem = Game.GetInspectionSystem()
+    inspectionSystem = Game.GetInkInspector()
 end
 
 -- User State --
@@ -210,7 +210,7 @@ local function selectInspectedTarget(object, scope)
         target.widget = object
     end
 
-    target.hash = inspectionSystem:GetObjectHash(target.widget)
+    target.hash = RedHotTools.GetObjectHash(target.widget)
     target.spawnInfo = inspectionSystem:GetWidgetSpawnInfo(target.widget)
 
     if not target.window then
@@ -220,10 +220,10 @@ local function selectInspectedTarget(object, scope)
         local widget = target.widget
         while not widget:IsA('inkWindow') do
             local parent = widget.parentWidget
-            local hash = inspectionSystem:GetObjectHash(widget)
+            local hash = RedHotTools.GetObjectHash(widget)
             local index = 0
             while index < parent:GetNumChildren() do
-                if inspectionSystem:GetObjectHash(parent:GetWidgetByIndex(index)) == hash then
+                if RedHotTools.GetObjectHash(parent:GetWidgetByIndex(index)) == hash then
                     break
                 end
                 index = index + 1
@@ -237,9 +237,9 @@ local function selectInspectedTarget(object, scope)
         target.namePathStr = table.concat(namePath, '/')
         target.indexPathStr = table.concat(indexPath, ' / ')
 
-        local windowHash = inspectionSystem:GetObjectHash(widget)
+        local windowHash = RedHotTools.GetObjectHash(widget)
         for _, layer in ipairs(inspector.layers) do
-            if inspectionSystem:GetTypeName(layer.handle) == target.spawnInfo.layerName then
+            if RedHotTools.GetTypeName(layer.handle) == target.spawnInfo.layerName then
                 hashPath[tonumber(layer.hash)] = true
                 for _, window in ipairs(layer.windows) do
                     if window.hash == windowHash then
@@ -257,7 +257,7 @@ local function selectInspectedTarget(object, scope)
     else
         local hashPath = {}
         for _, layer in ipairs(inspector.layers) do
-            if inspectionSystem:GetTypeName(layer.handle) == target.spawnInfo.layerName then
+            if RedHotTools.GetTypeName(layer.handle) == target.spawnInfo.layerName then
                 hashPath[tonumber(layer.hash)] = true
                 break
             end
@@ -271,12 +271,12 @@ end
 
 local function getChildIndex(target, hash)
     if not hash then
-        hash = inspectionSystem:GetObjectHash(target)
+        hash = RedHotTools.GetObjectHash(target)
     end
     local index = 0
     local parent = target.parentWidget
     while index < parent:GetNumChildren() do
-        if inspectionSystem:GetObjectHash(parent:GetWidgetByIndex(index)) == hash then
+        if RedHotTools.GetObjectHash(parent:GetWidgetByIndex(index)) == hash then
             break
         end
         index = index + 1
@@ -291,9 +291,9 @@ local function describeTarget(target, withName, withContent, maxTextLength)
 
     local description = {}
 
-    table.insert(description, inspectionSystem:GetTypeName(target).value)
+    table.insert(description, RedHotTools.GetTypeName(target).value)
 
-    if inspectionSystem:IsInstanceOf(target, 'inkWidget') then
+    if RedHotTools.IsInstanceOf(target, 'inkWidget') then
         if withName then
             local name = target:GetName().value
             if name ~= '' and name ~= 'None' and name ~= 'UNINITIALIZED_WIDGET' and name ~= 'Base Window' then
@@ -304,7 +304,7 @@ local function describeTarget(target, withName, withContent, maxTextLength)
 
         if withContent then
             local content
-            if inspectionSystem:IsInstanceOf(target, 'inkTextWidget') then
+            if RedHotTools.IsInstanceOf(target, 'inkTextWidget') then
                 content = target:GetText()
                 if content == '' then
                     content = GetLocalizedTextByKey(target:GetLocalizationKey())
@@ -313,8 +313,8 @@ local function describeTarget(target, withName, withContent, maxTextLength)
                 if content:len() > maxTextLength then
                     content = content:sub(0, maxTextLength) .. '...'
                 end
-            elseif inspectionSystem:IsInstanceOf(target, 'inkImageWidget') then
-                local textureAtlas = inspectionSystem:ResolveResourcePath(target.textureAtlas.hash)
+            elseif RedHotTools.IsInstanceOf(target, 'inkImageWidget') then
+                local textureAtlas = RedHotTools.GetResourcePath(target.textureAtlas.hash)
                 if textureAtlas ~= '' then
                     local textureAtlasName = textureAtlas:match('\\([^\\]+)$')
                     if not textureAtlasName then
@@ -832,7 +832,7 @@ local function drawEffectsFieldset(target)
 
     local effectNames = {}
     for _, effect in ipairs(target.effects) do
-        table.insert(effectNames, inspectionSystem:GetTypeName(effect).value)
+        table.insert(effectNames, RedHotTools.GetTypeName(effect).value)
     end
 
     drawEditorStaticData('effects', effectNames)
@@ -842,7 +842,7 @@ local function drawStyleFieldset(target)
     drawEditorGroupCaption('BINDINGS')
 
     local styleWrapper = target.style
-    local styleResource = IsDefined(styleWrapper) and inspectionSystem:ResolveResourcePath(target.style.styleResource.hash) or ''
+    local styleResource = IsDefined(styleWrapper) and RedHotTools.GetResourcePath(target.style.styleResource.hash) or ''
     local input, changed = drawEditorTextInput('style', styleResource, viewStyle.editorInputFullWidth)
     if changed then
         target:SetStyle(ResRef.FromString(input))
@@ -976,7 +976,7 @@ end
 local function drawTextSettingsFieldset(target)
     drawEditorGroupCaption('FONT')
 
-    local fontFamily = inspectionSystem:ResolveResourcePath(target.fontFamily.hash)
+    local fontFamily = RedHotTools.GetResourcePath(target.fontFamily.hash)
     local input, changed = drawEditorTextInput('fontFamily', fontFamily, viewStyle.editorInputFullWidth)
     if changed then
         target:SetFontFamily(input)
@@ -1086,7 +1086,7 @@ end
 local function drawImageContentFieldset(target)
     drawEditorGroupCaption('IMAGE')
 
-    local textureAtlas = inspectionSystem:ResolveResourcePath(target.textureAtlas.hash)
+    local textureAtlas = RedHotTools.GetResourcePath(target.textureAtlas.hash)
     local input, changed = drawEditorTextInput('textureAtlas', textureAtlas, viewStyle.editorInputFullWidth)
     if changed then
         target:SetAtlasResource(ResRef.FromString(input))
@@ -1169,7 +1169,7 @@ end
 local function drawVideoFieldset(target)
     drawEditorGroupCaption('VIDEO')
 
-    local videoResource = inspectionSystem:ResolveResourcePath(target.videoResource.hash)
+    local videoResource = RedHotTools.GetResourcePath(target.videoResource.hash)
     local input, changed = drawEditorTextInput('videoResource', videoResource, viewStyle.editorInputFullWidth)
     if changed then
         target:SetVideoPath(ResRef.FromString(input))
@@ -1199,7 +1199,7 @@ end
 local function drawShapeFieldset(target)
 	drawEditorGroupCaption('SHAPE')
 
-    local shapeResource = inspectionSystem:ResolveResourcePath(target.shapeResource.hash)
+    local shapeResource = RedHotTools.GetResourcePath(target.shapeResource.hash)
     local input, changed = drawEditorTextInput('shapeResource', shapeResource, viewStyle.editorInputFullWidth)
     if changed then
         target.shapeResource = input
@@ -1280,7 +1280,7 @@ end
 local function drawQuadShapeFieldset(target)
 	drawEditorGroupCaption('SHAPE')
 
-    local textureAtlas = inspectionSystem:ResolveResourcePath(target.textureAtlas.hash)
+    local textureAtlas = RedHotTools.GetResourcePath(target.textureAtlas.hash)
     local input, changed = drawEditorTextInput('textureAtlas', textureAtlas, viewStyle.editorInputFullWidth)
     if changed then
         target.textureAtlas = input
@@ -1381,7 +1381,7 @@ local function drawMaskFieldset(target)
         target.dataSource = input
     end
 
-    local textureAtlas = inspectionSystem:ResolveResourcePath(target.textureAtlas.hash)
+    local textureAtlas = RedHotTools.GetResourcePath(target.textureAtlas.hash)
     input, changed = drawEditorTextInput('textureAtlas', textureAtlas, viewStyle.editorInputFullWidth)
     if changed then
         target.textureAtlas = input
@@ -1547,7 +1547,7 @@ local function drawContextInfo(context)
         elseif IsDefined(context.window.entity) then
             ImGui.Spacing()
 
-            local entityType = inspectionSystem:GetTypeName(context.window.entity).value
+            local entityType = RedHotTools.GetTypeName(context.window.entity).value
             ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
             ImGui.Text('Entity Type:')
             ImGui.PopStyleColor()
@@ -1567,8 +1567,8 @@ local function drawContextInfo(context)
                 ImGui.SetClipboardText(entityID)
             end
 
-            local templateRef = inspectionSystem:GetTemplatePath(context.window.entity)
-            local templatePath = inspectionSystem:ResolveResourcePath(templateRef.hash)
+            local templateRef = RedHotTools.GetEntityTemplatePath(context.window.entity)
+            local templatePath = RedHotTools.GetResourcePath(templateRef.hash)
             ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
             ImGui.Text('Entity Template:')
             ImGui.PopStyleColor()
@@ -1583,7 +1583,7 @@ local function drawContextInfo(context)
     end
 
     if context.spawnInfo.libraryPathHash ~= 0 then
-        local libraryPath = inspectionSystem:ResolveResourcePath(context.spawnInfo.libraryPathHash)
+        local libraryPath = RedHotTools.GetResourcePath(context.spawnInfo.libraryPathHash)
         if libraryPath ~= '' then
             ImGui.Spacing()
 
@@ -1649,7 +1649,7 @@ local function drawEditorContent()
     ImGui.Spacing()
 
     local widget = inspector.target.widget
-    local targetType = inspectionSystem:GetTypeName(widget).value
+    local targetType = RedHotTools.GetTypeName(widget).value
     ImGui.Text(targetType)
     if ImGui.IsItemClicked(ImGuiMouseButton.Middle) then
         ImGui.SetClipboardText(targetType)
@@ -1787,7 +1787,7 @@ end
 -- GUI :: Inspector --
 
 local function cloneWidget(target)
-    local clone = inspectionSystem:CloneObject(target)
+    local clone = RedHotTools.CloneObject(target)
     if clone:IsA('inkImageWidget') then
         clone:SetAtlasResource(target.textureAtlas)
     end
@@ -1820,13 +1820,13 @@ local function drawInspectorTreeNode(node, scope)
     end
 
     if hash == nil then
-        hash = inspectionSystem:GetObjectHash(target)
+        hash = RedHotTools.GetObjectHash(target)
     end
 
     local nodeFlags = ImGuiTreeNodeFlags.SpanFullWidth
         + ImGuiTreeNodeFlags.OpenOnArrow + ImGuiTreeNodeFlags.OpenOnDoubleClick
 
-    if hasChildren == nil and inspectionSystem:IsInstanceOf(target, 'inkCompoundWidget') then
+    if hasChildren == nil and RedHotTools.IsInstanceOf(target, 'inkCompoundWidget') then
         hasChildren = target:GetNumChildren() > 0
     end
 
@@ -1876,7 +1876,7 @@ local function drawInspectorTreeNode(node, scope)
             if isWidget and isMoving and viewState.clipboard.widget:IsA('inkCompoundWidget') then
                 local parent = target
                 while not parent:IsA('inkWindow') do
-                    if inspectionSystem:GetObjectHash(parent) == viewState.clipboard.hash then
+                    if RedHotTools.GetObjectHash(parent) == viewState.clipboard.hash then
                         isMovingAllowed = false
                         break
                     end
@@ -1886,8 +1886,8 @@ local function drawInspectorTreeNode(node, scope)
 
             if not isMoving or isMovingAllowed then
                 local parent = target.parentWidget
-                local isSameParent = inspectionSystem:GetObjectHash(viewState.clipboard.parent) == hash
-                local isInsideSameParent = inspectionSystem:GetObjectHash(parent) == inspectionSystem:GetObjectHash(viewState.clipboard.parent)
+                local isSameParent = RedHotTools.GetObjectHash(viewState.clipboard.parent) == hash
+                local isInsideSameParent = RedHotTools.GetObjectHash(parent) == RedHotTools.GetObjectHash(viewState.clipboard.parent)
 
                 if isContainer and (not isSameParent or not isMoving) then
                     if isMoving then

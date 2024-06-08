@@ -1,14 +1,14 @@
-#include "ArchiveReporter.hpp"
+#include "ArchiveLogger.hpp"
+#include "App/Shared/ResourceRegistry.hpp"
 #include "Core/Facades/Container.hpp"
-#include "App/Runtime/ResourceRegistry.hpp"
 #include "Red/ResourceDepot.hpp"
 
-void App::ArchiveReporter::OnBootstrap()
+void App::ArchiveLogger::OnBootstrap()
 {
     HookAfter<Raw::ResourceDepot::RequestResource>(&OnRequestResource);
 }
 
-void App::ArchiveReporter::OnRequestResource(Red::ResourceDepot* aDepot, const uintptr_t* aResourceHandle,
+void App::ArchiveLogger::OnRequestResource(Red::ResourceDepot* aDepot, const uintptr_t* aResourceHandle,
                                              Red::ResourcePath aResourcePath, const int32_t* aArchiveHandle)
 {
     if (!*aResourceHandle)
@@ -30,7 +30,7 @@ void App::ArchiveReporter::OnRequestResource(Red::ResourceDepot* aDepot, const u
     }
 }
 
-App::ArchiveReporter::ArchiveInfo App::ArchiveReporter::GetArchiveInfo(Red::ResourceDepot* aDepot,
+App::ArchiveLogger::ArchiveInfo App::ArchiveLogger::GetArchiveInfo(Red::ResourceDepot* aDepot,
                                                                        const int32_t* aArchiveHandle)
 {
     if (!aArchiveHandle || !*aArchiveHandle)
