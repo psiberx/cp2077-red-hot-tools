@@ -739,10 +739,9 @@ App::PhysicsTraceResultObject App::WorldInspector::GetPhysicsTraceObject(Red::Sc
                 result.entity = entity;
                 result.hash = reinterpret_cast<uint64_t>(entity.instance);
 
-                const auto& entityID = Raw::Entity::EntityID::Ref(entity.instance);
-                if (entityID.IsStatic())
+                if (entity->entityID.IsStatic())
                 {
-                    nodeInstance = m_nodeRegistry->FindStreamedNodeInstance(entityID.hash);
+                    nodeInstance = m_nodeRegistry->FindStreamedNodeInstance(entity->entityID.hash);
                     if (nodeInstance)
                     {
                         result.nodeInstance = nodeInstance;

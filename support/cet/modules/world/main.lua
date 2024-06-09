@@ -1646,7 +1646,7 @@ end
 
 local function formatPosition(data, field)
     local vec = data[field.name]
-    return ('(%.3f, %.3f, %.3f, %.3f)'):format(vec.x, vec.y, vec.z, vec.w):gsub('%.000', '.0')
+    return ('%.3f, %.3f, %.3f, %.3f'):format(vec.x, vec.y, vec.z, vec.w):gsub('%.000', '.0')
 end
 
 local function validateOrientation(data, field)
@@ -1656,7 +1656,7 @@ end
 
 local function formatOrientation(data, field)
     local quat = data[field.name]
-    return ('(%.3f, %.3f, %.3f, %.3f)'):format(quat.i, quat.j, quat.k, quat.r):gsub('%.000', '.0')
+    return ('%.3f, %.3f, %.3f, %.3f'):format(quat.i, quat.j, quat.k, quat.r):gsub('%.000', '.0')
 end
 
 local resultSchema = {

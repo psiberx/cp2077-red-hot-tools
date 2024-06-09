@@ -53,23 +53,23 @@ Red::Handle<Red::ISerializable> App::Facade::CloneObject(const Red::Handle<Red::
 
 Red::DynArray<Red::Handle<Red::IComponent>> App::Facade::GetEntityComponents(const Red::WeakHandle<Red::Entity>& aEntity)
 {
-    if (aEntity.Expired())
+    if (!aEntity)
         return {};
 
-    return Raw::Entity::ComponentsStorage::Ptr(aEntity.instance)->components;
+    return aEntity.instance->components;
 }
 
 Red::ResourceAsyncReference<> App::Facade::GetEntityTemplatePath(const Red::WeakHandle<Red::Entity>& aEntity)
 {
-    if (aEntity.Expired())
+    if (!aEntity)
         return {};
 
-    return Raw::Entity::TemplatePath::Ref(aEntity.instance);
+    return aEntity.instance->templatePath;
 }
 
 Red::DynArray<Red::CName> App::Facade::GetEntityVisualTags(const Red::WeakHandle<Red::Entity>& aEntity)
 {
-    if (aEntity.Expired())
+    if (!aEntity)
         return {};
 
     return aEntity.instance->visualTags.tags;
