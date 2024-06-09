@@ -1,5 +1,5 @@
 #include "ArchiveLogger.hpp"
-#include "App/Shared/ResourceRegistry.hpp"
+#include "App/Shared/ResourcePathRegistry.hpp"
 #include "Core/Facades/Container.hpp"
 #include "Red/ResourceDepot.hpp"
 
@@ -21,7 +21,7 @@ void App::ArchiveLogger::OnRequestResource(Red::ResourceDepot* aDepot, const uin
         if (archiveInfo.scope == Red::ArchiveScope::Content || archiveInfo.scope == Red::ArchiveScope::DLC)
             return;
 
-        auto resourcePathStr = Core::Resolve<ResourceRegistry>()->ResolveResorcePath(aResourcePath);
+        auto resourcePathStr = ResourcePathRegistry::Get()->ResolvePath(aResourcePath);
 
         LogWarning(R"(Resource not found: hash={} path="{}" archive="{}")",
                    aResourcePath.hash,

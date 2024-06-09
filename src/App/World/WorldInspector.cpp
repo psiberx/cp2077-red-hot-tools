@@ -2,7 +2,6 @@
 #include "Core/Facades/Log.hpp"
 #include "Red/CameraSystem.hpp"
 #include "Red/Debug.hpp"
-#include "Red/Entity.hpp"
 #include "Red/Math.hpp"
 #include "Red/Physics.hpp"
 #include "Red/Rendering.hpp"

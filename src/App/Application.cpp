@@ -8,7 +8,7 @@
 #include "App/Scripts/ScriptLogger.hpp"
 #include "App/Scripts/ScriptReporter.hpp"
 #include "App/Scripts/ScriptWatcher.hpp"
-#include "App/Shared/ResourceRegistry.hpp"
+#include "App/Shared/ResourcePathRegistry.hpp"
 #include "App/Tweaks/TweakLoader.hpp"
 #include "App/Tweaks/TweakWatcher.hpp"
 #include "App/UI/InkWidgetCollector.hpp"
@@ -41,7 +41,7 @@ App::Application::Application(HMODULE aHandle, const RED4ext::Sdk* aSdk)
     Register<App::TweakLoader>(Env::TweakSourceDir());
     Register<App::TweakWatcher>(Env::TweakHotFile());
 
-    Register<App::ResourceRegistry>(Env::MetadataDir());
+    Register<App::ResourcePathRegistry>(Env::KnownHashesPath());
     Register<App::WorldNodeRegistry>();
     Register<App::InkWidgetCollector>(Env::IsPrePatch212a());
 }

@@ -4,11 +4,6 @@
 
 namespace App::Env
 {
-inline std::filesystem::path MetadataDir()
-{
-    return Core::Runtime::GetModuleDir();
-}
-
 inline std::filesystem::path ArchiveModDir()
 {
     return Core::Runtime::GetRootDir() / L"archive" / L"pc" / L"mod";
@@ -42,6 +37,11 @@ inline std::filesystem::path TweakSourceDir()
 inline std::filesystem::path TweakHotFile()
 {
     return Core::Runtime::GetModuleDir() / L".hot-tweaks";
+}
+
+inline std::filesystem::path KnownHashesPath()
+{
+    return Core::Runtime::GetModuleDir() / L"Resources.txt";
 }
 
 inline bool IsPrePatch212a()

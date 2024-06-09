@@ -2,9 +2,8 @@
 #include "App/Archives/ArchiveLoader.hpp"
 #include "App/Environment.hpp"
 #include "App/Scripts/ScriptLoader.hpp"
-#include "App/Shared/ResourceRegistry.hpp"
+#include "App/Shared/ResourcePathRegistry.hpp"
 #include "Core/Facades/Container.hpp"
-#include "Red/Entity.hpp"
 #include "Red/Scripting.hpp"
 
 Red::CString App::Facade::GetVersion()
@@ -78,5 +77,5 @@ Red::DynArray<Red::CName> App::Facade::GetEntityVisualTags(const Red::WeakHandle
 
 Red::CString App::Facade::GetResourcePath(uint64_t aResourceHash)
 {
-    return Core::Resolve<ResourceRegistry>()->ResolveResorcePath(aResourceHash);
+    return ResourcePathRegistry::Get()->ResolvePath(aResourceHash);
 }

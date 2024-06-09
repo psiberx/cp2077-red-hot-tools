@@ -1,6 +1,5 @@
 #pragma once
 
-#include "App/Shared/ResourceRegistry.hpp"
 #include "App/World/PhysicsTraceResult.hpp"
 #include "App/World/WorldNodeRegistry.hpp"
 
