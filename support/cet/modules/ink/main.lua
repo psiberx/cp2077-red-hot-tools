@@ -697,6 +697,26 @@ local function drawEditorStaticData(label, data)
     ImGui.EndGroup()
 end
 
+local function drawEditorSelect(label, value, items, defaultIndex, rowWidth)
+    ImGui.BeginGroup()
+    drawEditorLabel(label)
+    ensureEditorInputWidth(rowWidth)
+    ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, viewStyle.editorInputPaddingX, viewStyle.editorInputPaddingY)
+    local itemIndex = defaultIndex
+
+    for i, item in ipairs(items) do
+        if item == value then
+            itemIndex = i
+            break
+        end
+    end
+    itemIndex = itemIndex - 1
+    local currentItemIndex, _ = ImGui.Combo('##' .. label, itemIndex, items, #items)
+    ImGui.PopStyleVar()
+    ImGui.EndGroup()
+    return items[currentItemIndex + 1], currentItemIndex ~= itemIndex
+end
+
 local function drawGeneralFieldset(target)
     drawEditorGroupCaption('GENERAL')
 
