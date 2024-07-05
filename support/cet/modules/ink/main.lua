@@ -406,80 +406,26 @@ local viewData = {
         'inkScrollAreaWidget',
         'inkCacheWidget',
     },
-    -- List made with WolvenKit using query '.inkfontfamily', sort A to Z
+    -- List made with WolvenKit using query '.inkfontfamily'.
     fonts = {
-        {
-            path = 'base\\gameplay\\gui\\fonts\\foreign\\chinese_traditional\\ar_fang_xing_run_yuan\\ar_fang_xing_run_yuan.inkfontfamily',
-            styles = {'Medium'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\foreign\\arabic\\ara_es_nawar\\ara_es_nawar.inkfontfamily',
-            styles = {'Regular', 'Semi-Bold'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\arame\\arame.inkfontfamily',
-            styles = {'Regular', 'Bold'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\arial\\arial.inkfontfamily',
-            styles = {'Regular', 'Bold'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\blender\\blender.inkfontfamily',
-            styles = {'Book', 'Book Italic', 'Bold', 'Bold Italic'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\digital_readout\\digitalreadout.inkfontfamily',
-            styles = {'Regular'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\industry\\industry.inkfontfamily',
-            styles = {'Demi'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\foreign\\chinese_traditional\\jing_xi_heig_b5\\jing_xi_heig_b5.inkfontfamily',
-            styles = {'Medium', 'Semi-Bold', 'Bold', 'Extra Bold'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\foreign\\chinese\\jing_xi_heig\\jing_xi_heig.inkfontfamily',
-            styles = {'Regular', 'Semi-Bold'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\foreign\\korean\\kbiz_go\\kbiz_go.inkfontfamily',
-            styles = {'Light', 'Regular', 'Medium', 'Bold', 'Heavy'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\foreign\\japanese\\mgenplus\\mgenplus.inkfontfamily',
-            styles = {'Light', 'Regular', 'Medium', 'Semi-Bold', 'Bold', 'Heavy'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\foreign\\korean\\nanum_square\\nanum_square.inkfontfamily',
-            styles = {'Light', 'Regular', 'Semi-Bold', 'Bold', 'Extra Bold'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\orbitron\\orbitron.inkfontfamily',
-            styles = {'Regular', 'Medium', 'Bold', 'Black'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\foreign\\thai\\printable4u\\printable4u.inkfontfamily',
-            styles = {'Regular', 'Italic', 'Bold', 'Bold Italic'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\foreign\\russian\\raj_rus.inkfontfamily',
-            styles = {'Medium', 'Semi-Bold'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\raj\\raj.inkfontfamily',
-            styles = {'Regular', 'Medium', 'Semi-Bold', 'Bold'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\foreign\\japanese\\smart_font_ui\\smart_font_ui.inkfontfamily',
-            styles = {'Regular'},
-        },
-        {
-            path = 'base\\gameplay\\gui\\fonts\\foreign\\thai\\th_sarabun_new\\th_sarabun_new.inkfontfamily',
-            styles = {'Regular', 'Italic', 'Semi-Bold', 'Bold', 'Bold Italic'},
-        },
+        ['base\\gameplay\\gui\\fonts\\foreign\\chinese_traditional\\ar_fang_xing_run_yuan\\ar_fang_xing_run_yuan.inkfontfamily'] = {'Medium'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\arabic\\ara_es_nawar\\ara_es_nawar.inkfontfamily'] = {'Regular', 'Semi-Bold'},
+        ['base\\gameplay\\gui\\fonts\\arame\\arame.inkfontfamily'] = {'Regular', 'Bold'},
+        ['base\\gameplay\\gui\\fonts\\arial\\arial.inkfontfamily'] = {'Regular', 'Bold'},
+        ['base\\gameplay\\gui\\fonts\\blender\\blender.inkfontfamily'] = {'Book', 'Book Italic', 'Bold', 'Bold Italic'},
+        ['base\\gameplay\\gui\\fonts\\digital_readout\\digitalreadout.inkfontfamily'] = {'Regular'},
+        ['base\\gameplay\\gui\\fonts\\industry\\industry.inkfontfamily'] = {'Demi'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\chinese_traditional\\jing_xi_heig_b5\\jing_xi_heig_b5.inkfontfamily'] = {'Medium', 'Semi-Bold', 'Bold', 'Extra Bold'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\chinese\\jing_xi_heig\\jing_xi_heig.inkfontfamily'] = {'Regular', 'Semi-Bold'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\korean\\kbiz_go\\kbiz_go.inkfontfamily'] = {'Light', 'Regular', 'Medium', 'Bold', 'Heavy'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\japanese\\mgenplus\\mgenplus.inkfontfamily'] = {'Light', 'Regular', 'Medium', 'Semi-Bold', 'Bold', 'Heavy'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\korean\\nanum_square\\nanum_square.inkfontfamily'] = {'Light', 'Regular', 'Semi-Bold', 'Bold', 'Extra Bold'},
+        ['base\\gameplay\\gui\\fonts\\orbitron\\orbitron.inkfontfamily'] = {'Regular', 'Medium', 'Bold', 'Black'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\thai\\printable4u\\printable4u.inkfontfamily'] = {'Regular', 'Italic', 'Bold', 'Bold Italic'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\russian\\raj_rus.inkfontfamily'] = {'Medium', 'Semi-Bold'},
+        ['base\\gameplay\\gui\\fonts\\raj\\raj.inkfontfamily'] = {'Regular', 'Medium', 'Semi-Bold', 'Bold'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\japanese\\smart_font_ui\\smart_font_ui.inkfontfamily'] = {'Regular'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\thai\\th_sarabun_new\\th_sarabun_new.inkfontfamily'] = {'Regular', 'Italic', 'Semi-Bold', 'Bold', 'Bold Italic'},
     },
     fontPaths = {},
 }
@@ -524,9 +470,10 @@ local function initializeViewData()
 	viewData.textOverflowPolicy = ImGuiEx.BuildEnumOptions('textOverflowPolicy')
 	viewData.textWrappingPolicy = ImGuiEx.BuildEnumOptions('textWrappingPolicy')
 
-    for _, font in ipairs(viewData.fonts) do
-        table.insert(viewData.fontPaths, font.path)
+    for path, _ in pairs(viewData.fonts) do
+        table.insert(viewData.fontPaths, path)
     end
+    table.sort(viewData.fontPaths)
 end
 
 local function initializeViewStyle()
@@ -1073,18 +1020,6 @@ local function drawTextContentFieldset(target)
     end
 end
 
-local function findFontByPath(path)
-    if path == nil then
-        return nil
-    end
-    for _, font in ipairs(viewData.fonts) do
-        if font.path == path then
-            return font
-        end
-    end
-    return nil
-end
-
 local function drawTextSettingsFieldset(target)
     drawEditorGroupCaption('FONT')
 
@@ -1094,10 +1029,9 @@ local function drawTextSettingsFieldset(target)
         target:SetFontFamily(input)
     end
 
-    local fontStyles = {'Regular'}
-    local font = findFontByPath(fontPath)
-    if font ~= nil then
-        fontStyles = font.styles
+    local fontStyles = viewData.fonts[fontPath]
+    if fontStyles == nil then
+        fontStyles = {'Regular'}
     end
     input, changed = drawEditorSelect('fontStyle', target.fontStyle.value, fontStyles, 1, viewStyle.editorInputFullWidth)
     if changed then
