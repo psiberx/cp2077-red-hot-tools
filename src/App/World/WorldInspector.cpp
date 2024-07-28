@@ -255,6 +255,7 @@ void App::WorldInspector::UpdateFrustumNodes()
                 continue;
 
             const auto& transform = streamedNode.nodeSetup->transform;
+            const auto& scale = streamedNode.nodeSetup->scale;
 
 #ifndef NDEBUG
             const auto resolveStart = std::chrono::steady_clock::now();
@@ -321,7 +322,7 @@ void App::WorldInspector::UpdateFrustumNodes()
 
             const auto instanceHash = reinterpret_cast<uint64_t>(streamedNode.nodeInstance.instance);
             frustumNodes.push_back({streamedNode.nodeInstance, streamedNode.nodeDefinition,
-                                    streamedNode.boundingBox, transform.position, transform.orientation,
+                                    streamedNode.boundingBox, transform.position, transform.orientation, scale,
                                     testBox, distance, inFrustum, instanceHash, true});
         }
     }
@@ -468,14 +469,15 @@ Red::DynArray<App::WorldNodeRuntimeSceneData> App::WorldInspector::GetStreamedNo
     return m_targetedNodes;
 }
 
-Red::Transform App::WorldInspector::GetStreamedNodeTransform(const Red::WeakHandle<Red::worldINodeInstance>& aNode)
+App::WorldNodeRuntimeGeometryData App::WorldInspector::GetStreamedNodeGeometry(
+    const Red::WeakHandle<Red::worldINodeInstance>& aNode)
 {
     const auto& [setup, nodeInstanceWeak, nodeDefinitionWeak] = m_nodeRegistry->GetNodeRuntimeData(aNode);
 
     if (!setup)
         return {};
 
-    return setup->transform;
+    return {setup->transform.position, setup->transform.orientation, setup->scale};
 }
 
 float App::WorldInspector::GetFrustumDistance() const

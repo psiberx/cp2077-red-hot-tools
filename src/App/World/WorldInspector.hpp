@@ -31,11 +31,19 @@ struct WorldNodeRuntimeSceneData
     Red::Box boundingBox;
     Red::Vector4 position;
     Red::Quaternion orientation;
+    Red::Vector3 scale;
     Red::Box testBox;
     float distance;
     bool frustum;
     uint64_t hash;
     bool resolved;
+};
+
+struct WorldNodeRuntimeGeometryData
+{
+    Red::Vector4 position;
+    Red::Quaternion orientation;
+    Red::Vector3 scale;
 };
 
 class WorldInspector
@@ -64,7 +72,7 @@ public:
     WorldNodeRuntimeSceneData FindStreamedNode(uint64_t aNodeID);
     Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedNodesInFrustum();
     Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedNodesInCrosshair();
-    Red::Transform GetStreamedNodeTransform(const Red::WeakHandle<Red::worldINodeInstance>& aNode);
+    WorldNodeRuntimeGeometryData GetStreamedNodeGeometry(const Red::WeakHandle<Red::worldINodeInstance>& aNode);
 
     bool ApplyHighlightEffect(const Red::Handle<Red::ISerializable>& aObject,
                               const Red::Handle<Red::entRenderHighlightEvent>& aEffect);
@@ -136,10 +144,17 @@ RTTI_DEFINE_CLASS(App::WorldNodeRuntimeSceneData, {
     RTTI_PROPERTY(nodeDefinition);
     RTTI_PROPERTY(position);
     RTTI_PROPERTY(orientation);
+    RTTI_PROPERTY(scale);
     RTTI_PROPERTY(boundingBox);
     RTTI_PROPERTY(distance);
     RTTI_PROPERTY(resolved);
     RTTI_PROPERTY(hash);
+});
+
+RTTI_DEFINE_CLASS(App::WorldNodeRuntimeGeometryData, {
+    RTTI_PROPERTY(position);
+    RTTI_PROPERTY(orientation);
+    RTTI_PROPERTY(scale);
 });
 
 RTTI_DEFINE_CLASS(App::WorldInspector, {
@@ -159,7 +174,7 @@ RTTI_DEFINE_CLASS(App::WorldInspector, {
     RTTI_METHOD(FindStreamedNode);
     RTTI_METHOD(GetStreamedNodesInFrustum);
     RTTI_METHOD(GetStreamedNodesInCrosshair);
-    RTTI_METHOD(GetStreamedNodeTransform);
+    RTTI_METHOD(GetStreamedNodeGeometry);
 
     RTTI_METHOD(ApplyHighlightEffect);
     RTTI_METHOD(SetNodeVisibility);

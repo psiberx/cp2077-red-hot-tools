@@ -827,10 +827,12 @@ local function fillTargetGeomertyData(target, data)
         if target.testBox then
             data.nodePosition = data.position
             data.nodeOrientation = data.orientation
+            data.nodeScale = data.scale
         else
-            local transform = inspectionSystem:GetStreamedNodeTransform(data.nodeInstance)
-            data.nodePosition = transform.position
-            data.nodeOrientation = transform.orientation
+            local geometry = inspectionSystem:GetStreamedNodeGeometry(data.nodeInstance)
+            data.nodePosition = geometry.position
+            data.nodeOrientation = geometry.orientation
+            data.nodeScale = geometry.scale
         end
     end
 
@@ -1659,6 +1661,16 @@ local function formatOrientation(data, field)
     return ('%.3f, %.3f, %.3f, %.3f'):format(quat.i, quat.j, quat.k, quat.r):gsub('%.000', '.0')
 end
 
+local function validateScale(data, field)
+    local vec = data[field.name]
+    return vec and (vec.x ~= 1 or vec.y ~= 1 or vec.z ~= 1)
+end
+
+local function formatScale(data, field)
+    local vec = data[field.name]
+    return ('%.3f, %.3f, %.3f'):format(vec.x, vec.y, vec.z):gsub('%.000', '.0')
+end
+
 local resultSchema = {
     {
         { name = 'nodeType', label = 'Node Type:' },
@@ -1667,6 +1679,7 @@ local resultSchema = {
         { name = 'parentRef', label = 'Parent Ref:', wrap = true },
         { name = 'nodePosition', label = 'Node Position:', format = formatPosition, validate = validatePosition },
         { name = 'nodeOrientation', label = 'Node Orientation:', format = formatOrientation, validate = validateOrientation },
+        { name = 'nodeScale', label = 'Node Scale:', format = formatScale, validate = validateScale },
         --{ name = 'nodeIndex', label = 'Node Index:', format = '%d', validate = isValidNodeIndex },
         --{ name = 'nodeCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
         { name = 'instanceIndex', label = 'Node Instance:', format = '%d', validate = isValidInstanceIndex },
