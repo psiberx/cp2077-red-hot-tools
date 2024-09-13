@@ -15,7 +15,7 @@ constexpr uint32_t CBaseEngine_MainLoopTick = 1875906465;
 constexpr uint32_t EntityID_ToStringDEBUG = 3457552837;
 
 constexpr uint32_t FileSystem_Instance = 3788966949;
-constexpr uint32_t FileSystem_Close = 1332290822;
+constexpr uint32_t FileSystem_Close = 633872857;
 
 // constexpr uint32_t ISerializable_SetReference = 2587561854;
 constexpr uint32_t ISerializable_Clone = 2601784524;
