@@ -151,7 +151,7 @@ void App::WorldInspector::UpdateStreamedNodes()
                  Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldStaticOccluderMeshNode>(nodeDefinition))
         {
-            Red::Box boundingBox{{1.0}, {-1.0}};
+            Red::Box boundingBox{{1.0, 0.0, 0.0, 0.0}, {-1.0, 0.0, 0.0, 0.0}};
             Raw::WorldNode::GetBoundingBox(nodeDefinition, boundingBox);
 
             if (Red::IsValidBox(boundingBox))
@@ -238,7 +238,7 @@ void App::WorldInspector::UpdateFrustumNodes()
     Raw::CameraSystem::GetCameraForward(m_cameraSystem, cameraForward);
     Raw::CameraSystem::GetCameraFrustum(m_cameraSystem, cameraFrustum);
 
-    const Red::Vector4 cameraInverseDirection{1.0f / cameraForward.X, 1.0f / cameraForward.Y, 1.0f / cameraForward.Z};
+    const Red::Vector4 cameraInverseDirection{1.0f / cameraForward.X, 1.0f / cameraForward.Y, 1.0f / cameraForward.Z, 0.0};
 
 #ifndef NDEBUG
     initDuration = std::chrono::steady_clock::now() - updateStart;
@@ -262,7 +262,7 @@ void App::WorldInspector::UpdateFrustumNodes()
 #endif
 
             Red::FrustumResult frustumResult{};
-            Red::Box testBox{{1.0}, {-1.0}};
+            Red::Box testBox{{1.0, 0.0, 0.0, 0.0}, {-1.0, 0.0, 0.0, 0.0}};
 
             if (!streamedNode.testBoxes.empty())
             {
