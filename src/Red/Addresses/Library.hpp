@@ -28,9 +28,10 @@ constexpr uint32_t inkPointerHandler_Create = 630009171;
 constexpr uint32_t inkPointerHandler_Reset = 3695579637;
 constexpr uint32_t inkPointerHandler_Override = 4279316794;
 
-constexpr uint32_t InkSpawner_FinishAsyncSpawn = 2488155854;
+constexpr uint32_t InkSpawner_FinishAsyncSpawn = 2698985195;
 
-constexpr uint32_t InkSystem_Instance = 2755465343;
+constexpr uint32_t InkSystem_Instance = 2635337807;
+constexpr uint32_t InkSystem_Instance_212a = 2755465343;
 constexpr uint32_t InkSystem_Instance_Pre212a = 2635337807;
 
 constexpr uint32_t InkWidget_Draw = 1737035665;
