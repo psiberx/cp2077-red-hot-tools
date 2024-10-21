@@ -406,6 +406,28 @@ local viewData = {
         'inkScrollAreaWidget',
         'inkCacheWidget',
     },
+    -- List made with WolvenKit using query '.inkfontfamily'.
+    fonts = {
+        ['base\\gameplay\\gui\\fonts\\foreign\\chinese_traditional\\ar_fang_xing_run_yuan\\ar_fang_xing_run_yuan.inkfontfamily'] = {'Medium'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\arabic\\ara_es_nawar\\ara_es_nawar.inkfontfamily'] = {'Regular', 'Semi-Bold'},
+        ['base\\gameplay\\gui\\fonts\\arame\\arame.inkfontfamily'] = {'Regular', 'Bold'},
+        ['base\\gameplay\\gui\\fonts\\arial\\arial.inkfontfamily'] = {'Regular', 'Bold'},
+        ['base\\gameplay\\gui\\fonts\\blender\\blender.inkfontfamily'] = {'Book', 'Book Italic', 'Bold', 'Bold Italic'},
+        ['base\\gameplay\\gui\\fonts\\digital_readout\\digitalreadout.inkfontfamily'] = {'Regular'},
+        ['base\\gameplay\\gui\\fonts\\industry\\industry.inkfontfamily'] = {'Demi'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\chinese_traditional\\jing_xi_heig_b5\\jing_xi_heig_b5.inkfontfamily'] = {'Medium', 'Semi-Bold', 'Bold', 'Extra Bold'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\chinese\\jing_xi_heig\\jing_xi_heig.inkfontfamily'] = {'Regular', 'Semi-Bold'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\korean\\kbiz_go\\kbiz_go.inkfontfamily'] = {'Light', 'Regular', 'Medium', 'Bold', 'Heavy'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\japanese\\mgenplus\\mgenplus.inkfontfamily'] = {'Light', 'Regular', 'Medium', 'Semi-Bold', 'Bold', 'Heavy'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\korean\\nanum_square\\nanum_square.inkfontfamily'] = {'Light', 'Regular', 'Semi-Bold', 'Bold', 'Extra Bold'},
+        ['base\\gameplay\\gui\\fonts\\orbitron\\orbitron.inkfontfamily'] = {'Regular', 'Medium', 'Bold', 'Black'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\thai\\printable4u\\printable4u.inkfontfamily'] = {'Regular', 'Italic', 'Bold', 'Bold Italic'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\russian\\raj_rus.inkfontfamily'] = {'Medium', 'Semi-Bold'},
+        ['base\\gameplay\\gui\\fonts\\raj\\raj.inkfontfamily'] = {'Regular', 'Medium', 'Semi-Bold', 'Bold'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\japanese\\smart_font_ui\\smart_font_ui.inkfontfamily'] = {'Regular'},
+        ['base\\gameplay\\gui\\fonts\\foreign\\thai\\th_sarabun_new\\th_sarabun_new.inkfontfamily'] = {'Regular', 'Italic', 'Semi-Bold', 'Bold', 'Bold Italic'},
+    },
+    fontPaths = {},
 }
 
 local viewStyle = {
@@ -447,6 +469,11 @@ local function initializeViewData()
 	viewData.textVerticalAlignment = ImGuiEx.BuildEnumOptions('textVerticalAlignment')
 	viewData.textOverflowPolicy = ImGuiEx.BuildEnumOptions('textOverflowPolicy')
 	viewData.textWrappingPolicy = ImGuiEx.BuildEnumOptions('textWrappingPolicy')
+
+    for path, _ in pairs(viewData.fonts) do
+        table.insert(viewData.fontPaths, path)
+    end
+    table.sort(viewData.fontPaths)
 end
 
 local function initializeViewStyle()
@@ -695,6 +722,26 @@ local function drawEditorStaticData(label, data)
     end
     ImGui.EndGroup()
     ImGui.EndGroup()
+end
+
+local function drawEditorSelect(label, value, items, defaultIndex, rowWidth)
+    ImGui.BeginGroup()
+    drawEditorLabel(label)
+    ensureEditorInputWidth(rowWidth)
+    ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, viewStyle.editorInputPaddingX, viewStyle.editorInputPaddingY)
+    local itemIndex = defaultIndex
+
+    for i, item in ipairs(items) do
+        if item == value then
+            itemIndex = i
+            break
+        end
+    end
+    itemIndex = itemIndex - 1
+    local currentItemIndex, _ = ImGui.Combo('##' .. label, itemIndex, items, #items)
+    ImGui.PopStyleVar()
+    ImGui.EndGroup()
+    return items[currentItemIndex + 1], currentItemIndex ~= itemIndex
 end
 
 local function drawGeneralFieldset(target)
@@ -976,15 +1023,20 @@ end
 local function drawTextSettingsFieldset(target)
     drawEditorGroupCaption('FONT')
 
-    local fontFamily = RedHotTools.GetResourcePath(target.fontFamily.hash)
-    local input, changed = drawEditorTextInput('fontFamily', fontFamily, viewStyle.editorInputFullWidth)
+    local fontPath = RedHotTools.GetResourcePath(target.fontFamily.hash)
+    local input, changed = drawEditorSelect('fontFamily', fontPath, viewData.fontPaths, 1, viewStyle.editorInputFullWidth)
     if changed then
         target:SetFontFamily(input)
     end
 
-    input, changed = drawEditorTextInput('fontStyle', target.fontStyle.value, viewStyle.editorInputHalfWidth)
+    local fontStyles = viewData.fonts[fontPath]
+    if fontStyles == nil then
+        fontStyles = {'Regular'}
+    end
+    input, changed = drawEditorSelect('fontStyle', target.fontStyle.value, fontStyles, 1, viewStyle.editorInputFullWidth)
     if changed then
         target:SetFontStyle(input)
+        target:SetText(target.text)
     end
 
     input, changed = drawEditorIntegerInput('fontSize', target.fontSize, 1, 10, viewStyle.editorInputHalfWidth)
