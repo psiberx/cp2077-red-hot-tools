@@ -17,9 +17,9 @@ For greater convenience it integrates with other tools:
 
 ### Compatibility
 
-- Cyberpunk 2077 2.13
-- [ArchiveXL](https://github.com/psiberx/cp2077-archive-xl) 1.16.9+
-- [Cyber Engine Tweaks](https://github.com/yamashi/CyberEngineTweaks) 1.32.0+
+- Cyberpunk 2077 2.2
+- [ArchiveXL](https://github.com/psiberx/cp2077-archive-xl) 1.18.0+
+- [Cyber Engine Tweaks](https://github.com/yamashi/CyberEngineTweaks) 1.34.0+
 - [redscript](https://github.com/jac3km4/redscript) 0.5.25+
 
 ### Installation
