@@ -1601,7 +1601,7 @@ local function formatDistance(data)
     return ('%.2fm'):format(type(data) == 'table' and data.distance or data)
 end
 
-local function isValidInstanceIndex(data)
+local function isValidNodeIndex(data)
     return type(data.instanceIndex) == 'number' and data.instanceIndex >= 0
         and type(data.instanceCount) == 'number' and data.instanceCount > 0
 end
@@ -1680,10 +1680,10 @@ local resultSchema = {
         { name = 'nodePosition', label = 'Node Position:', format = formatPosition, validate = validatePosition },
         { name = 'nodeOrientation', label = 'Node Orientation:', format = formatOrientation, validate = validateOrientation },
         { name = 'nodeScale', label = 'Node Scale:', format = formatScale, validate = validateScale },
-        --{ name = 'nodeIndex', label = 'Node Index:', format = '%d', validate = isValidNodeIndex },
-        --{ name = 'nodeCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
-        { name = 'instanceIndex', label = 'Node Instance:', format = '%d', validate = isValidInstanceIndex },
-        { name = 'instanceCount', label = '/', format = '%d', inline = true, validate = isValidInstanceIndex },
+        { name = 'nodeIndex', label = 'Node Definition:', format = '%d', validate = isValidNodeIndex },
+        { name = 'nodeCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
+        { name = 'instanceIndex', label = 'Node Instance:', format = '%d', validate = isValidNodeIndex },
+        { name = 'instanceCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
         { name = 'sectorPath', label = 'World Sector:', wrap = true },
         --{ name = 'nodeScale', label = 'Node Scale:', format = formatScale },
     },
