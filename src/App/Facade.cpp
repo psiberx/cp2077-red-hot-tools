@@ -77,5 +77,52 @@ Red::DynArray<Red::CName> App::Facade::GetEntityVisualTags(const Red::WeakHandle
 
 Red::CString App::Facade::GetResourcePath(uint64_t aResourceHash)
 {
-    return ResourcePathRegistry::Get()->ResolvePath(aResourceHash);
+    auto path = ResourcePathRegistry::Get()->ResolvePath(aResourceHash);
+
+    if (path.empty())
+    {
+        path = std::to_string(aResourceHash);
+    }
+
+    return path;
+}
+
+Red::CString App::Facade::GetReferencePath(const Red::Handle<Red::ISerializable>& aInstace, Red::CName aPropName)
+{
+    if (!aInstace || !aPropName)
+        return {};
+
+    auto prop = aInstace->GetType()->GetProperty(aPropName);
+
+    if (!prop || prop->type->GetType() != Red::ERTTIType::ResourceReference)
+        return {};
+
+    auto hash = prop->GetValuePtr<Red::ResourceReference<>>(aInstace)->path;
+
+    if (!hash)
+        return {};
+
+    auto path = ResourcePathRegistry::Get()->ResolvePath(hash);
+
+    if (path.empty())
+    {
+        path = std::to_string(hash);
+    }
+
+    return path;
+}
+
+uint64_t App::Facade::GetCRUIDHash(Red::CRUID aValue)
+{
+    return aValue.unk00;
+}
+
+uint64_t App::Facade::GetComponentAppearanceResourceHash(const Red::Handle<Red::IComponent>& aComponent)
+{
+    return aComponent->appearancePath.hash;
+}
+
+Red::CName App::Facade::GetComponentAppearanceDefinition(const Red::Handle<Red::IComponent>& aComponent)
+{
+    return aComponent->appearanceName;
 }

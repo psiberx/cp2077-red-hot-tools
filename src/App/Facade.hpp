@@ -22,7 +22,12 @@ public:
     static Red::ResourceAsyncReference<> GetEntityTemplatePath(const Red::WeakHandle<Red::Entity>& aEntity);
     static Red::DynArray<Red::CName> GetEntityVisualTags(const Red::WeakHandle<Red::Entity>& aEntity);
 
+    static uint64_t GetComponentAppearanceResourceHash(const Red::Handle<Red::IComponent>& aComponent);
+    static Red::CName GetComponentAppearanceDefinition(const Red::Handle<Red::IComponent>& aComponent);
+
     static Red::CString GetResourcePath(uint64_t aHash);
+    static Red::CString GetReferencePath(const Red::Handle<Red::ISerializable>& aInstace, Red::CName aPropName);
+    static uint64_t GetCRUIDHash(Red::CRUID aValue);
 
     RTTI_IMPL_TYPEINFO(Facade);
 };
@@ -45,5 +50,10 @@ RTTI_DEFINE_CLASS(App::Facade, App::Project::Name, {
     RTTI_METHOD(GetEntityTemplatePath);
     RTTI_METHOD(GetEntityVisualTags);
 
+    RTTI_METHOD(GetComponentAppearanceResourceHash);
+    RTTI_METHOD(GetComponentAppearanceDefinition);
+
     RTTI_METHOD(GetResourcePath);
+    RTTI_METHOD(GetReferencePath);
+    RTTI_METHOD(GetCRUIDHash);
 })
