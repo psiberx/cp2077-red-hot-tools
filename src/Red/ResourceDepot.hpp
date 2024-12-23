@@ -10,9 +10,13 @@ constexpr auto LoadArchives = Core::RawFunc<
                           Red::DynArray<Red::ResourcePath>& aLoadedResourcePaths,
                           bool aMemoryResident)>{};
 
+constexpr auto DestructArchive = Core::RawFunc<
+    /* addr = */ Red::AddressLib::ResourceDepot_DestructArchive,
+    /* type = */ void (*)(Red::Archive* aArchive)>{};
+
 constexpr auto DestructArchives = Core::RawFunc<
     /* addr = */ Red::AddressLib::ResourceDepot_DestructArchives,
-    /* type = */ int64_t (*)(Red::Archive aArchives[], uint32_t aCount)>{};
+    /* type = */ void (*)(Red::Archive aArchives[], uint32_t aCount)>{};
 
 constexpr auto RequestResource = Core::RawFunc<
     /* addr = */ Red::AddressLib::ResourceDepot_RequestResource,

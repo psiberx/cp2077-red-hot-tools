@@ -7,6 +7,10 @@ constexpr uint32_t ExecuteProcess = 2203918127; // CProcessRunner::Run
 constexpr uint32_t InvokeSCC = 2746819158;
 constexpr uint32_t LogChannel = 3083410640;
 
+constexpr uint32_t AsyncFileAPI_Instance = 2124810438;
+constexpr uint32_t AsyncFileAPI_OpenSystemHandle = 582815077;
+constexpr uint32_t AsyncFileAPI_CloseAndFreeSystemHandle = 3883147390;
+
 constexpr uint32_t Camera_ProjectPoint = 1517361120;
 
 constexpr uint32_t CBaseEngine_LoadScripts = 3570081113; // CBaseEngine::LoadScripts
@@ -68,6 +72,7 @@ constexpr uint32_t RenderProxy_SetVisibility = 1790971865;
 constexpr uint32_t ResourceBank_ForgetResource = 2288918343;
 
 constexpr uint32_t ResourceDepot_LoadArchives = 2517385486;
+constexpr uint32_t ResourceDepot_DestructArchive = 1988169744;
 constexpr uint32_t ResourceDepot_DestructArchives = 3517657864;
 constexpr uint32_t ResourceDepot_RequestResource = 2450934495;
 
