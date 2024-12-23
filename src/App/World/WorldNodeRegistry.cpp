@@ -7,6 +7,7 @@ void App::WorldNodeRegistry::OnBootstrap()
     HookAfter<Raw::WorldNodeInstance::Initialize>(&OnNodeInstanceInitialize);
     HookAfter<Raw::WorldNodeInstance::Attach>(&OnNodeInstanceAttach);
     HookBefore<Raw::WorldNodeInstance::Detach>(&OnNodeInstanceDetach);
+    HookBefore<Raw::WorldNodeInstance::Detach>(&OnNodeInstanceDetach);
 }
 
 void App::WorldNodeRegistry::OnStreamingSectorPrepare(Red::worldStreamingSector* aSector, uint64_t)
@@ -15,20 +16,21 @@ void App::WorldNodeRegistry::OnStreamingSectorPrepare(Red::worldStreamingSector*
     auto& buffer = Raw::StreamingSector::NodeBuffer::Ref(aSector);
     auto instanceCount = static_cast<uint32_t>(buffer.nodeSetups.end() - buffer.nodeSetups.begin());
     auto nodeCount = buffer.nodes.size;
+    auto sectorHash = aSector->path.hash;
 
     for (auto& nodeRef : buffer.nodeRefs)
     {
         auto& nodeRefData = s_nodeRefToStaticDataMap[nodeRef];
         if (!nodeRefData.sectorHash)
         {
-            nodeRefData.sectorHash = aSector->path;
+            nodeRefData.sectorHash = sectorHash;
         }
     }
 
     for (auto& nodeSetup : buffer.nodeSetups)
     {
         auto& nodeData = s_nodeSetupToStaticDataMap[&nodeSetup];
-        nodeData.sectorHash = aSector->path;
+        nodeData.sectorHash = sectorHash;
         nodeData.instanceIndex = static_cast<int32_t>(&nodeSetup - buffer.nodeSetups.begin());
         nodeData.instanceCount = instanceCount;
         nodeData.nodeIndex = nodeSetup.nodeIndex;
@@ -45,6 +47,17 @@ void App::WorldNodeRegistry::OnStreamingSectorPrepare(Red::worldStreamingSector*
         {
             nodeData.nodeID = communityNode->sourceObjectId.hash;
             s_nodeRefToStaticDataMap[nodeData.nodeID] = nodeData;
+        }
+        else if (auto communityRegistryNode = Red::Cast<Red::worldCommunityRegistryNode>(nodeSetup.node))
+        {
+            const auto communityCount = communityRegistryNode->communitiesData.size;
+            for (auto communityIndex = 0; communityIndex < communityCount; ++communityIndex)
+            {
+                const auto& communityItem = communityRegistryNode->communitiesData[communityIndex];
+                const auto communityId = communityItem.communityId.entityId;
+
+                s_communityStaticDataMap[communityId] = {sectorHash, communityIndex, communityCount, communityId};
+            }
         }
         else if (auto proxyMeshNode = Red::Cast<Red::worldEntityProxyMeshNode>(nodeSetup.node))
         {
@@ -210,6 +223,20 @@ Core::Vector<App::WorldNodeInstanceRuntimeData> App::WorldNodeRegistry::GetAllSt
     return nodes;
 }
 
+App::WorldCommunityStaticData App::WorldNodeRegistry::GetCommunityStaticData(uint64_t aCommunityID)
+{
+    if (!aCommunityID)
+        return {};
+
+    std::shared_lock _(s_nodeStaticDataLock);
+    const auto& it = s_communityStaticDataMap.find(aCommunityID);
+
+    if (it == s_communityStaticDataMap.end())
+        return {};
+
+    return it.value();
+}
+
 void App::WorldNodeRegistry::ClearRuntimeData()
 {
     {
@@ -218,6 +245,7 @@ void App::WorldNodeRegistry::ClearRuntimeData()
         LogInfo("WorldNodeRegistry: Cleaned up {} tracked nodes.", s_nodeSetupToStaticDataMap.size());
 #endif
         s_nodeSetupToStaticDataMap.clear();
+        s_communityStaticDataMap.clear();
     }
     {
         std::unique_lock _(s_nodeInstanceDataLock);

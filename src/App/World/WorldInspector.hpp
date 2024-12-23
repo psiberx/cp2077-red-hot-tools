@@ -46,6 +46,14 @@ struct WorldNodeRuntimeGeometryData
     Red::Vector3 scale;
 };
 
+struct WorldCommunityEntryData : WorldCommunityStaticData
+{
+    int32_t entryIndex;
+    uint32_t entryCount;
+    Red::CName entryName;
+    Red::CName entryPhase;
+};
+
 class WorldInspector
     : public Red::IGameSystem
     , public IWorldNodeInstanceWatcher
@@ -68,6 +76,7 @@ public:
     Red::CString ResolveNodeRefFromNodeHash(uint64_t aNodeID);
     uint64_t ComputeNodeRefHash(const Red::CString& aNodeRef);
     Red::EntityID ResolveCommunityIDFromEntityID(uint64_t aEntityID);
+    WorldCommunityEntryData ResolveCommunityEntryDataFromEntityID(uint64_t aEntityID);
 
     WorldNodeRuntimeSceneData FindStreamedNode(uint64_t aNodeID);
     Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedNodesInFrustum();
@@ -157,6 +166,17 @@ RTTI_DEFINE_CLASS(App::WorldNodeRuntimeGeometryData, {
     RTTI_PROPERTY(scale);
 });
 
+RTTI_DEFINE_CLASS(App::WorldCommunityEntryData, {
+    RTTI_PROPERTY(sectorHash);
+    RTTI_PROPERTY(communityIndex);
+    RTTI_PROPERTY(communityCount);
+    RTTI_PROPERTY(communityID);
+    RTTI_PROPERTY(entryIndex);
+    RTTI_PROPERTY(entryCount);
+    RTTI_PROPERTY(entryName);
+    RTTI_PROPERTY(entryPhase);
+});
+
 RTTI_DEFINE_CLASS(App::WorldInspector, {
     // RTTI_METHOD(GetStatus);
     // RTTI_METHOD(SetStatus);
@@ -171,6 +191,7 @@ RTTI_DEFINE_CLASS(App::WorldInspector, {
     RTTI_METHOD(ResolveNodeRefFromNodeHash);
     RTTI_METHOD(ComputeNodeRefHash);
     RTTI_METHOD(ResolveCommunityIDFromEntityID);
+    RTTI_METHOD(ResolveCommunityEntryDataFromEntityID);
     RTTI_METHOD(FindStreamedNode);
     RTTI_METHOD(GetStreamedNodesInFrustum);
     RTTI_METHOD(GetStreamedNodesInCrosshair);

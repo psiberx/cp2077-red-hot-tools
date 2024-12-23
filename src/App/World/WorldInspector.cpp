@@ -1,6 +1,7 @@
 #include "Core/Facades/Container.hpp"
 #include "Core/Facades/Log.hpp"
 #include "Red/CameraSystem.hpp"
+#include "Red/CommunitySystem.hpp"
 #include "Red/Debug.hpp"
 #include "Red/Math.hpp"
 #include "Red/Physics.hpp"
@@ -440,6 +441,65 @@ Red::EntityID App::WorldInspector::ResolveCommunityIDFromEntityID(uint64_t aEnti
         return {};
 
     return entityStub->stubState->spawnerId.entityId;
+}
+
+App::WorldCommunityEntryData App::WorldInspector::ResolveCommunityEntryDataFromEntityID(uint64_t aEntityID)
+{
+    WorldCommunityEntryData communityEntryData{};
+
+    auto entityStubSystem = Red::GetGameSystem<Red::IEntityStubSystem>();
+    auto entityStub = entityStubSystem->FindStub(aEntityID);
+
+    if (!entityStub)
+        return communityEntryData;
+
+    auto communityID = entityStub->stubState->spawnerId.entityId;
+    auto communityEntryName = entityStub->stubState->ownerCommunityEntryName;
+
+    auto communitySystem = Red::GetGameSystem<Red::ICommunitySystem>();
+
+    Red::WeakPtr<Red::Community> community;
+    Raw::CommunitySystem::GetCommunity(communitySystem, community, communityID);
+
+    if (!community)
+    {
+        return communityEntryData;
+    }
+
+    auto communitySectorData = m_nodeRegistry->GetCommunityStaticData(communityID);
+
+    if (communitySectorData.communityID)
+    {
+        communityEntryData.sectorHash = communitySectorData.sectorHash;
+        communityEntryData.communityIndex = communitySectorData.communityIndex;
+        communityEntryData.communityCount = communitySectorData.communityCount;
+        communityEntryData.communityID = communitySectorData.communityID;
+    }
+    else
+    {
+        communityEntryData.communityID = communityID;
+    }
+
+    const auto communityEntryCount = community.instance->entries.size;
+    for (auto communityEntryIndex = 0; communityEntryIndex < communityEntryCount; ++communityEntryIndex)
+    {
+        const auto& communityEntry = community.instance->entries[communityEntryIndex];
+        if (communityEntry->name == communityEntryName)
+        {
+            communityEntryData.entryName = communityEntryName;
+            communityEntryData.entryIndex = communityEntryIndex;
+            communityEntryData.entryCount = communityEntryCount;
+
+            if (communityEntry->unk2C >= 0 && communityEntry->unk2C < communityEntry->phases.size)
+            {
+                communityEntryData.entryPhase = communityEntry->phases[communityEntry->unk2C];
+            }
+
+            break;
+        }
+    }
+
+    return communityEntryData;
 }
 
 App::WorldNodeRuntimeSceneData App::WorldInspector::FindStreamedNode(uint64_t aNodeID)

@@ -82,6 +82,7 @@
 #include <RED4ext/Scripting/Natives/Generated/world/AreaShapeNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/BendedMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/BendedMeshNodeInstance.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/CommunityRegistryNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/CompiledCommunityAreaNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/EntityNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/EntityNodeInstance.hpp>

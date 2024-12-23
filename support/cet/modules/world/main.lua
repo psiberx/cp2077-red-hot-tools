@@ -709,6 +709,22 @@ local function fillTargetEntityData(target, data)
     data.isEntity = IsDefined(data.entity)
 end
 
+local function fillTargetCommunityData(target, data)
+    if IsDefined(target.entity) then
+        local communityData = inspectionSystem:ResolveCommunityEntryDataFromEntityID(target.entity:GetEntityID().hash)
+        if communityData.sectorHash ~= 0 then
+            data.communityPath = RedHotTools.GetResourcePath(communityData.sectorHash)
+            data.communityIndex = communityData.communityIndex
+            data.communityCount = communityData.communityCount
+            data.communityID = communityData.communityID.hash
+            data.communityEntryName = communityData.entryName.value
+            data.communityEntryPhase = communityData.entryPhase.value
+            data.communityEntryIndex = communityData.entryIndex
+            data.communityEntryCount = communityData.entryCount
+        end
+    end
+end
+
 local function fillTargetNodeData(target, data)
     local sectorData
     if IsDefined(target.nodeInstance) then
@@ -917,9 +933,9 @@ local function expandTarget(target)
         if entityID > 0xFFFFFF then
             nodeID = entityID
         else
-            local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(entityID)
-            if communityID.hash > 0xFFFFFF then
-                nodeID = communityID.hash
+            local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(entityID).hash
+            if communityID > 0xFFFFFF then
+                nodeID = communityID
             end
         end
 
@@ -937,6 +953,7 @@ local function resolveTargetData(target)
 
     local result = {}
     fillTargetEntityData(target, result)
+    fillTargetCommunityData(target, result)
     fillTargetNodeData(target, result)
     fillTargetGeomertyData(target, result)
     fillTargetDescription(target, result)
@@ -1300,14 +1317,14 @@ local function lookupTarget(lookupQuery)
                 target.nodeDefinition = streamingData.nodeDefinition
             else
                 if lookupHash <= 0xFFFFFF then
-                    local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(lookupHash)
-                    if communityID.hash > 0xFFFFFF then
-                        streamingData = inspectionSystem:FindStreamedNode(communityID.hash)
+                    local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(lookupHash).hash
+                    if communityID > 0xFFFFFF then
+                        streamingData = inspectionSystem:FindStreamedNode(communityID)
                         if IsDefined(streamingData.nodeInstance) then
                             target.nodeInstance = streamingData.nodeInstance
                             target.nodeDefinition = streamingData.nodeDefinition
                         else
-                            target.nodeID = communityID.hash
+                            target.nodeID = communityID
                         end
                     end
                 end
@@ -1606,6 +1623,16 @@ local function isValidNodeIndex(data)
         and type(data.instanceCount) == 'number' and data.instanceCount > 0
 end
 
+local function isValidCommunityIndex(data)
+    return type(data.communityIndex) == 'number' and data.communityIndex >= 0
+        and type(data.communityCount) == 'number' and data.communityCount > 0
+end
+
+local function isValidCommunityEntryIndex(data)
+    return type(data.communityEntryIndex) == 'number' and data.communityEntryIndex >= 0
+        and type(data.communityEntryCount) == 'number' and data.communityEntryCount > 0
+end
+
 local hex2bin = {
     ['0'] = '0000',
     ['1'] = '0001',
@@ -1684,8 +1711,17 @@ local resultSchema = {
         { name = 'nodeCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
         { name = 'instanceIndex', label = 'Node Instance:', format = '%d', validate = isValidNodeIndex },
         { name = 'instanceCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
-        { name = 'sectorPath', label = 'World Sector:', wrap = true },
-        --{ name = 'nodeScale', label = 'Node Scale:', format = formatScale },
+        { name = 'sectorPath', label = 'Node Sector:', wrap = true },
+    },
+    {
+        { name = 'communityID', label = 'Community ID:', format = '%u' },
+        { name = 'communityEntryName', label = 'Community Entry Name:' },
+        { name = 'communityEntryPhase', label = 'Community Entry Phase:' },
+        { name = 'communityPath', label = 'Community Sector:', wrap = true },
+        { name = 'communityIndex', label = 'Community Index:', format = '%d', validate = isValidCommunityIndex },
+        { name = 'communityCount', label = '/', format = '%d', inline = true, validate = isValidCommunityIndex },
+        { name = 'communityEntryIndex', label = 'Community Entry Index:', format = '%d', validate = isValidCommunityEntryIndex },
+        { name = 'communityEntryCount', label = '/', format = '%d', inline = true, validate = isValidCommunityEntryIndex },
     },
     {
         { name = 'entityType', label = 'Entity Type:' },
