@@ -77,7 +77,7 @@ Red::DynArray<Red::CName> App::Facade::GetEntityVisualTags(const Red::WeakHandle
 
 Red::CString App::Facade::GetResourcePath(uint64_t aResourceHash)
 {
-    auto path = ResourcePathRegistry::Get()->ResolvePath(aResourceHash);
+    auto path = Core::Resolve<ResourcePathRegistry>()->ResolvePath(aResourceHash);
 
     if (path.empty())
     {
@@ -102,7 +102,7 @@ Red::CString App::Facade::GetReferencePath(const Red::Handle<Red::ISerializable>
     if (!hash)
         return {};
 
-    auto path = ResourcePathRegistry::Get()->ResolvePath(hash);
+    auto path = Core::Resolve<ResourcePathRegistry>()->ResolvePath(hash);
 
     if (path.empty())
     {

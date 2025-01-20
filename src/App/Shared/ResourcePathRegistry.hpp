@@ -16,9 +16,10 @@ public:
     ResourcePathRegistry(const std::filesystem::path& aPreloadPath = {});
 
     [[nodiscard]] std::string ResolvePath(Red::ResourcePath aPath);
-    void RegisterPath(Red::ResourcePath aPath, const std::string& aPathStr);
+    [[nodiscard]] std::string ResolvePathOrHash(Red::ResourcePath aPath);
 
-    static ResourcePathRegistry* Get();
+    void RegisterPath(const std::string& aPathStr);
+    void RegisterPath(Red::ResourcePath aPath, const std::string& aPathStr);
 
 protected:
     struct SharedInstance

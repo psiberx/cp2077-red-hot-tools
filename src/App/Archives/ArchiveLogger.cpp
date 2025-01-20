@@ -21,7 +21,7 @@ void App::ArchiveLogger::OnRequestResource(Red::ResourceDepot* aDepot, const uin
         if (archiveInfo.scope == Red::ArchiveScope::Content || archiveInfo.scope == Red::ArchiveScope::DLC)
             return;
 
-        auto resourcePathStr = ResourcePathRegistry::Get()->ResolvePath(aResourcePath);
+        auto resourcePathStr = Core::Resolve<ResourcePathRegistry>()->ResolvePath(aResourcePath);
 
         LogWarning(R"(Resource not found: hash={} path="{}" archive="{}")",
                    aResourcePath.hash,
