@@ -408,21 +408,39 @@ bool App::InkWidgetCollector::CollectHoveredWidgets(Red::DynArray<InkWidgetExten
 
 App::InkWidgetSpawnData App::InkWidgetCollector::GetWidgetSpawnInfo(const Red::Handle<Red::inkWidget>& aWidget)
 {
-    InkWidgetSpawnData spawnData;
+    InkWidgetSpawnData spawnData{};
+
+    {
+        auto widget = aWidget;
+        while (widget)
+        {
+            if (const auto instanceData = GetLibraryItemInstanceData(widget))
+            {
+                spawnData.libraryPathHash = instanceData->libraryPathHash;
+                spawnData.libraryItemName = instanceData->libraryItemName;
+                spawnData.gameControllerName = instanceData->gameControllerName;
+                break;
+            }
+            widget = widget->parentWidget;
+        }
+    }
 
     auto& layerProxy = aWidget->layerProxy;
     if (layerProxy)
     {
-        if (const auto& instanceData = Red::Cast<InkLibraryItemUserData>(layerProxy->unk48.instance))
+        if (!spawnData.libraryPathHash)
         {
-            spawnData.libraryPathHash = instanceData->libraryPathHash;
-            spawnData.libraryItemName = instanceData->libraryItemName;
-            spawnData.gameControllerName = instanceData->gameControllerName;
-        }
-        else if (auto resource = layerProxy->resource.Lock())
-        {
-            spawnData.libraryPathHash = resource->path.hash;
-            spawnData.libraryItemName = "Root";
+            if (const auto& instanceData = Red::Cast<InkLibraryItemUserData>(layerProxy->unk48.instance))
+            {
+                spawnData.libraryPathHash = instanceData->libraryPathHash;
+                spawnData.libraryItemName = instanceData->libraryItemName;
+                spawnData.gameControllerName = instanceData->gameControllerName;
+            }
+            else if (auto resource = layerProxy->resource.Lock())
+            {
+                spawnData.libraryPathHash = resource->path.hash;
+                spawnData.libraryItemName = "Root";
+            }
         }
 
         if (auto layer = layerProxy->layer.Lock())
