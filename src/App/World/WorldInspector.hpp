@@ -31,11 +31,27 @@ struct WorldNodeRuntimeSceneData
     Red::Box boundingBox;
     Red::Vector4 position;
     Red::Quaternion orientation;
+    Red::Vector3 scale;
     Red::Box testBox;
     float distance;
     bool frustum;
     uint64_t hash;
     bool resolved;
+};
+
+struct WorldNodeRuntimeGeometryData
+{
+    Red::Vector4 position;
+    Red::Quaternion orientation;
+    Red::Vector3 scale;
+};
+
+struct WorldCommunityEntryData : WorldCommunityStaticData
+{
+    int32_t entryIndex;
+    uint32_t entryCount;
+    Red::CName entryName;
+    Red::CName entryPhase;
 };
 
 class WorldInspector
@@ -60,11 +76,12 @@ public:
     Red::CString ResolveNodeRefFromNodeHash(uint64_t aNodeID);
     uint64_t ComputeNodeRefHash(const Red::CString& aNodeRef);
     Red::EntityID ResolveCommunityIDFromEntityID(uint64_t aEntityID);
+    WorldCommunityEntryData ResolveCommunityEntryDataFromEntityID(uint64_t aEntityID);
 
     WorldNodeRuntimeSceneData FindStreamedNode(uint64_t aNodeID);
     Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedNodesInFrustum();
     Red::DynArray<WorldNodeRuntimeSceneData> GetStreamedNodesInCrosshair();
-    Red::Transform GetStreamedNodeTransform(const Red::WeakHandle<Red::worldINodeInstance>& aNode);
+    WorldNodeRuntimeGeometryData GetStreamedNodeGeometry(const Red::WeakHandle<Red::worldINodeInstance>& aNode);
 
     bool ApplyHighlightEffect(const Red::Handle<Red::ISerializable>& aObject,
                               const Red::Handle<Red::entRenderHighlightEvent>& aEffect);
@@ -136,10 +153,28 @@ RTTI_DEFINE_CLASS(App::WorldNodeRuntimeSceneData, {
     RTTI_PROPERTY(nodeDefinition);
     RTTI_PROPERTY(position);
     RTTI_PROPERTY(orientation);
+    RTTI_PROPERTY(scale);
     RTTI_PROPERTY(boundingBox);
     RTTI_PROPERTY(distance);
     RTTI_PROPERTY(resolved);
     RTTI_PROPERTY(hash);
+});
+
+RTTI_DEFINE_CLASS(App::WorldNodeRuntimeGeometryData, {
+    RTTI_PROPERTY(position);
+    RTTI_PROPERTY(orientation);
+    RTTI_PROPERTY(scale);
+});
+
+RTTI_DEFINE_CLASS(App::WorldCommunityEntryData, {
+    RTTI_PROPERTY(sectorHash);
+    RTTI_PROPERTY(communityIndex);
+    RTTI_PROPERTY(communityCount);
+    RTTI_PROPERTY(communityID);
+    RTTI_PROPERTY(entryIndex);
+    RTTI_PROPERTY(entryCount);
+    RTTI_PROPERTY(entryName);
+    RTTI_PROPERTY(entryPhase);
 });
 
 RTTI_DEFINE_CLASS(App::WorldInspector, {
@@ -156,10 +191,11 @@ RTTI_DEFINE_CLASS(App::WorldInspector, {
     RTTI_METHOD(ResolveNodeRefFromNodeHash);
     RTTI_METHOD(ComputeNodeRefHash);
     RTTI_METHOD(ResolveCommunityIDFromEntityID);
+    RTTI_METHOD(ResolveCommunityEntryDataFromEntityID);
     RTTI_METHOD(FindStreamedNode);
     RTTI_METHOD(GetStreamedNodesInFrustum);
     RTTI_METHOD(GetStreamedNodesInCrosshair);
-    RTTI_METHOD(GetStreamedNodeTransform);
+    RTTI_METHOD(GetStreamedNodeGeometry);
 
     RTTI_METHOD(ApplyHighlightEffect);
     RTTI_METHOD(SetNodeVisibility);

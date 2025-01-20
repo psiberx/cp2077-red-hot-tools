@@ -1,4 +1,5 @@
 #include "ArchiveLoader.hpp"
+#include "Red/AsyncFileAPI.hpp"
 #include "Red/GameEngine.hpp"
 #include "Red/JobHandle.hpp"
 #include "Red/ResourceBank.hpp"
@@ -192,7 +193,12 @@ void App::ArchiveLoader::UnloadModArchives(const Red::DynArray<Red::ArchiveGroup
 
     if (archivesToUnload.size > 0)
     {
-        Raw::ResourceDepot::DestructArchives(archivesToUnload.entries, archivesToUnload.size);
+        auto fileHandleCache = Red::AsyncFileHandleCache::Get();
+
+        for (auto& archive : archivesToUnload)
+        {
+            fileHandleCache->CloseSystemHandle(archive.asyncHandle);
+        }
     }
 }
 
@@ -200,6 +206,26 @@ void App::ArchiveLoader::LoadModArchives(const Red::DynArray<Red::ArchiveGroup*>
                                          const Red::DynArray<Red::CString>& aArchivePaths,
                                          Red::DynArray<Red::ResourcePath>& aLoadedResources)
 {
+    auto fileHandleCache = Red::AsyncFileHandleCache::Get();
+
+    for (const auto& archivePath : aArchivePaths)
+    {
+        for (const auto& group : aGroups)
+        {
+            if (std::string(archivePath.c_str()).starts_with(group->basePath.c_str()))
+            {
+                auto* position = FindArchivePosition(group->archives, archivePath);
+
+                if (position != group->archives.End() && position->path == archivePath)
+                {
+                    fileHandleCache->ReopenSystemHandle(position->asyncHandle);
+                }
+
+                break;
+            }
+        }
+    }
+
     Red::ArchiveGroup hotGroup;
     Raw::ResourceDepot::LoadArchives(nullptr, hotGroup, aArchivePaths, aLoadedResources, false);
 
@@ -215,13 +241,13 @@ void App::ArchiveLoader::LoadModArchives(const Red::DynArray<Red::ArchiveGroup*>
                 {
                     group->archives.EmplaceBack(archive);
                 }
-                else if (position->path == archive.path)
+                else if (position->path != archive.path)
                 {
-                    *position = archive;
+                    group->archives.Emplace(position, archive);
                 }
                 else
                 {
-                    group->archives.Emplace(position, archive);
+                    *position = archive;
                 }
 
                 break;

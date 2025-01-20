@@ -5,7 +5,7 @@
 
 namespace
 {
-constexpr auto SharedName = Red::CName("ResourcePathRegistry" BUILD_SUFFIX);
+constexpr auto SharedName = Red::CName("ResourcePathRegistryV3" BUILD_SUFFIX);
 }
 
 App::ResourcePathRegistry::ResourcePathRegistry(const std::filesystem::path& aPreloadPath)
@@ -16,11 +16,12 @@ App::ResourcePathRegistry::ResourcePathRegistry(const std::filesystem::path& aPr
 
 void App::ResourcePathRegistry::OnBootstrap()
 {
-    std::unique_lock lock(s_instance->m_mutex);
+    std::unique_lock lock(s_instance->m_lock);
 
-    if (!s_instance->m_hooked)
+    if (!s_instance->m_initialized)
     {
-        s_instance->m_hooked = true;
+        s_instance->m_initialized = true;
+        s_instance->m_map.reserve(400000);
 
         HookAfter<Raw::ResourcePath::Create>(&OnCreatePath);
     }
@@ -48,23 +49,40 @@ void App::ResourcePathRegistry::OnCreatePath(Red::ResourcePath* aPath, Red::Stri
 {
     if (aPathStr)
     {
-        std::scoped_lock _(s_instance->m_mutex);
+        std::scoped_lock _(s_instance->m_lock);
         s_instance->m_map[*aPath] = {aPathStr->data, aPathStr->size};
     }
 }
 
-std::string_view App::ResourcePathRegistry::ResolvePath(Red::ResourcePath aPath)
+std::string App::ResourcePathRegistry::ResolvePath(Red::ResourcePath aPath)
 {
     if (!aPath)
         return {};
 
-    std::shared_lock _(s_instance->m_mutex);
+    std::shared_lock _(s_instance->m_lock);
     const auto& it = s_instance->m_map.find(aPath);
 
     if (it == s_instance->m_map.end())
         return {};
 
     return it.value();
+}
+
+void App::ResourcePathRegistry::RegisterPath(Red::ResourcePath aPath, const std::string& aPathStr)
+{
+    if (!aPath)
+        return;
+
+    {
+        std::shared_lock _(s_instance->m_lock);
+        if (s_instance->m_map.contains(aPath))
+            return;
+    }
+
+    {
+        std::scoped_lock _(s_instance->m_lock);
+        s_instance->m_map[aPath] = aPathStr;
+    }
 }
 
 App::ResourcePathRegistry* App::ResourcePathRegistry::Get()

@@ -526,30 +526,38 @@ local function resolveComponents(entity)
 
     for _, component in ipairs(RedHotTools.GetEntityComponents(entity)) do
         local data = {
-            componentName = component:GetName().value,
             componentType = component:GetClassName().value,
-            meshPath = '',
-            morphPath = '',
-            meshAppearance = '',
+            componentName = component:GetName().value,
+            componentID = RedHotTools.GetCRUIDHash(component.id),
+            appearancePath = RedHotTools.GetResourcePath(RedHotTools.GetComponentAppearanceResourceHash(component)),
+            appearanceDef = RedHotTools.GetComponentAppearanceDefinition(component).value,
         }
 
         if component:IsA('entMeshComponent') or component:IsA('entSkinnedMeshComponent') then
             data.meshPath = RedHotTools.GetResourcePath(component.mesh.hash)
             data.meshAppearance = component.meshAppearance.value
             data.chunkMask = component.chunkMask
-
-            if isEmpty(data.meshPath) then
-                data.meshPath = ('%u'):format(component.mesh.hash)
-            end
         end
 
         if component:IsA('entMorphTargetSkinnedMeshComponent') then
             data.morphPath = RedHotTools.GetResourcePath(component.morphResource.hash)
             data.meshAppearance = component.meshAppearance.value
             data.chunkMask = component.chunkMask
+        end
 
-            if isEmpty(data.morphPath) then
-                data.morphPath = ('%u'):format(component.morphResource.hash)
+        if component:IsA('entAnimatedComponent') then
+            data.rigPath = RedHotTools.GetReferencePath(component, 'rig')
+            data.animGraphPath = RedHotTools.GetReferencePath(component, 'graph')
+        end
+
+        if component:IsA('entEffectSpawnerComponent') then
+            data.effects = {}
+            for _, effectDesc in ipairs(component.effectDescs) do
+                table.insert(data.effects, effectDesc.effectName.value)
+                --table.insert(data.effects, ('%s\n%s'):format(effectDesc.effectName.value, RedHotTools.GetResourcePath(effectDesc.effect.hash)))
+            end
+            if #data.effects == 0 then
+                data.effects = nil
             end
         end
 
@@ -626,9 +634,6 @@ local function resolveAttachments(entity)
                 local templatePath = RedHotTools.GetEntityTemplatePath(item)
                 data.templatePath = RedHotTools.GetResourcePath(templatePath.hash)
                 data.appearanceName = transactionSystem:GetItemAppearance(entity, item:GetItemID()).value
-                if isEmpty(data.templatePath) and isNotEmpty(templatePath.hash) then
-                    data.templatePath = ('%u'):format(templatePath.hash)
-                end
             end
 
             data.components = resolveComponents(item)
@@ -662,9 +667,6 @@ local function fillTargetEntityData(target, data)
         local templatePath = RedHotTools.GetEntityTemplatePath(entity)
         data.templatePath = RedHotTools.GetResourcePath(templatePath.hash)
         data.appearanceName = entity:GetCurrentAppearanceName().value
-        if isEmpty(data.templatePath) and isNotEmpty(templatePath.hash) then
-            data.templatePath = ('%u'):format(templatePath.hash)
-        end
 
         data.inventory = {}
 
@@ -707,6 +709,22 @@ local function fillTargetEntityData(target, data)
 
     data.entity = target.entity
     data.isEntity = IsDefined(data.entity)
+end
+
+local function fillTargetCommunityData(target, data)
+    if IsDefined(target.entity) then
+        local communityData = inspectionSystem:ResolveCommunityEntryDataFromEntityID(target.entity:GetEntityID().hash)
+        if communityData.sectorHash ~= 0 then
+            data.communityPath = RedHotTools.GetResourcePath(communityData.sectorHash)
+            data.communityIndex = communityData.communityIndex
+            data.communityCount = communityData.communityCount
+            data.communityID = communityData.communityID.hash
+            data.communityEntryName = communityData.entryName.value
+            data.communityEntryPhase = communityData.entryPhase.value
+            data.communityEntryIndex = communityData.entryIndex
+            data.communityEntryCount = communityData.entryCount
+        end
+    end
 end
 
 local function fillTargetNodeData(target, data)
@@ -827,10 +845,12 @@ local function fillTargetGeomertyData(target, data)
         if target.testBox then
             data.nodePosition = data.position
             data.nodeOrientation = data.orientation
+            data.nodeScale = data.scale
         else
-            local transform = inspectionSystem:GetStreamedNodeTransform(data.nodeInstance)
-            data.nodePosition = transform.position
-            data.nodeOrientation = transform.orientation
+            local geometry = inspectionSystem:GetStreamedNodeGeometry(data.nodeInstance)
+            data.nodePosition = geometry.position
+            data.nodeOrientation = geometry.orientation
+            data.nodeScale = geometry.scale
         end
     end
 
@@ -915,9 +935,9 @@ local function expandTarget(target)
         if entityID > 0xFFFFFF then
             nodeID = entityID
         else
-            local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(entityID)
-            if communityID.hash > 0xFFFFFF then
-                nodeID = communityID.hash
+            local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(entityID).hash
+            if communityID > 0xFFFFFF then
+                nodeID = communityID
             end
         end
 
@@ -935,6 +955,7 @@ local function resolveTargetData(target)
 
     local result = {}
     fillTargetEntityData(target, result)
+    fillTargetCommunityData(target, result)
     fillTargetNodeData(target, result)
     fillTargetGeomertyData(target, result)
     fillTargetDescription(target, result)
@@ -1298,14 +1319,14 @@ local function lookupTarget(lookupQuery)
                 target.nodeDefinition = streamingData.nodeDefinition
             else
                 if lookupHash <= 0xFFFFFF then
-                    local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(lookupHash)
-                    if communityID.hash > 0xFFFFFF then
-                        streamingData = inspectionSystem:FindStreamedNode(communityID.hash)
+                    local communityID = inspectionSystem:ResolveCommunityIDFromEntityID(lookupHash).hash
+                    if communityID > 0xFFFFFF then
+                        streamingData = inspectionSystem:FindStreamedNode(communityID)
                         if IsDefined(streamingData.nodeInstance) then
                             target.nodeInstance = streamingData.nodeInstance
                             target.nodeDefinition = streamingData.nodeDefinition
                         else
-                            target.nodeID = communityID.hash
+                            target.nodeID = communityID
                         end
                     end
                 end
@@ -1599,9 +1620,19 @@ local function formatDistance(data)
     return ('%.2fm'):format(type(data) == 'table' and data.distance or data)
 end
 
-local function isValidInstanceIndex(data)
+local function isValidNodeIndex(data)
     return type(data.instanceIndex) == 'number' and data.instanceIndex >= 0
         and type(data.instanceCount) == 'number' and data.instanceCount > 0
+end
+
+local function isValidCommunityIndex(data)
+    return type(data.communityIndex) == 'number' and data.communityIndex >= 0
+        and type(data.communityCount) == 'number' and data.communityCount > 0
+end
+
+local function isValidCommunityEntryIndex(data)
+    return type(data.communityEntryIndex) == 'number' and data.communityEntryIndex >= 0
+        and type(data.communityEntryCount) == 'number' and data.communityEntryCount > 0
 end
 
 local hex2bin = {
@@ -1639,6 +1670,14 @@ local function isValidChunkMask(data)
     return type(data.chunkMask) == 'cdata' or type(data.chunkMask) == 'number'
 end
 
+local function formatAppearanceSource(data)
+    return data.appearanceDef .. ' @ ' .. data.appearancePath
+end
+
+local function isValidAppearanceSource(data)
+    return isNotEmpty(data.appearancePath) and isNotEmpty(data.appearanceDef)
+end
+
 local function validatePosition(data, field)
     local vec = data[field.name]
     return vec and (vec.x ~= 0 or vec.y ~= 0 or vec.z ~= 0)
@@ -1659,6 +1698,16 @@ local function formatOrientation(data, field)
     return ('%.3f, %.3f, %.3f, %.3f'):format(quat.i, quat.j, quat.k, quat.r):gsub('%.000', '.0')
 end
 
+local function validateScale(data, field)
+    local vec = data[field.name]
+    return vec and (vec.x ~= 1 or vec.y ~= 1 or vec.z ~= 1)
+end
+
+local function formatScale(data, field)
+    local vec = data[field.name]
+    return ('%.3f, %.3f, %.3f'):format(vec.x, vec.y, vec.z):gsub('%.000', '.0')
+end
+
 local resultSchema = {
     {
         { name = 'nodeType', label = 'Node Type:' },
@@ -1667,12 +1716,22 @@ local resultSchema = {
         { name = 'parentRef', label = 'Parent Ref:', wrap = true },
         { name = 'nodePosition', label = 'Node Position:', format = formatPosition, validate = validatePosition },
         { name = 'nodeOrientation', label = 'Node Orientation:', format = formatOrientation, validate = validateOrientation },
-        --{ name = 'nodeIndex', label = 'Node Index:', format = '%d', validate = isValidNodeIndex },
-        --{ name = 'nodeCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
-        { name = 'instanceIndex', label = 'Node Instance:', format = '%d', validate = isValidInstanceIndex },
-        { name = 'instanceCount', label = '/', format = '%d', inline = true, validate = isValidInstanceIndex },
-        { name = 'sectorPath', label = 'World Sector:', wrap = true },
-        --{ name = 'nodeScale', label = 'Node Scale:', format = formatScale },
+        { name = 'nodeScale', label = 'Node Scale:', format = formatScale, validate = validateScale },
+        { name = 'sectorPath', label = 'Node Sector:', wrap = true },
+        { name = 'nodeIndex', label = 'Node Definition:', format = '%d', validate = isValidNodeIndex },
+        { name = 'nodeCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
+        { name = 'instanceIndex', label = 'Node Instance:', format = '%d', validate = isValidNodeIndex },
+        { name = 'instanceCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
+    },
+    {
+        { name = 'communityID', label = 'Community ID:', format = '%u' },
+        { name = 'communityEntryName', label = 'Community Entry Name:' },
+        { name = 'communityEntryPhase', label = 'Community Entry Phase:' },
+        { name = 'communityPath', label = 'Community Sector:', wrap = true },
+        { name = 'communityIndex', label = 'Community Index:', format = '%d', validate = isValidCommunityIndex },
+        { name = 'communityCount', label = '/', format = '%d', inline = true, validate = isValidCommunityIndex },
+        { name = 'communityEntryIndex', label = 'Community Entry Index:', format = '%d', validate = isValidCommunityEntryIndex },
+        { name = 'communityEntryCount', label = '/', format = '%d', inline = true, validate = isValidCommunityEntryIndex },
     },
     {
         { name = 'entityType', label = 'Entity Type:' },
@@ -1699,12 +1758,17 @@ local resultSchema = {
 }
 
 local componentSchema = {
-    { name = 'componentType', label = 'Component Type:' },
-    { name = 'componentName', label = 'Component Name:', wrap = true },
-    { name = 'meshPath', label = 'Mesh Resource:', wrap = true },
+    { name = 'componentType', label = 'Type:' },
+    { name = 'componentName', label = 'Name:', wrap = true },
+    { name = 'componentID', label = 'ID:', format = '%u' },
+    { name = 'rigPath', label = 'Rig:', wrap = true },
+    { name = 'animGraphPath', label = 'Graph:', wrap = true },
     { name = 'morphPath', label = 'Morph Target:', wrap = true },
-    { name = 'meshAppearance', label = 'Mesh Appearance:', wrap = true },
+    { name = 'meshPath', label = 'Mesh:', wrap = true },
+    { name = 'meshAppearance', label = 'Appearance:', wrap = true },
     { name = 'chunkMask', label = 'Chunk Mask:', wrap = true, format = formatChunkMask, validate = isValidChunkMask },
+    { name = 'effects', label = 'Effects:', format = formatArrayField, validate = validateArrayField, wrap = true },
+    { name = 'appearancePath', label = 'Source:', format = formatAppearanceSource, validate = isValidAppearanceSource, wrap = true },
 }
 
 local attachmentSchema = {
@@ -1771,16 +1835,7 @@ local function drawField(field, data)
     end
 end
 
-local function drawComponents(components, maxComponents)
-    if maxComponents == nil then
-        maxComponents = 10
-    end
-
-    if maxComponents > 0 then
-        local visibleComponents = maxComponents
-        ImGui.BeginChildFrame(1, 0, visibleComponents * ImGui.GetFrameHeightWithSpacing())
-    end
-
+local function drawComponents(components)
     for _, componentData in ipairs(components) do
         local componentID = tostring(componentData.hash)
         if ImGui.TreeNodeEx(componentData.description .. '##' .. componentID, ImGuiTreeNodeFlags.SpanFullWidth) then
@@ -1792,44 +1847,18 @@ local function drawComponents(components, maxComponents)
             ImGui.TreePop()
         end
     end
-
-    if maxComponents > 0 then
-        ImGui.EndChildFrame()
-    end
 end
 
-local function drawItemList(items, maxItems)
-    if maxItems == nil then
-        maxItems = 10
-    end
-
-    if maxItems > 0 then
-        local visibleItems = math.min(maxItems, #items)
-        ImGui.BeginChildFrame(1, 0, visibleItems * ImGui.GetFrameHeightWithSpacing())
-    end
-
+local function drawItemList(items)
     for _, item in ipairs(items) do
         ImGui.Selectable(tostring(item))
         if ImGui.IsItemClicked(ImGuiMouseButton.Middle) then
             ImGui.SetClipboardText(tostring(item))
         end
     end
-
-    if maxItems > 0 then
-        ImGui.EndChildFrame()
-    end
 end
 
-local function drawAttachments(attachments, maxRows)
-    if maxRows == nil then
-        maxRows = 10
-    end
-
-    if maxRows > 0 then
-        local visibleRows = math.min(maxRows, #attachments)
-        ImGui.BeginChildFrame(1, 0, visibleRows * ImGui.GetFrameHeightWithSpacing())
-    end
-
+local function drawAttachments(attachments)
     for _, attachmentData in ipairs(attachments) do
         local flags = ImGuiTreeNodeFlags.SpanFullWidth
         if not attachmentData.itemID then
@@ -1846,21 +1875,21 @@ local function drawAttachments(attachments, maxRows)
 
                 if attachmentData.hasComponents then
                     if ImGui.TreeNodeEx(('Components (%d)##Components'):format(#attachmentData.components), ImGuiTreeNodeFlags.SpanFullWidth) then
-                        drawComponents(attachmentData.components, 0)
+                        drawComponents(attachmentData.components)
                         ImGui.TreePop()
                     end
                 end
 
                 if attachmentData.hasAttachments then
                     if ImGui.TreeNodeEx(('Attachments (%d)##Attachments'):format(#attachmentData.attachments), ImGuiTreeNodeFlags.SpanFullWidth) then
-                        drawAttachments(attachmentData.attachments, 0)
+                        drawAttachments(attachmentData.attachments)
                         ImGui.TreePop()
                     end
                 end
 
                 if attachmentData.hasVisualTags then
                     if ImGui.TreeNodeEx(('Visual Tags (%d)##VisualTags'):format(#attachmentData.visualTags), ImGuiTreeNodeFlags.SpanFullWidth) then
-                        drawItemList(attachmentData.visualTags, 0)
+                        drawItemList(attachmentData.visualTags)
                         ImGui.TreePop()
                     end
                 end
@@ -1869,23 +1898,19 @@ local function drawAttachments(attachments, maxRows)
             ImGui.TreePop()
         end
     end
-
-    if maxRows > 0 then
-        ImGui.EndChildFrame()
-    end
 end
 
-local function drawFieldset(targetData, withInputs, maxComponents, withSeparators)
-    if withInputs == nil then
-        withInputs = true
-    end
-
-    if maxComponents == nil then
-        maxComponents = 10
-    end
-
+local function drawFieldset(targetData, withSeparators, withExtras, withExtrasFrame)
     if withSeparators == nil then
         withSeparators = true
+    end
+
+    if withExtras == nil then
+        withExtras = true
+    end
+
+    if withExtrasFrame == nil then
+        withExtrasFrame = false
     end
 
     ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0)
@@ -1912,46 +1937,56 @@ local function drawFieldset(targetData, withInputs, maxComponents, withSeparator
         end
     end
 
-    if withInputs then
-        if withSeparators and (targetData.hasComponents or targetData.hasAttachments or targetData.hasInventory or targetData.hasVisualTags) then
+    if withExtras then
+        local hasExtras = targetData.hasComponents or targetData.hasAttachments or targetData.hasInventory or targetData.hasVisualTags
+
+        if withSeparators and hasExtras then
             ImGui.Spacing()
             ImGui.Separator()
             ImGui.Spacing()
         end
 
+        if hasExtras and withExtrasFrame then
+            ImGui.BeginChildFrame(1, 0, 10 * ImGui.GetFrameHeightWithSpacing())
+        end
+
         if targetData.hasComponents then
             if ImGui.TreeNodeEx(('Components (%d)##Components'):format(#targetData.components), ImGuiTreeNodeFlags.SpanFullWidth) then
-                drawComponents(targetData.components, maxComponents)
+                drawComponents(targetData.components)
                 ImGui.TreePop()
             end
         end
 
         if targetData.hasAttachments then
             if ImGui.TreeNodeEx(('Attachments (%d)##Attachments'):format(#targetData.attachments), ImGuiTreeNodeFlags.SpanFullWidth) then
-                drawAttachments(targetData.attachments, maxComponents)
+                drawAttachments(targetData.attachments)
                 ImGui.TreePop()
             end
         end
 
         if targetData.hasInventory then
-            if ImGui.TreeNodeEx(('Items (%d)##Inventory'):format(#targetData.inventory), ImGuiTreeNodeFlags.SpanFullWidth) then
-                drawItemList(targetData.inventory, maxComponents)
+            if ImGui.TreeNodeEx(('Inventory (%d)##Inventory'):format(#targetData.inventory), ImGuiTreeNodeFlags.SpanFullWidth) then
+                drawItemList(targetData.inventory)
                 ImGui.TreePop()
             end
         end
 
         if targetData.hasVisualTags then
             if ImGui.TreeNodeEx(('Visual Tags (%d)##VisualTags'):format(#targetData.visualTags), ImGuiTreeNodeFlags.SpanFullWidth) then
-                drawItemList(targetData.visualTags, maxComponents)
+                drawItemList(targetData.visualTags)
                 ImGui.TreePop()
             end
+        end
+
+        if hasExtras and withExtrasFrame then
+            ImGui.EndChildFrame()
         end
     end
 
     ImGui.PopStyleColor()
     ImGui.PopStyleVar(2)
 
-    local actions = getTargetActions(targetData, withInputs)
+    local actions = getTargetActions(targetData, withExtras)
     if #actions > 0 then
         if withSeparators then
             ImGui.Spacing()
@@ -2031,7 +2066,7 @@ local function drawInspectorContent(isModal)
         ImGui.Spacing()
         ImGui.Separator()
         ImGui.Spacing()
-        drawFieldset(inspector.results[inspector.active], not isModal)
+        drawFieldset(inspector.results[inspector.active], true, not isModal, true)
     else
         ImGui.SameLine()
         ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
@@ -2163,7 +2198,7 @@ local function drawScannerContent()
                     if ImGui.TreeNodeEx(result.description .. '##' .. resultID, nodeFlags) then
                         ImGui.PopStyleColor()
                         ImGui.PopStyleVar()
-                        drawFieldset(result, true, -1, false)
+                        drawFieldset(result, false, true, false)
                         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
                         ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
                         ImGui.TreePop()
@@ -2208,7 +2243,7 @@ local function drawLookupContent()
             ImGui.Spacing()
             ImGui.Separator()
             ImGui.Spacing()
-            drawFieldset(lookup.result)
+            drawFieldset(lookup.result, true, true, true)
         else
             ImGui.Spacing()
             ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
@@ -2237,7 +2272,7 @@ local function drawWatcherContent()
 
         for _, result in pairs(watcher.results) do
             if ImGui.TreeNodeEx(result.description, ImGuiTreeNodeFlags.SpanFullWidth) then
-                drawFieldset(result, true, 0, false)
+                drawFieldset(result, false, true, false)
                 ImGui.TreePop()
             end
         end

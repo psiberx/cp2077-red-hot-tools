@@ -7,6 +7,10 @@ constexpr uint32_t ExecuteProcess = 2203918127; // CProcessRunner::Run
 constexpr uint32_t InvokeSCC = 2746819158;
 constexpr uint32_t LogChannel = 3083410640;
 
+constexpr uint32_t AsyncFileAPI_Instance = 2124810438;
+constexpr uint32_t AsyncFileAPI_OpenSystemHandle = 582815077;
+constexpr uint32_t AsyncFileAPI_CloseAndFreeSystemHandle = 3883147390;
+
 constexpr uint32_t Camera_ProjectPoint = 1517361120;
 
 constexpr uint32_t CBaseEngine_LoadScripts = 3570081113; // CBaseEngine::LoadScripts
@@ -15,7 +19,7 @@ constexpr uint32_t CBaseEngine_MainLoopTick = 1875906465;
 constexpr uint32_t EntityID_ToStringDEBUG = 3457552837;
 
 constexpr uint32_t FileSystem_Instance = 3788966949;
-constexpr uint32_t FileSystem_Close = 1332290822;
+constexpr uint32_t FileSystem_Close = 633872857;
 
 // constexpr uint32_t ISerializable_SetReference = 2587561854;
 constexpr uint32_t ISerializable_Clone = 2601784524;
@@ -28,9 +32,11 @@ constexpr uint32_t inkPointerHandler_Create = 630009171;
 constexpr uint32_t inkPointerHandler_Reset = 3695579637;
 constexpr uint32_t inkPointerHandler_Override = 4279316794;
 
-constexpr uint32_t InkSpawner_FinishAsyncSpawn = 2488155854;
+constexpr uint32_t InkSpawner_FinishAsyncSpawn = 2698985195;
 
 constexpr uint32_t InkSystem_Instance = 2755465343;
+constexpr uint32_t InkSystem_Instance_213 = 2635337807;
+constexpr uint32_t InkSystem_Instance_212a = 2755465343;
 constexpr uint32_t InkSystem_Instance_Pre212a = 2635337807;
 
 constexpr uint32_t InkWidget_Draw = 1737035665;
@@ -66,6 +72,7 @@ constexpr uint32_t RenderProxy_SetVisibility = 1790971865;
 constexpr uint32_t ResourceBank_ForgetResource = 2288918343;
 
 constexpr uint32_t ResourceDepot_LoadArchives = 2517385486;
+constexpr uint32_t ResourceDepot_DestructArchive = 1988169744;
 constexpr uint32_t ResourceDepot_DestructArchives = 3517657864;
 constexpr uint32_t ResourceDepot_RequestResource = 2450934495;
 

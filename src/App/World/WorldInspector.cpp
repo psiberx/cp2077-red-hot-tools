@@ -1,6 +1,7 @@
 #include "Core/Facades/Container.hpp"
 #include "Core/Facades/Log.hpp"
 #include "Red/CameraSystem.hpp"
+#include "Red/CommunitySystem.hpp"
 #include "Red/Debug.hpp"
 #include "Red/Math.hpp"
 #include "Red/Physics.hpp"
@@ -151,7 +152,7 @@ void App::WorldInspector::UpdateStreamedNodes()
                  Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldStaticOccluderMeshNode>(nodeDefinition))
         {
-            Red::Box boundingBox{{1.0}, {-1.0}};
+            Red::Box boundingBox{{1.0, 0.0, 0.0, 0.0}, {-1.0, 0.0, 0.0, 0.0}};
             Raw::WorldNode::GetBoundingBox(nodeDefinition, boundingBox);
 
             if (Red::IsValidBox(boundingBox))
@@ -238,7 +239,7 @@ void App::WorldInspector::UpdateFrustumNodes()
     Raw::CameraSystem::GetCameraForward(m_cameraSystem, cameraForward);
     Raw::CameraSystem::GetCameraFrustum(m_cameraSystem, cameraFrustum);
 
-    const Red::Vector4 cameraInverseDirection{1.0f / cameraForward.X, 1.0f / cameraForward.Y, 1.0f / cameraForward.Z};
+    const Red::Vector4 cameraInverseDirection{1.0f / cameraForward.X, 1.0f / cameraForward.Y, 1.0f / cameraForward.Z, 0.0};
 
 #ifndef NDEBUG
     initDuration = std::chrono::steady_clock::now() - updateStart;
@@ -255,13 +256,14 @@ void App::WorldInspector::UpdateFrustumNodes()
                 continue;
 
             const auto& transform = streamedNode.nodeSetup->transform;
+            const auto& scale = streamedNode.nodeSetup->scale;
 
 #ifndef NDEBUG
             const auto resolveStart = std::chrono::steady_clock::now();
 #endif
 
             Red::FrustumResult frustumResult{};
-            Red::Box testBox{{1.0}, {-1.0}};
+            Red::Box testBox{{1.0, 0.0, 0.0, 0.0}, {-1.0, 0.0, 0.0, 0.0}};
 
             if (!streamedNode.testBoxes.empty())
             {
@@ -321,7 +323,7 @@ void App::WorldInspector::UpdateFrustumNodes()
 
             const auto instanceHash = reinterpret_cast<uint64_t>(streamedNode.nodeInstance.instance);
             frustumNodes.push_back({streamedNode.nodeInstance, streamedNode.nodeDefinition,
-                                    streamedNode.boundingBox, transform.position, transform.orientation,
+                                    streamedNode.boundingBox, transform.position, transform.orientation, scale,
                                     testBox, distance, inFrustum, instanceHash, true});
         }
     }
@@ -441,6 +443,65 @@ Red::EntityID App::WorldInspector::ResolveCommunityIDFromEntityID(uint64_t aEnti
     return entityStub->stubState->spawnerId.entityId;
 }
 
+App::WorldCommunityEntryData App::WorldInspector::ResolveCommunityEntryDataFromEntityID(uint64_t aEntityID)
+{
+    WorldCommunityEntryData communityEntryData{};
+
+    auto entityStubSystem = Red::GetGameSystem<Red::IEntityStubSystem>();
+    auto entityStub = entityStubSystem->FindStub(aEntityID);
+
+    if (!entityStub)
+        return communityEntryData;
+
+    auto communityID = entityStub->stubState->spawnerId.entityId;
+    auto communityEntryName = entityStub->stubState->ownerCommunityEntryName;
+
+    auto communitySystem = Red::GetGameSystem<Red::ICommunitySystem>();
+
+    Red::WeakPtr<Red::Community> community;
+    Raw::CommunitySystem::GetCommunity(communitySystem, community, communityID);
+
+    if (!community)
+    {
+        return communityEntryData;
+    }
+
+    auto communitySectorData = m_nodeRegistry->GetCommunityStaticData(communityID);
+
+    if (communitySectorData.communityID)
+    {
+        communityEntryData.sectorHash = communitySectorData.sectorHash;
+        communityEntryData.communityIndex = communitySectorData.communityIndex;
+        communityEntryData.communityCount = communitySectorData.communityCount;
+        communityEntryData.communityID = communitySectorData.communityID;
+    }
+    else
+    {
+        communityEntryData.communityID = communityID;
+    }
+
+    const auto communityEntryCount = community.instance->entries.size;
+    for (auto communityEntryIndex = 0; communityEntryIndex < communityEntryCount; ++communityEntryIndex)
+    {
+        const auto& communityEntry = community.instance->entries[communityEntryIndex];
+        if (communityEntry->name == communityEntryName)
+        {
+            communityEntryData.entryName = communityEntryName;
+            communityEntryData.entryIndex = communityEntryIndex;
+            communityEntryData.entryCount = communityEntryCount;
+
+            if (communityEntry->unk2C >= 0 && communityEntry->unk2C < communityEntry->phases.size)
+            {
+                communityEntryData.entryPhase = communityEntry->phases[communityEntry->unk2C];
+            }
+
+            break;
+        }
+    }
+
+    return communityEntryData;
+}
+
 App::WorldNodeRuntimeSceneData App::WorldInspector::FindStreamedNode(uint64_t aNodeID)
 {
     auto nodeInstance = m_nodeRegistry->FindStreamedNodeInstance(aNodeID);
@@ -468,14 +529,15 @@ Red::DynArray<App::WorldNodeRuntimeSceneData> App::WorldInspector::GetStreamedNo
     return m_targetedNodes;
 }
 
-Red::Transform App::WorldInspector::GetStreamedNodeTransform(const Red::WeakHandle<Red::worldINodeInstance>& aNode)
+App::WorldNodeRuntimeGeometryData App::WorldInspector::GetStreamedNodeGeometry(
+    const Red::WeakHandle<Red::worldINodeInstance>& aNode)
 {
     const auto& [setup, nodeInstanceWeak, nodeDefinitionWeak] = m_nodeRegistry->GetNodeRuntimeData(aNode);
 
     if (!setup)
         return {};
 
-    return setup->transform;
+    return {setup->transform.position, setup->transform.orientation, setup->scale};
 }
 
 float App::WorldInspector::GetFrustumDistance() const

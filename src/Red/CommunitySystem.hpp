@@ -99,9 +99,9 @@ constexpr auto ResetCommunity = Core::RawVFunc<
     /* type = */ void (Red::ICommunitySystem::*)(uint64_t aCommunityID, Red::CName aEntryName)>();
 
 constexpr auto GetCommunity = Core::RawVFunc<
-    /* addr = */ 0x228,
+    /* addr = */ 0x230,
     /* type = */ void* (Red::ICommunitySystem::*)(Red::WeakPtr<Red::Community>& aOut,
-                                                  const uint64_t& aCommunityID)>();
+                                                  uint64_t aCommunityID)>();
 
 constexpr auto ActivateSpawner = Core::RawVFunc<
     /* addr = */ 0x1D8,

@@ -15,17 +15,18 @@ class ResourcePathRegistry
 public:
     ResourcePathRegistry(const std::filesystem::path& aPreloadPath = {});
 
-    [[nodiscard]] std::string_view ResolvePath(Red::ResourcePath aPath);
+    [[nodiscard]] std::string ResolvePath(Red::ResourcePath aPath);
+    void RegisterPath(Red::ResourcePath aPath, const std::string& aPathStr);
 
     static ResourcePathRegistry* Get();
 
 protected:
     struct SharedInstance
     {
-        Red::SharedMutex m_mutex;
+        Red::SharedSpinLock m_lock;
         Core::Map<Red::ResourcePath, std::string> m_map;
         bool m_preloaded{false};
-        bool m_hooked{false};
+        bool m_initialized{false};
     };
 
     void OnBootstrap() override;

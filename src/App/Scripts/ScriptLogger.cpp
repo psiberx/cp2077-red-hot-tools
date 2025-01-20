@@ -18,7 +18,10 @@ void App::ScriptLogger::OnLogChannel(void*, Red::CStackFrame* aFrame, void*, voi
         Red::ScriptRef<Red::CString> message;
         Red::GetParameter(aFrame, &message);
 
-        LogInfo(message.ref->c_str());
+        if (message.ref)
+        {
+            LogInfo(message.ref->c_str());
+        }
     }
 
     aFrame->code = rewind;

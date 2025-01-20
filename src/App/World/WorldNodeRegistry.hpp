@@ -20,6 +20,14 @@ struct WorldNodeInstanceStaticData
     Red::CName nodeType;
 };
 
+struct WorldCommunityStaticData
+{
+    uint64_t sectorHash{0};
+    int32_t communityIndex{-1};
+    uint32_t communityCount{0};
+    Red::EntityID communityID;
+};
+
 struct WorldNodeInstanceRuntimeData
 {
     Red::CompiledNodeInstanceSetupInfo* setup{};
@@ -46,6 +54,7 @@ public:
     WorldNodeInstanceStaticData GetNodeStaticData(const Red::WeakHandle<Red::worldINodeInstance>& aNode);
     WorldNodeInstanceRuntimeData GetNodeRuntimeData(const Red::WeakHandle<Red::worldINodeInstance>& aNode);
     Core::Vector<WorldNodeInstanceRuntimeData> GetAllStreamedNodes();
+    WorldCommunityStaticData GetCommunityStaticData(uint64_t aCommunityID);
     void ClearRuntimeData();
 
     void RegisterWatcher(IWorldNodeInstanceWatcher* aWatcher);
@@ -73,6 +82,7 @@ protected:
     inline static Core::Map<Red::CompiledNodeInstanceSetupInfo*, WorldNodeInstanceStaticData> s_nodeSetupToStaticDataMap;
     inline static Core::Map<Red::CompiledNodeInstanceSetupInfo*, WorldNodeInstanceRuntimeData> s_nodeSetupToRuntimeDataMap;
     inline static Core::Map<Red::worldINodeInstance*, Red::CompiledNodeInstanceSetupInfo*> s_nodeInstanceToNodeSetupMap;
+    inline static Core::Map<uint64_t, WorldCommunityStaticData> s_communityStaticDataMap;
 
     inline static Core::Vector<IWorldNodeInstanceWatcher*> s_watchers;
 };
