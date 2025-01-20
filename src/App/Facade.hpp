@@ -29,6 +29,8 @@ public:
     static Red::CString GetReferencePath(const Red::Handle<Red::ISerializable>& aInstace, Red::CName aPropName);
     static uint64_t GetCRUIDHash(Red::CRUID aValue);
 
+    static Red::DynArray<Red::WeakHandle<Red::ISerializable>> GetAllHandles();
+
     RTTI_IMPL_TYPEINFO(Facade);
 };
 }
@@ -56,4 +58,6 @@ RTTI_DEFINE_CLASS(App::Facade, App::Project::Name, {
     RTTI_METHOD(GetResourcePath);
     RTTI_METHOD(GetReferencePath);
     RTTI_METHOD(GetCRUIDHash);
+
+    RTTI_METHOD(GetAllHandles);
 })

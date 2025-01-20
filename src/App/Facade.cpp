@@ -1,6 +1,7 @@
 #include "Facade.hpp"
 #include "App/Archives/ArchiveLoader.hpp"
 #include "App/Environment.hpp"
+#include "App/Scripts/ObjectRegistry.hpp"
 #include "App/Scripts/ScriptLoader.hpp"
 #include "App/Shared/ResourcePathRegistry.hpp"
 #include "Core/Facades/Container.hpp"
@@ -125,4 +126,12 @@ uint64_t App::Facade::GetComponentAppearanceResourceHash(const Red::Handle<Red::
 Red::CName App::Facade::GetComponentAppearanceDefinition(const Red::Handle<Red::IComponent>& aComponent)
 {
     return aComponent->appearanceName;
+}
+
+Red::DynArray<Red::WeakHandle<Red::ISerializable>> App::Facade::GetAllHandles()
+{
+    Red::DynArray<Red::WeakHandle<Red::ISerializable>> result;
+    Core::Resolve<ObjectRegistry>()->CollectSerializables(result);
+
+    return result;
 }
