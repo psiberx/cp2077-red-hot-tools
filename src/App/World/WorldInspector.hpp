@@ -146,6 +146,7 @@ RTTI_DEFINE_CLASS(App::WorldNodeInstanceStaticData, {
     RTTI_PROPERTY(nodeType);
     RTTI_PROPERTY(nodeID);
     RTTI_PROPERTY(parentID);
+    RTTI_PROPERTY(debugName);
 });
 
 RTTI_DEFINE_CLASS(App::WorldNodeRuntimeSceneData, {

@@ -252,8 +252,8 @@ void App::WorldInspector::UpdateFrustumNodes()
             if (streamedNode.nodeInstance.Expired() || streamedNode.nodeDefinition.Expired())
                 continue;
 
-            if (!Raw::WorldNodeInstance::SetupInfo::Ptr(streamedNode.nodeInstance.instance))
-                continue;
+            // if (!Raw::WorldNodeInstance::SetupInfo::Ptr(streamedNode.nodeInstance.instance))
+            //     continue;
 
             const auto& transform = streamedNode.nodeSetup->transform;
             const auto& scale = streamedNode.nodeSetup->scale;

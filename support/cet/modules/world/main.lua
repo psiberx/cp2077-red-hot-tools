@@ -743,6 +743,7 @@ local function fillTargetNodeData(target, data)
         data.nodeType = sectorData.nodeType.value
         data.nodeID = sectorData.nodeID
         data.parentID = sectorData.parentID
+        data.debugName = sectorData.debugName
     end
 
     if IsDefined(target.nodeDefinition) then
@@ -1722,6 +1723,7 @@ local resultSchema = {
         { name = 'nodeCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
         { name = 'instanceIndex', label = 'Node Instance:', format = '%d', validate = isValidNodeIndex },
         { name = 'instanceCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
+        { name = 'debugName', label = 'Debug Name:' },
     },
     {
         { name = 'communityID', label = 'Community ID:', format = '%u' },

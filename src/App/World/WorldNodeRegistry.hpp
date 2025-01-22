@@ -18,6 +18,7 @@ struct WorldNodeInstanceStaticData
     uint64_t nodeID{0};
     uint64_t parentID{0};
     Red::CName nodeType;
+    Red::CString debugName;
 };
 
 struct WorldCommunityStaticData
@@ -65,7 +66,7 @@ public:
 protected:
     void OnBootstrap() override;
 
-    static void OnStreamingSectorPrepare(Red::worldStreamingSector* aSector, uint64_t);
+    static void OnStreamingSectorLoad(Red::worldStreamingSector* aSector, uint64_t);
     static void OnStreamingSectorDestruct(Red::worldStreamingSector* aSector);
     static void OnNodeInstanceInitialize(Red::worldINodeInstance* aNodeInstance,
                                          Red::CompiledNodeInstanceSetupInfo* aNodeSetup, void*);
@@ -87,3 +88,7 @@ protected:
     inline static Core::Vector<IWorldNodeInstanceWatcher*> s_watchers;
 };
 }
+
+RTTI_EXPAND_CLASS(Red::worldNode, {
+    RTTI_PROPERTY(Red::CString, 0x8, "debugName");
+});
