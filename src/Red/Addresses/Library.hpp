@@ -2,7 +2,7 @@
 
 namespace Red::AddressLib
 {
-constexpr uint32_t Main = 3545369307;
+constexpr uint32_t Main = 240386859;
 constexpr uint32_t ExecuteProcess = 2203918127; // CProcessRunner::Run
 constexpr uint32_t InvokeSCC = 2746819158;
 constexpr uint32_t LogChannel = 3083410640;
@@ -34,7 +34,7 @@ constexpr uint32_t inkPointerHandler_Override = 4279316794;
 
 constexpr uint32_t InkSpawner_FinishAsyncSpawn = 2698985195;
 
-constexpr uint32_t InkSystem_Instance = 2755465343;
+constexpr uint32_t InkSystem_Instance = 2635337807;
 constexpr uint32_t InkSystem_Instance_213 = 2635337807;
 constexpr uint32_t InkSystem_Instance_212a = 2755465343;
 constexpr uint32_t InkSystem_Instance_Pre212a = 2635337807;
