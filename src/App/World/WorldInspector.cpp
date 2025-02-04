@@ -471,6 +471,7 @@ App::WorldCommunityEntryData App::WorldInspector::ResolveCommunityEntryDataFromE
     if (communitySectorData.communityID)
     {
         communityEntryData.sectorHash = communitySectorData.sectorHash;
+        communityEntryData.registryIndex = communitySectorData.registryIndex;
         communityEntryData.communityIndex = communitySectorData.communityIndex;
         communityEntryData.communityCount = communitySectorData.communityCount;
         communityEntryData.communityID = communitySectorData.communityID;

@@ -52,13 +52,15 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
         }
         else if (auto communityRegistryNode = Red::Cast<Red::worldCommunityRegistryNode>(nodeDefinition))
         {
+            const auto& registryIndex = nodeData.nodeIndex;
             const auto communityCount = communityRegistryNode->communitiesData.size;
             for (auto communityIndex = 0; communityIndex < communityCount; ++communityIndex)
             {
                 const auto& communityItem = communityRegistryNode->communitiesData[communityIndex];
                 const auto communityId = communityItem.communityId.entityId;
 
-                s_communityStaticDataMap[communityId] = {sectorHash, communityIndex, communityCount, communityId};
+                s_communityStaticDataMap[communityId] = {sectorHash, registryIndex,
+                                                         communityIndex, communityCount, communityId};
             }
         }
         else if (auto proxyMeshNode = Red::Cast<Red::worldEntityProxyMeshNode>(nodeDefinition))

@@ -715,7 +715,8 @@ local function fillTargetCommunityData(target, data)
     if IsDefined(target.entity) then
         local communityData = inspectionSystem:ResolveCommunityEntryDataFromEntityID(target.entity:GetEntityID().hash)
         if communityData.sectorHash ~= 0 then
-            data.communityPath = RedHotTools.GetResourcePath(communityData.sectorHash)
+            data.communityRegistryPath = RedHotTools.GetResourcePath(communityData.sectorHash)
+            data.communityRegistryIndex = communityData.registryIndex
             data.communityIndex = communityData.communityIndex
             data.communityCount = communityData.communityCount
             data.communityID = communityData.communityID.hash
@@ -1609,31 +1610,50 @@ end
 
 -- GUI :: Fieldsets --
 
+local function isValidArrayField(data, field)
+    return type(data[field.name]) == 'table' and #data[field.name] > 0
+end
+
 local function formatArrayField(data, field)
     return table.concat(data[field.name], '\n')
 end
 
-local function validateArrayField(data, field)
-    return type(data[field.name]) == 'table' and #data[field.name] > 0
+local function isValidPosition(data, field)
+    local vec = data[field.name]
+    return vec and (vec.x ~= 0 or vec.y ~= 0 or vec.z ~= 0)
+end
+
+local function formatPosition(data, field)
+    local vec = data[field.name]
+    return ('%.3f, %.3f, %.3f, %.3f'):format(vec.x, vec.y, vec.z, vec.w):gsub('%.000', '.0')
+end
+
+local function isValidOrientation(data, field)
+    local quat = data[field.name]
+    return quat and (quat.i ~= 0 or quat.j ~= 0 or quat.k ~= 0 or quat.r ~= 1)
+end
+
+local function formatOrientation(data, field)
+    local quat = data[field.name]
+    return ('%.3f, %.3f, %.3f, %.3f'):format(quat.i, quat.j, quat.k, quat.r):gsub('%.000', '.0')
+end
+
+local function validateScale(data, field)
+    local vec = data[field.name]
+    return vec and (vec.x ~= 1 or vec.y ~= 1 or vec.z ~= 1)
+end
+
+local function formatScale(data, field)
+    local vec = data[field.name]
+    return ('%.3f, %.3f, %.3f'):format(vec.x, vec.y, vec.z):gsub('%.000', '.0')
 end
 
 local function formatDistance(data)
     return ('%.2fm'):format(type(data) == 'table' and data.distance or data)
 end
 
-local function isValidNodeIndex(data)
-    return type(data.instanceIndex) == 'number' and data.instanceIndex >= 0
-        and type(data.instanceCount) == 'number' and data.instanceCount > 0
-end
-
-local function isValidCommunityIndex(data)
-    return type(data.communityIndex) == 'number' and data.communityIndex >= 0
-        and type(data.communityCount) == 'number' and data.communityCount > 0
-end
-
-local function isValidCommunityEntryIndex(data)
-    return type(data.communityEntryIndex) == 'number' and data.communityEntryIndex >= 0
-        and type(data.communityEntryCount) == 'number' and data.communityEntryCount > 0
+local function isValidChunkMask(data)
+    return type(data.chunkMask) == 'cdata' or type(data.chunkMask) == 'number'
 end
 
 local hex2bin = {
@@ -1667,46 +1687,36 @@ local function formatChunkMask(data)
     return str:sub(1, 39) .. '\n' .. str:sub(41)
 end
 
-local function isValidChunkMask(data)
-    return type(data.chunkMask) == 'cdata' or type(data.chunkMask) == 'number'
+local function isValidAppearanceSource(data)
+    return isNotEmpty(data.appearancePath) and isNotEmpty(data.appearanceDef)
 end
 
 local function formatAppearanceSource(data)
     return data.appearanceDef .. ' @ ' .. data.appearancePath
 end
 
-local function isValidAppearanceSource(data)
-    return isNotEmpty(data.appearancePath) and isNotEmpty(data.appearanceDef)
+local function isValidNodeIndex(data)
+    return type(data.instanceIndex) == 'number' and data.instanceIndex >= 0
+        and type(data.instanceCount) == 'number' and data.instanceCount > 0
 end
 
-local function validatePosition(data, field)
-    local vec = data[field.name]
-    return vec and (vec.x ~= 0 or vec.y ~= 0 or vec.z ~= 0)
+local function isValidCommunityIndex(data)
+    return type(data.communityIndex) == 'number' and data.communityIndex >= 0
+        and type(data.communityCount) == 'number' and data.communityCount > 0
 end
 
-local function formatPosition(data, field)
-    local vec = data[field.name]
-    return ('%.3f, %.3f, %.3f, %.3f'):format(vec.x, vec.y, vec.z, vec.w):gsub('%.000', '.0')
+local function isValidCommunityEntryIndex(data)
+    return type(data.communityEntryIndex) == 'number' and data.communityEntryIndex >= 0
+        and type(data.communityEntryCount) == 'number' and data.communityEntryCount > 0
 end
 
-local function validateOrientation(data, field)
-    local quat = data[field.name]
-    return quat and (quat.i ~= 0 or quat.j ~= 0 or quat.k ~= 0 or quat.r ~= 1)
+local function isValidCommunityRegistry(data)
+    return type(data.communityRegistryPath) == 'string'
+        and type(data.communityRegistryIndex) == 'number' and data.communityRegistryIndex > 0
 end
 
-local function formatOrientation(data, field)
-    local quat = data[field.name]
-    return ('%.3f, %.3f, %.3f, %.3f'):format(quat.i, quat.j, quat.k, quat.r):gsub('%.000', '.0')
-end
-
-local function validateScale(data, field)
-    local vec = data[field.name]
-    return vec and (vec.x ~= 1 or vec.y ~= 1 or vec.z ~= 1)
-end
-
-local function formatScale(data, field)
-    local vec = data[field.name]
-    return ('%.3f, %.3f, %.3f'):format(vec.x, vec.y, vec.z):gsub('%.000', '.0')
+local function formatCommunityRegistry(data, field)
+    return ('%s (%d)'):format(data.communityRegistryPath, data.communityRegistryIndex)
 end
 
 local resultSchema = {
@@ -1715,8 +1725,8 @@ local resultSchema = {
         { name = 'nodeID', label = 'Node ID:', format = '%u' },
         { name = 'nodeRef', label = 'Node Ref:', wrap = true },
         { name = 'parentRef', label = 'Parent Ref:', wrap = true },
-        { name = 'nodePosition', label = 'Node Position:', format = formatPosition, validate = validatePosition },
-        { name = 'nodeOrientation', label = 'Node Orientation:', format = formatOrientation, validate = validateOrientation },
+        { name = 'nodePosition', label = 'Node Position:', format = formatPosition, validate = isValidPosition },
+        { name = 'nodeOrientation', label = 'Node Orientation:', format = formatOrientation, validate = isValidOrientation },
         { name = 'nodeScale', label = 'Node Scale:', format = formatScale, validate = validateScale },
         { name = 'sectorPath', label = 'Node Sector:', wrap = true },
         { name = 'nodeIndex', label = 'Node Definition:', format = '%d', validate = isValidNodeIndex },
@@ -1729,7 +1739,7 @@ local resultSchema = {
         { name = 'communityID', label = 'Community ID:', format = '%u' },
         { name = 'communityEntryName', label = 'Community Entry Name:' },
         { name = 'communityEntryPhase', label = 'Community Entry Phase:' },
-        { name = 'communityPath', label = 'Community Sector:', wrap = true },
+        { name = 'communityRegistry', label = 'Community Registry:', format = formatCommunityRegistry, wrap = true, validate = isValidCommunityRegistry },
         { name = 'communityIndex', label = 'Community Index:', format = '%d', validate = isValidCommunityIndex },
         { name = 'communityCount', label = '/', format = '%d', inline = true, validate = isValidCommunityIndex },
         { name = 'communityEntryIndex', label = 'Community Entry Index:', format = '%d', validate = isValidCommunityEntryIndex },
@@ -1746,8 +1756,8 @@ local resultSchema = {
         { name = 'meshAppearance', label = 'Mesh Appearance:', wrap = true },
         { name = 'materialPath', label = 'Material:', wrap = true },
         { name = 'effectPath', label = 'Effect:', wrap = true },
-        { name = 'triggerNotifiers', label = 'Trigger Notifiers:', format = formatArrayField, validate = validateArrayField },
-        { name = 'lootTables', label = 'Loot Tables:', format = formatArrayField, validate = validateArrayField },
+        { name = 'triggerNotifiers', label = 'Trigger Notifiers:', format = formatArrayField, validate = isValidArrayField },
+        { name = 'lootTables', label = 'Loot Tables:', format = formatArrayField, validate = isValidArrayField },
         { name = 'occluderType', label = 'Occluder Type:' },
         { name = 'entityPosition', label = 'Entity Position:', format = formatPosition },
         { name = 'entityOrientation', label = 'Entity Orientation:', format = formatOrientation },
@@ -1769,7 +1779,7 @@ local componentSchema = {
     { name = 'meshPath', label = 'Mesh:', wrap = true },
     { name = 'meshAppearance', label = 'Appearance:', wrap = true },
     { name = 'chunkMask', label = 'Chunk Mask:', wrap = true, format = formatChunkMask, validate = isValidChunkMask },
-    { name = 'effects', label = 'Effects:', format = formatArrayField, validate = validateArrayField, wrap = true },
+    { name = 'effects', label = 'Effects:', format = formatArrayField, validate = isValidArrayField, wrap = true },
     { name = 'appearancePath', label = 'Source:', format = formatAppearanceSource, validate = isValidAppearanceSource, wrap = true },
 }
 

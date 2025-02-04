@@ -24,6 +24,7 @@ struct WorldNodeInstanceStaticData
 struct WorldCommunityStaticData
 {
     uint64_t sectorHash{0};
+    int32_t registryIndex{-1};
     int32_t communityIndex{-1};
     uint32_t communityCount{0};
     Red::EntityID communityID;

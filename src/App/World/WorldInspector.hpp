@@ -169,6 +169,7 @@ RTTI_DEFINE_CLASS(App::WorldNodeRuntimeGeometryData, {
 
 RTTI_DEFINE_CLASS(App::WorldCommunityEntryData, {
     RTTI_PROPERTY(sectorHash);
+    RTTI_PROPERTY(registryIndex);
     RTTI_PROPERTY(communityIndex);
     RTTI_PROPERTY(communityCount);
     RTTI_PROPERTY(communityID);
