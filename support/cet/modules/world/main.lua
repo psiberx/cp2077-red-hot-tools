@@ -1857,6 +1857,7 @@ end
 
 local function drawComponents(components)
     for _, componentData in ipairs(components) do
+        ImGui.BeginGroup()
         local componentID = tostring(componentData.hash)
         if ImGui.TreeNodeEx(componentData.description .. '##' .. componentID, ImGuiTreeNodeFlags.SpanFullWidth) then
             for _, field in ipairs(componentSchema) do
@@ -1871,6 +1872,10 @@ local function drawComponents(components)
             end
             ImGui.PopStyleColor()
             ImGui.TreePop()
+        end
+        ImGui.EndGroup()
+        if ImGui.IsItemHovered() and componentData.component:IsA('entIVisualComponent') then
+            highlightTarget(componentData)
         end
     end
 end
