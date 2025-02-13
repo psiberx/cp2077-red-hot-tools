@@ -117,7 +117,8 @@ void App::WorldInspector::UpdateStreamedNodes()
             continue;
         }
 
-        WorldNodeStaticSceneData streamedNode{request.nodeInstance, request.nodeDefinition, request.nodeSetup};
+        WorldNodeStaticSceneData streamedNode{request.nodeInstance, request.nodeDefinition,
+                                              request.nodeSetup->transform, request.nodeSetup->scale};
 
         auto& transform = Raw::WorldNodeInstance::Transform::Ref(nodeInstance);
         auto& scale = Raw::WorldNodeInstance::Scale::Ref(nodeInstance);
@@ -255,9 +256,6 @@ void App::WorldInspector::UpdateFrustumNodes()
             // if (!Raw::WorldNodeInstance::SetupInfo::Ptr(streamedNode.nodeInstance.instance))
             //     continue;
 
-            const auto& transform = streamedNode.nodeSetup->transform;
-            const auto& scale = streamedNode.nodeSetup->scale;
-
 #ifndef NDEBUG
             const auto resolveStart = std::chrono::steady_clock::now();
 #endif
@@ -279,7 +277,7 @@ void App::WorldInspector::UpdateFrustumNodes()
             else
             {
                 Red::Box dummyBox{{-0.05, -0.05, -0.05, 1.0}, {0.05, 0.05, 0.05, 1.0}};
-                Red::TransformBox(dummyBox, transform);
+                Red::TransformBox(dummyBox, streamedNode.transform);
 
                 frustumResult = cameraFrustum.Test(dummyBox);
             }
@@ -296,7 +294,7 @@ void App::WorldInspector::UpdateFrustumNodes()
             }
             else
             {
-                distance = Red::Distance(cameraPosition, transform.position);
+                distance = Red::Distance(cameraPosition, streamedNode.transform.position);
             }
 
             auto inFrustum = (frustumResult != Red::FrustumResult::Outside && distance <= m_frustumDistance);
@@ -323,7 +321,8 @@ void App::WorldInspector::UpdateFrustumNodes()
 
             const auto instanceHash = reinterpret_cast<uint64_t>(streamedNode.nodeInstance.instance);
             frustumNodes.push_back({streamedNode.nodeInstance, streamedNode.nodeDefinition,
-                                    streamedNode.boundingBox, transform.position, transform.orientation, scale,
+                                    streamedNode.boundingBox, streamedNode.transform.position,
+                                    streamedNode.transform.orientation, streamedNode.scale,
                                     testBox, distance, inFrustum, instanceHash, true});
         }
     }

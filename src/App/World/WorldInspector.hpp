@@ -18,7 +18,8 @@ struct WorldNodeStaticSceneData
 {
     Red::WeakHandle<Red::worldINodeInstance> nodeInstance;
     Red::WeakHandle<Red::worldNode> nodeDefinition;
-    Red::CompiledNodeInstanceSetupInfo* nodeSetup;
+    Red::Transform transform;
+    Red::Vector3 scale;
     Red::Box boundingBox;
     Core::Vector<Red::Box> testBoxes;
     bool isStaticMesh{false};
