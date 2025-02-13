@@ -288,6 +288,11 @@ local function applyHighlightEffect(target, enabled)
         return inspectionSystem:ApplyHighlightEffect(target.entity, effect)
     end
 
+    if IsDefined(target.component) then
+        effect.componentName = target.component.name
+        return inspectionSystem:ApplyHighlightEffect(target.component:GetEntity(), effect)
+    end
+
     if IsDefined(target.parentInstance) then
         return inspectionSystem:ApplyHighlightEffect(target.parentInstance, effect)
     end
@@ -565,6 +570,7 @@ local function resolveComponents(entity)
         data.description = table.concat(description, ' | ')
 
         data.hash = RedHotTools.GetObjectHash(component)
+        data.component = Ref.Weak(component)
 
         table.insert(components, data)
     end
@@ -1564,6 +1570,8 @@ local function initializeViewStyle()
         viewStyle.settingsShortComboRowWidth = 160 * viewStyle.viewScale
         viewStyle.settingsMiddleComboRowWidth = 210 * viewStyle.viewScale
         viewStyle.settingsLongComboRowWidth = 240 * viewStyle.viewScale
+
+        viewStyle.defaultFrameBg = ImGui.GetColorU32(ImGuiCol.FrameBg, 1)
     end
 end
 
@@ -1856,6 +1864,12 @@ local function drawComponents(components)
                     drawField(field, componentData)
                 end
             end
+            ImGui.PushStyleColor(ImGuiCol.FrameBg, viewStyle.defaultFrameBg)
+            local enabled, changed = ImGui.Checkbox('Enabled', componentData.component:IsEnabled())
+            if changed then
+                componentData.component:Toggle(enabled)
+            end
+            ImGui.PopStyleColor()
             ImGui.TreePop()
         end
     end
