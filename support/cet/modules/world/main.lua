@@ -680,6 +680,10 @@ local function fillTargetEntityData(target, data)
             local recordID = entity:GetTDBID()
             if TDBID.IsValid(recordID) then
                 data.recordID = recordID.value
+                local vendorID = TweakDB:GetFlat(TweakDBID.new(recordID, '.vendorID'))
+                if TDBID.IsValid(vendorID) then
+                    data.vendorID = vendorID.value
+                end
             end
 
             local success, items = transactionSystem:GetItemList(entity)
@@ -1757,6 +1761,7 @@ local resultSchema = {
         { name = 'entityType', label = 'Entity Type:' },
         { name = 'entityID', label = 'Entity ID:', format = '%u' },
         { name = 'recordID', label = 'Record ID:' },
+        { name = 'vendorID', label = 'Vendor ID:' },
         { name = 'templatePath', label = 'Entity Template:', wrap = true },
         { name = 'appearanceName', label = 'Entity Appearance:', wrap = true },
         { name = 'deviceClass', label = 'Device Class:' },
