@@ -808,6 +808,10 @@ local function fillTargetNodeData(target, data)
             data.meshPath = RedHotTools.GetResourcePath(node.mesh.hash)
             data.occluderType = node.occluderType.value
         end
+
+        if RedHotTools.IsInstanceOf(node, 'worldAISpotNode') and node.spot and node.spot.resource then
+            data.workspotPath = RedHotTools.GetResourcePath(node.spot.resource.hash)
+        end
     end
 
     if isNotEmpty(data.nodeID) then
@@ -1769,6 +1773,7 @@ local resultSchema = {
         { name = 'meshAppearance', label = 'Mesh Appearance:', wrap = true },
         { name = 'materialPath', label = 'Material:', wrap = true },
         { name = 'effectPath', label = 'Effect:', wrap = true },
+        { name = 'workspotPath', label = 'Workspot:', wrap = true },
         { name = 'triggerNotifiers', label = 'Trigger Notifiers:', format = formatArrayField, validate = isValidArrayField },
         { name = 'lootTables', label = 'Loot Tables:', format = formatArrayField, validate = isValidArrayField },
         { name = 'occluderType', label = 'Occluder Type:' },
