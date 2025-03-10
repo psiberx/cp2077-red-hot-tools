@@ -112,6 +112,7 @@
 #include <RED4ext/Scripting/Natives/Generated/world/TerrainMeshNodeInstance.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/TerrainProxyMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/ScriptGameInstance.hpp>
+#include <RED4ext/StringView.hpp>
 
 #include <nameof.hpp>
 #include <semver.hpp>

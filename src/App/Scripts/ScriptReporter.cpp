@@ -1,4 +1,5 @@
 #include "ScriptReporter.hpp"
+#include "Red/EngineConfig.hpp"
 #include "Red/GameEngine.hpp"
 
 App::ScriptReporter::ScriptReporter(bool aCompatMode)
@@ -55,7 +56,8 @@ bool App::ScriptReporter::OnLoadScripts(Red::CBaseEngine& aEngine, Red::CString&
     if (!aTimestamp)
         return false;
 
-    if (aEngine.scriptsCompilationErrors.Length() > 0 || (!m_compatMode && aEngine.scriptsBlobPath.Length() == 0))
+    const auto compilationEnabled = Red::EngineConfig::Get()->GetValue<bool>("Scripts", "EnableCompilation");
+    if (aEngine.scriptsCompilationErrors.Length() > 0 || (compilationEnabled && aEngine.scriptsBlobPath.Length() == 0))
     {
         ExitProcess(0xDEAD);
         return false;
