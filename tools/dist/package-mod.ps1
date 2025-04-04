@@ -10,6 +10,6 @@ $DistDir = "build/dist"
 Remove-Item -Recurse ${StageDir}
 
 & $($PSScriptRoot + "\steps\compose-cet-mod.ps1") -StageDir ${StageDir} -ProjectName ${ProjectName}
-& $($PSScriptRoot + "\steps\create-zip-from-stage.ps1") -StageDir ${StageDir} -ProjectName ${ProjectName} -Version Auto -Suffix "CET" -DistDir ${DistDir}
+& $($PSScriptRoot + "\steps\create-zip-from-stage.ps1") -StageDir ${StageDir} -ProjectName ${ProjectName} -Version Auto -Suffix "Overlay" -DistDir ${DistDir}
 
 Remove-Item -Recurse ${StageDir}
