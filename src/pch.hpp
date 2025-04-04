@@ -87,6 +87,7 @@
 #include <RED4ext/Scripting/Natives/Generated/world/EntityNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/EntityNodeInstance.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/EntityProxyMeshNode.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/FoliageNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/FoliageNodeInstance.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/GenericProxyMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/GeometryShapeNode.hpp>

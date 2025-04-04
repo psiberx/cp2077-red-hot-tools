@@ -148,6 +148,7 @@ void App::WorldInspector::UpdateStreamedNodes()
         }
         else if (Red::IsInstanceOf<Red::worldStaticDecalNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldBendedMeshNode>(nodeDefinition) ||
+                 Red::IsInstanceOf<Red::worldFoliageNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldEntityNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition) ||
