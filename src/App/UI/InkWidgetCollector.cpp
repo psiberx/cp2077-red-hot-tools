@@ -387,7 +387,7 @@ bool App::InkWidgetCollector::CollectHoveredWidgets(Red::DynArray<InkWidgetExten
 
     for (auto& widget : widgets)
     {
-        if (Red::IsInstanceOf<Red::inkVirtualWindow>(widget))
+        if (Red::IsInstanceOf<Red::inkVirtualWindow>(widget) || !widget->parentWidget.instance)
             continue;
 
         if (widget->name == "HUDMiddleWidget" ||
