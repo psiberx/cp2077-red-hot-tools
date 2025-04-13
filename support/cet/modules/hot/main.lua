@@ -27,7 +27,10 @@ end
 -- Hot Reload --
 
 local function reloadArchives()
-    RedHotTools.ReloadArchives()
+    --RedHotTools.ReloadArchives()
+    if ArchiveXL then
+        ArchiveXL.Reload()
+    end
 end
 
 local function reloadTweaks()
