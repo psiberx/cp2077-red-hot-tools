@@ -27,6 +27,26 @@ void App::Facade::ReloadTweaks()
     Red::CallStatic("TweakXL", "Reload");
 }
 
+bool App::Facade::HotInstall(const Red::CString& aPath)
+{
+    if (aPath.Length() == 0)
+        return false;
+
+    const auto& gameDir = Env::GameDir();
+    const auto absolutePath = std::filesystem::absolute(gameDir / aPath.c_str());
+    const auto relativePath = std::filesystem::relative(absolutePath, gameDir);
+
+    if (relativePath.empty() || relativePath.native().starts_with('.'))
+        return false;
+
+    std::error_code error;
+    if (!std::filesystem::exists(absolutePath, error) || !std::filesystem::is_regular_file(absolutePath, error))
+        return false;
+
+    std::filesystem::copy(absolutePath, Env::ArchiveHotDir(), error);
+    return true;
+}
+
 Red::CName App::Facade::GetTypeName(const Red::WeakHandle<Red::ISerializable>& aInstace)
 {
     if (!aInstace)

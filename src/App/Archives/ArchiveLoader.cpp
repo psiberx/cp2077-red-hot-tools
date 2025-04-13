@@ -28,29 +28,34 @@ bool App::ArchiveLoader::SwapArchives(const std::filesystem::path& aArchiveHotDi
         return false;
     }
 
-    LogInfo("[ArchiveLoader] Found archives:");
-    for (const auto& archivePath : archiveHotPaths)
+    auto invalidated = false;
+
+    if (archiveHotPaths.size != 0)
     {
-        LogInfo("[ArchiveLoader] - {}", std::filesystem::relative(archivePath.c_str(), aArchiveHotDir).string());
+        LogInfo("[ArchiveLoader] Found archives:");
+        for (const auto& archivePath : archiveHotPaths)
+        {
+            LogInfo("[ArchiveLoader] - {}", std::filesystem::relative(archivePath.c_str(), aArchiveHotDir).string());
+        }
+
+        Red::DynArray<Red::ResourcePath> hotResources;
+
+        LogInfo("[ArchiveLoader] Unloading game archives...");
+
+        UnloadModArchives(archiveGroups, archiveModPaths);
+
+        LogInfo("[ArchiveLoader] Moving updated archives...");
+
+        MoveArchiveFiles(archiveHotPaths, archiveModPaths);
+
+        LogInfo("[ArchiveLoader] Loading updated archives...");
+
+        LoadModArchives(archiveGroups, archiveModPaths, hotResources);
+
+        LogInfo("[ArchiveLoader] Resetting resource cache...");
+
+        invalidated = InvalidateResources(hotResources, depotLocker);
     }
-
-    Red::DynArray<Red::ResourcePath> hotResources;
-
-    LogInfo("[ArchiveLoader] Unloading game archives...");
-
-    UnloadModArchives(archiveGroups, archiveModPaths);
-
-    LogInfo("[ArchiveLoader] Moving updated archives...");
-
-    MoveArchiveFiles(archiveHotPaths, archiveModPaths);
-
-    LogInfo("[ArchiveLoader] Loading updated archives...");
-
-    LoadModArchives(archiveGroups, archiveModPaths, hotResources);
-
-    LogInfo("[ArchiveLoader] Resetting resource cache...");
-
-    auto invalidated = InvalidateResources(hotResources, depotLocker);
 
     LogInfo("[ArchiveLoader] Reloading archive extensions...");
 

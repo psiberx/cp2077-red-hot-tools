@@ -4,6 +4,11 @@
 
 namespace App::Env
 {
+inline std::filesystem::path GameDir()
+{
+    return Core::Runtime::GetRootDir();
+}
+
 inline std::filesystem::path ArchiveModDir()
 {
     return Core::Runtime::GetRootDir() / L"archive" / L"pc" / L"mod";
