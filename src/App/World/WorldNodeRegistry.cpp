@@ -38,7 +38,12 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
         nodeData.nodeCount = nodeCount;
         nodeData.nodeType = nodeDefinition->GetType()->GetName();
         nodeData.nodeID = nodeSetup.globalNodeID;
-        nodeData.debugName = *reinterpret_cast<Red::CString*>(&nodeDefinition->ref);
+
+        if (nodeDefinition->ref.instance != buffer.nodes[nodeSetup.nodeIndex].instance &&
+            nodeDefinition->ref.refCount != buffer.nodes[nodeSetup.nodeIndex].refCount)
+        {
+            nodeData.debugName = *reinterpret_cast<Red::CString*>(&nodeDefinition->ref);
+        }
 
         if (nodeData.nodeID)
         {
