@@ -17,6 +17,11 @@ void App::Facade::ReloadArchives()
     Core::Resolve<ArchiveLoader>()->SwapArchives(Env::ArchiveHotDir());
 }
 
+void App::Facade::ReloadResources(const Red::DynArray<Red::ResourcePath>& aPaths)
+{
+    Core::Resolve<ArchiveLoader>()->ReloadResources(aPaths);
+}
+
 void App::Facade::ReloadScripts()
 {
     Core::Resolve<ScriptLoader>()->ReloadScripts();

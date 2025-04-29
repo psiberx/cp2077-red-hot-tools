@@ -11,6 +11,7 @@ public:
 
     static bool HotInstall(const Red::CString& aPath);
     static void ReloadArchives();
+    static void ReloadResources(const Red::DynArray<Red::ResourcePath>& aPaths);
     static void ReloadScripts();
     static void ReloadTweaks();
 
@@ -22,7 +23,6 @@ public:
     static Red::DynArray<Red::Handle<Red::IComponent>> GetEntityComponents(const Red::WeakHandle<Red::Entity>& aEntity);
     static Red::ResourceAsyncReference<> GetEntityTemplatePath(const Red::WeakHandle<Red::Entity>& aEntity);
     static Red::DynArray<Red::CName> GetEntityVisualTags(const Red::WeakHandle<Red::Entity>& aEntity);
-
     static uint64_t GetComponentAppearanceResourceHash(const Red::Handle<Red::IComponent>& aComponent);
     static Red::CName GetComponentAppearanceDefinition(const Red::Handle<Red::IComponent>& aComponent);
 
@@ -41,6 +41,7 @@ RTTI_DEFINE_CLASS(App::Facade, App::Project::Name, {
     RTTI_METHOD(GetVersion, "Version");
 
     RTTI_METHOD(HotInstall);
+    RTTI_METHOD(ReloadResources);
     RTTI_METHOD(ReloadArchives);
     RTTI_METHOD(ReloadScripts);
     RTTI_METHOD(ReloadTweaks);

@@ -14,6 +14,7 @@ class ArchiveLoader
 {
 public:
     bool SwapArchives(const std::filesystem::path& aArchiveHotDir);
+    void ReloadResources(const Red::DynArray<Red::ResourcePath>& aPaths);
 
 private:
     struct DepotLocker

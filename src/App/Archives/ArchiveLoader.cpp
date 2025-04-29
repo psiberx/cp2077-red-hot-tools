@@ -293,10 +293,6 @@ bool App::ArchiveLoader::InvalidateResources(const Red::DynArray<Red::ResourcePa
         for (const auto& path : aPaths)
         {
             {
-                Red::Handle<Red::CResource> resource;
-                Raw::ResourceBank::ForgetResource(loader->unk48, resource, path);
-            }
-            {
                 auto* tokenWeak = loader->tokens.Get(path);
                 if (tokenWeak && tokenWeak->instance)
                 {
@@ -315,6 +311,10 @@ bool App::ArchiveLoader::InvalidateResources(const Red::DynArray<Red::ResourcePa
 
                     loader->tokens.Remove(path);
                 }
+            }
+            {
+                Red::Handle<Red::CResource> resource;
+                Raw::ResourceBank::ForgetResource(loader->unk48, resource, path);
             }
         }
     }
@@ -414,6 +414,13 @@ bool App::ArchiveLoader::MoveExtensionFiles(const Red::DynArray<Red::ArchiveGrou
 void App::ArchiveLoader::ReloadExtensions()
 {
     Red::CallStatic("ArchiveXL", "Reload");
+}
+
+void App::ArchiveLoader::ReloadResources(const Red::DynArray<Red::ResourcePath>& aPaths)
+{
+    std::unique_lock updateLock(m_updateLock);
+    auto depotLocker = Core::MakeUnique<DepotLocker>();
+    InvalidateResources(aPaths, depotLocker);
 }
 
 App::ArchiveLoader::DepotLocker::DepotLocker()
