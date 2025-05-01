@@ -19,6 +19,7 @@ struct WorldNodeInstanceStaticData
     uint64_t parentID{0};
     Red::CName nodeType;
     Red::CString debugName;
+    bool interior;
 };
 
 struct WorldCommunityStaticData

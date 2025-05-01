@@ -38,6 +38,7 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
         nodeData.nodeCount = nodeCount;
         nodeData.nodeType = nodeDefinition->GetType()->GetName();
         nodeData.nodeID = nodeSetup.globalNodeID;
+        nodeData.interior = (nodeSetup.unk7A & 0x40) == 0x40;
 
         if (nodeDefinition->unk18.instance)
         {

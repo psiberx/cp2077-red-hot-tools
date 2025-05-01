@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Red/Common.hpp"
 #include "Red/Rendering.hpp"
 #include "Red/StreamingSector.hpp"
 
@@ -27,6 +28,102 @@ struct WorldNodeInstanceNodeState
     uint16_t b09 : 1;            // 08
     uint16_t isVisible : 1;      // 09
 };
+
+struct RenderProxyTransform
+{
+    WorldTransform transform;
+    Vector3 scale;
+};
+
+struct RenderProxyTransformData : DataBuffer
+{
+    [[nodiscard]] inline RenderProxyTransform* begin() const
+    {
+        return reinterpret_cast<RenderProxyTransform*>(buffer.data);
+    }
+
+    [[nodiscard]] inline RenderProxyTransform* end() const
+    {
+        return reinterpret_cast<RenderProxyTransform*>(reinterpret_cast<uintptr_t>(buffer.data) + buffer.size);
+    }
+
+    [[nodiscard]] RenderProxyTransform* Get(int64_t aIndex) const
+    {
+        return begin() + aIndex;
+    }
+
+    uint32_t GetCount()
+    {
+        return buffer.size / sizeof(RenderProxyTransform);
+    }
+};
+RED4EXT_ASSERT_SIZE(RenderProxyTransformData, 0x28);
+
+struct PackedQuaternion
+{
+    operator Quaternion() const noexcept
+    {
+        return {
+            Raw::UnpackFloat(data[0]),
+            Raw::UnpackFloat(data[1]),
+            Raw::UnpackFloat(data[2]),
+            Raw::UnpackFloat(data[3]),
+        };
+    }
+
+    uint16_t data[4];
+};
+RED4EXT_ASSERT_SIZE(PackedQuaternion, 0x8);
+
+struct FoliageBucket
+{
+    uint32_t offset;
+    uint32_t count;
+};
+RED4EXT_ASSERT_SIZE(PackedQuaternion, 0x8);
+
+struct FoliageBufferAccessor
+{
+    FoliageBufferAccessor(const Handle<worldFoliageCompiledResource>& aResource)
+    {
+        auto bufferBegin = aResource->dataBuffer.buffer.data;
+
+        instanceCount = aResource->populationCount;
+        bucketCount = aResource->bucketCount;
+
+        positionData = {std::bit_cast<Vector3*>(bufferBegin), instanceCount};
+        scaleData = {std::bit_cast<float*>(positionData.end()), instanceCount};
+        orientationData = {std::bit_cast<PackedQuaternion*>(scaleData.end()), instanceCount};
+    }
+
+    inline Vector3 GetPosition(size_t aIndex)
+    {
+        return positionData[aIndex];
+    }
+
+    inline float GetScale(size_t aIndex)
+    {
+        return scaleData[aIndex];
+    }
+
+    inline Quaternion GetOrientation(size_t aIndex)
+    {
+        return orientationData[aIndex];
+    }
+
+    inline FoliageBucket GetBucket(size_t aIndex)
+    {
+        return bucketData[aIndex];
+    }
+
+    uint32_t instanceCount;
+    Span<Vector3> positionData;
+    Span<float> scaleData;
+    Span<PackedQuaternion> orientationData;
+
+    uint32_t bucketCount;
+    Span<FoliageBucket> bucketData;
+};
 }
 
 namespace Raw::WorldNode
@@ -45,12 +142,18 @@ namespace Raw::WorldInstancedMeshNode
 using Bounds = Core::OffsetPtr<0x50, Red::DynArray<Red::Box>>;
 }
 
+namespace Raw::WorldInstancedOccluderNode
+{
+using Instances = Core::OffsetPtr<0x38, Red::DynArray<Red::Matrix>>;
+}
+
 namespace Raw::WorldNodeInstance
 {
 using Transform = Core::OffsetPtr<0x30, Red::Transform>;
 using Scale = Core::OffsetPtr<0x50, Red::Vector3>;
 using Node = Core::OffsetPtr<0x60, Red::Handle<Red::worldNode>>;
 using SetupInfo = Core::OffsetPtr<0x70, Red::CompiledNodeInstanceSetupInfo**>;
+using NodeID = Core::OffsetPtr<0x80, uint64_t>;
 using State = Core::OffsetPtr<0x88, Red::WorldNodeInstanceNodeState>;
 
 inline bool IsAttached(Red::worldINodeInstance* aNodeInstance)
@@ -109,24 +212,33 @@ using RenderProxy = Core::OffsetPtr<0x1D8, Red::SharedPtr<Red::RenderProxy>>;
 
 namespace Raw::WorldInstancedDestructibleMeshNodeInstance
 {
-// using Mesh = Core::OffsetPtr<0x170, Red::Handle<Red::CMesh>>;
-// using RenderProxy = Core::OffsetPtr<0x190, Red::SharedPtr<Red::RenderProxy>>;
+using Mesh = Core::OffsetPtr<0x170, Red::Handle<Red::CMesh>>;
+using RenderProxy = Core::OffsetPtr<0x190, Red::SharedPtr<Red::RenderProxy>>;
 }
 
 namespace Raw::WorldInstancedMeshNodeInstance
 {
+using Mesh = Core::OffsetPtr<0xB8, Red::Handle<Red::CMesh>>;
 using RenderProxies = Core::OffsetPtr<0xE8, Red::DynArray<Red::SharedPtr<Red::RenderProxy>>>;
+}
+
+namespace Raw::WorldInstancedOccluderNodeInstance
+{
+using Mesh = Core::OffsetPtr<0xA0, Red::Handle<Red::CMesh>>;
 }
 
 namespace Raw::WorldTerrainMeshNodeInstance
 {
+using Mesh = Core::OffsetPtr<0xB0, Red::Handle<Red::CMesh>>;
 using RenderProxies = Core::OffsetPtr<0xC0, Red::DynArray<Red::SharedPtr<Red::RenderProxy>>>;
 }
 
 namespace Raw::WorldFoliageNodeInstance
 {
 using Mesh = Core::OffsetPtr<0xB8, Red::Handle<Red::CMesh>>;
+using Foliage = Core::OffsetPtr<0xD8, Red::Handle<Red::worldFoliageCompiledResource>>;
 using RenderProxies = Core::OffsetPtr<0xF8, Red::DynArray<Red::SharedPtr<Red::RenderProxy>>>;
+using BoundingBoxes = Core::OffsetPtr<0x108, Red::DynArray<Red::Box>>;
 }
 
 namespace Raw::WorldEntityNodeInstance
@@ -137,6 +249,19 @@ using Entity = Core::OffsetPtr<0xA0, Red::Handle<Red::Entity>>;
 namespace Raw::WorldStaticLightNodeInstance
 {
 using RenderProxy = Core::OffsetPtr<0xB0, Red::SharedPtr<Red::RenderProxy>>;
+}
+
+namespace Raw::WorldStaticParticleNodeInstance
+{
+using ParticleSystem = Core::OffsetPtr<0xA0, Red::Handle<Red::CParticleSystem>>;
+using RenderProxy = Core::OffsetPtr<0xB0, Red::SharedPtr<Red::RenderProxy>>;
+}
+
+namespace Raw::WorldCollisionNodeInstance
+{
+using Node = Core::OffsetPtr<0x60, Red::Handle<Red::worldCollisionNode>>;
+using PrimaryProxyID = Core::OffsetPtr<0x90, uint32_t>;
+using SecondaryProxyID = Core::OffsetPtr<0x94, uint32_t>;
 }
 
 namespace Raw::WorldNodeRegistry

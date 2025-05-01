@@ -48,8 +48,8 @@ inline float Distance(const Vector4& aPoint1, const Vector4& aPoint2)
                  (aPoint1.Z - aPoint2.Z) * (aPoint1.Z - aPoint2.Z));
 }
 
-inline bool Intersect(const Vector4& aOrigin, const Vector4& aInverseDirection, const Box& aBox,
-                      float& tmin, float& tmax)
+inline bool IntersectBox(const Vector4& aOrigin, const Vector4& aInverseDirection, const Box& aBox,
+                         float& tmin, float& tmax)
 {
     float tx1 = (aBox.Min.X - aOrigin.X) * aInverseDirection.X;
     float tx2 = (aBox.Max.X - aOrigin.X) * aInverseDirection.X;
@@ -72,9 +72,15 @@ inline bool Intersect(const Vector4& aOrigin, const Vector4& aInverseDirection, 
     return tmax >= std::max(0.0f, tmin);
 }
 
-inline bool Intersect(const Vector4& aOrigin, const Vector4& aInverseDirection, const Box& aBox)
+inline bool IntersectBox(const Vector4& aOrigin, const Vector4& aInverseDirection, const Box& aBox)
 {
     float tmin, tmax;
-    return Intersect(aOrigin, aInverseDirection, aBox, tmin, tmax);
+    return IntersectBox(aOrigin, aInverseDirection, aBox, tmin, tmax);
+}
+
+inline bool InsideBox(const Vector4& aPoint, const Box& aBox, float aToleranceDown = 0.0, float aToleranceUp = 0.0)
+{
+    return aPoint.X >= aBox.Min.X && aPoint.Y >= aBox.Min.Y && aPoint.Z >= (aBox.Min.Z - aToleranceDown)
+        && aPoint.X <= aBox.Max.X && aPoint.Y <= aBox.Max.Y && aPoint.Z <= (aBox.Max.Z + aToleranceUp);
 }
 }

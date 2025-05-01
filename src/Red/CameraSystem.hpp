@@ -2,7 +2,7 @@
 
 namespace Red
 {
-enum FrustumResult
+enum class FrustumResult
 {
     Undefined = 0,
     Outside = 1,

@@ -32,3 +32,10 @@ RED4EXT_ASSERT_SIZE(Range<int32_t>, 0x10);
 RED4EXT_ASSERT_OFFSET(Range<int32_t>, ptr, 0x0);
 RED4EXT_ASSERT_OFFSET(Range<int32_t>, end, 0x8);
 }
+
+namespace Raw
+{
+constexpr auto UnpackFloat = Core::RawFunc<
+    /* addr = */ Red::AddressLib::UnpackFloat,
+    /* type = */ float (*)(uint16_t aValue)>();
+}

@@ -3,7 +3,12 @@ local function opacity(abgr)
 end
 
 local function fade(abgr, a)
+    a = math.min(math.max(a, 0), 0xFF)
     return bit32.bor(bit32.lshift(bit32.band(a, 0xFF), 24), bit32.band(abgr, 0xFFFFFF))
+end
+
+local function fadeFactor(abgr, f)
+    return fade(abgr, opacity(abgr) * f)
 end
 
 local function sanitizeInputText(text)
@@ -55,4 +60,5 @@ return {
     SanitizeInputText = sanitizeInputText,
     Opacity = opacity,
     Fade = fade,
+    FadeFactor = fadeFactor,
 }

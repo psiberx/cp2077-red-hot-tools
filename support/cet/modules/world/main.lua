@@ -4,6 +4,7 @@ local app, moduleID, modulePath = ...
 
 local Cron = require('libs/Cron')
 local Ref = require('libs/Ref')
+local GameSession = require('libs/GameSession')
 local PersistentState = require('libs/PersistentState')
 local Enumeration = require('libs/Enumeration')
 local ImGuiEx = require('libs/ImGuiEx')
@@ -39,10 +40,10 @@ end
 
 local MainTab = Enumeration('None', 'Inspect', 'Scan', 'Watch', 'Lookup', 'Settings', 'Hotkeys')
 local TargetingMode = Enumeration('GamePhysics', 'StaticBounds')
-local ColorScheme = Enumeration('Green', 'Red', 'Yellow', 'White', 'Shimmer')
-local OutlineMode = Enumeration('ForSupportedObjects', 'Never')
-local MarkerMode = Enumeration('Always', 'ForStaticMeshes', 'WhenOutlineIsUnsupported', 'Never')
-local BoundingBoxMode = Enumeration('ForAreaNodes', 'Never')
+-- local ColorScheme = Enumeration('Green', 'Red', 'Yellow', 'White', 'Shimmer')
+-- local OutlineMode = Enumeration('ForSupportedObjects', 'Never')
+-- local MarkerMode = Enumeration('Always', 'ForStaticMeshes', 'WhenOutlineIsUnsupported', 'Never')
+-- local BoundingBoxMode = Enumeration('ForAreaNodes', 'Never')
 local WindowSnapping = Enumeration('Disabled', 'TopLeft', 'TopRight')
 
 local userState = {}
@@ -56,14 +57,14 @@ local userStateSchema = {
     scannerDistance = { type = 'number', default = 25.0 },
     frustumDistance = { type = 'number', default = 0.0 },
     targetingDistance = { type = 'number', default = 0.0 },
-    highlightColor = { type = ColorScheme, default = ColorScheme.Red },
-    outlineMode = { type = OutlineMode, default = OutlineMode.ForSupportedObjects },
-    markerMode = { type = MarkerMode, default = MarkerMode.ForStaticMeshes },
-    boundingBoxMode = { type = BoundingBoxMode, default = BoundingBoxMode.Never },
-    showMarkerDistance = { type = 'boolean', default = true },
-    showBoundingBoxDistances = { type = 'boolean', default = false },
+--     highlightColor = { type = ColorScheme, default = ColorScheme.Red },
+--     outlineMode = { type = OutlineMode, default = OutlineMode.ForSupportedObjects },
+--     markerMode = { type = MarkerMode, default = MarkerMode.ForStaticMeshes },
+--     boundingBoxMode = { type = BoundingBoxMode, default = BoundingBoxMode.Never },
+--     showMarkerDistance = { type = 'boolean', default = true },
+--     showBoundingBoxDistances = { type = 'boolean', default = false },
     targetingMode = { type = TargetingMode, default = TargetingMode.GamePhysics },
-    maxTargets = { type = 'number', default = 8 },
+    maxTargets = { type = 'number', default = 16 },
     highlightInspectorResult = { type = 'boolean', default = true },
     highlightScannerResult = { type = 'boolean', default = true },
     highlightLookupResult = { type = 'boolean', default = false },
@@ -90,58 +91,40 @@ end
 
 -- Targeting --
 
-local collisionGroups = {
-    { name = 'Static', threshold = 0.0, tolerance = 0.2 },
-    { name = 'Dynamic', threshold = 0.0, tolerance = 0.0 },
-    --{ name = 'Cloth', threshold = 0.2, tolerance = 0.0 },
-    --{ name = 'Player', threshold = 0.2, tolerance = 0.0 },
-    --{ name = 'AI', threshold = 0.0, tolerance = 0.0 },
-    { name = 'Vehicle', threshold = 0.0, tolerance = 0.0 },
-    --{ name = 'Tank', threshold = 0.0, tolerance = 0.0 },
-    { name = 'Destructible', threshold = 0.0, tolerance = 0.0 },
-    { name = 'Terrain', threshold = 0.0, tolerance = 0.0 },
-    { name = 'Collider', threshold = 0.0, tolerance = 0.0 },
-    --{ name = 'Particle', threshold = 0.0, tolerance = 0.0 },
-    --{ name = 'Ragdoll', threshold = 0.0, tolerance = 0.0 },
-    --{ name = 'Ragdoll Inner', threshold = 0.0, tolerance = 0.0 },
-    { name = 'Debris', threshold = 0.0, tolerance = 0.0 },
-    { name = 'PlayerBlocker', threshold = 0.0, tolerance = 0.0 },
-    { name = 'VehicleBlocker', threshold = 0.0, tolerance = 0.0 },
-    --{ name = 'TankBlocker', threshold = 0.0, tolerance = 0.0 },
-    { name = 'DestructibleCluster', threshold = 0.0, tolerance = 0.0 },
-    --{ name = 'NPCBlocker', threshold = 0.0, tolerance = 0.0 },
-    { name = 'Visibility', threshold = 0.0, tolerance = 0.0 },
-    --{ name = 'Audible', threshold = 0.0, tolerance = 0.0 },
-    { name = 'Interaction', threshold = 0.0, tolerance = 0.0 },
-    --{ name = 'Shooting', threshold = 0.2, tolerance = 0.0 },
-    { name = 'Water', threshold = 0.0, tolerance = 0.0 },
-    { name = 'NetworkDevice', threshold = 0.0, tolerance = 0.0 },
-    --{ name = 'NPCTraceObstacle', threshold = 0.0, tolerance = 0.0 },
-    --{ name = 'PhotoModeCamera', threshold = 0.0, tolerance = 0.0 },
-    { name = 'FoliageDestructible', threshold = 0.0, tolerance = 0.0 },
-    --{ name = 'NPCNameplate', threshold = 0.0, tolerance = 0.0 },
-    --{ name = 'NPCCollision', threshold = 0.0, tolerance = 0.0 },
-}
+local targetingReady = false
+local targetingPaused = false
 
-local extendedCollisionGroups = {
-    { name = 'Static+' },
-    { name = 'Dynamic+' },
-}
+local collisionGroups = require(modulePath .. '/data/collision-groups')
 
 local function initializeTargeting()
     for _, collision in ipairs(collisionGroups) do
         collision.name = StringToName(collision.name)
     end
 
-    for _, collision in ipairs(extendedCollisionGroups) do
-        collision.name = StringToName(collision.name)
-    end
+    GameSession.OnStart(function()
+        targetingReady = true
+    end)
+
+    GameSession.OnEnd(function()
+        targetingReady = false
+    end)
+
+    GameSession.OnPause(function()
+        targetingPaused = true
+    end)
+
+    GameSession.OnResume(function()
+        targetingPaused = false
+    end)
+
+    targetingReady = GameSession.IsLoaded()
+    targetingPaused = GameSession.IsPaused()
 end
 
 local function getCameraData(distance)
 	local player = GetPlayer()
 
-	if not IsDefined(player) or IsDefined(GetMountedVehicle(player)) then
+	if not IsDefined(player) or IsDefined(GetMountedVehicle(player)) or IsDefined(player:GetActiveWeapon()) then
         return nil
 	end
 
@@ -161,11 +144,21 @@ local function getCameraData(distance)
         position = position,
         forward = forward,
         destination = destination,
-        instigator = Ref.Weak(player)
+        instigator = Ref.Weak(player),
+        interior = IsEntityInInteriorArea(player),
+        world = player:GetWorldPosition(),
+        nearPlane = {
+            origin = position,
+            normal = forward,
+        },
     }
 end
 
 local function getLookAtTargets(maxDistance)
+	if not targetingReady or not inspectionSystem:IsReady() then
+        return
+	end
+
 	local camera = getCameraData(maxDistance or userState.targetingDistance)
 
 	if not camera then
@@ -174,29 +167,82 @@ local function getLookAtTargets(maxDistance)
 
 	if userState.targetingMode == TargetingMode.GamePhysics then
         local results = {}
+        local targetMap = {}
 
-        local entity = targetingSystem:GetLookAtObject(camera.instigator, true, false)
-        if IsDefined(entity) then
-            table.insert(results, {
+        local component = targetingSystem:GetLookAtComponent(camera.instigator, true, false)
+        if IsDefined(component) then
+            local entity = component:GetEntity()
+            local result = {
                 resolved = true,
-                entity = Ref.Weak(entity),
                 hash = RedHotTools.GetObjectHash(entity),
-                distance = Vector4.Distance(camera.position, ToVector4(entity:GetWorldPosition())),
-                collision = extendedCollisionGroups[2],
-            })
+                entity = Ref.Weak(entity),
+                component = Ref.Weak(component),
+                distance = Vector4.Distance(camera.world, ToVector4(entity:GetWorldPosition())),
+                collision = collisionGroups[1], -- Dynamic
+            }
+
+            if entity:IsA('gameObject') and entity:IsNPC() then
+                local success, trace = spatialQuerySystem:SyncRaycastByCollisionGroup(camera.position, camera.destination, 'NPCTraceObstacle', false, false)
+                if success then
+                    local target = inspectionSystem:GetPhysicsTraceObject(trace)
+                    if target.resolved and target.hash == result.hash then
+                        result.proxyID = target.proxyID
+                        result.actorIndex = target.actorIndex
+                        result.actorOffset = target.actorOffset
+                        result.shapeIndex = target.shapeIndex
+                    end
+                end
+            end
+
+            table.insert(results, result)
+
+            targetMap[tostring(result.hash)] = result
         end
 
         for _, collision in ipairs(collisionGroups) do
-            local success, trace = spatialQuerySystem:SyncRaycastByCollisionGroup(camera.position, camera.destination, collision.name, false, false)
-            if success then
-                local target = inspectionSystem:GetPhysicsTraceObject(trace)
-                if target.resolved then
-                    local distance = Vector4.Distance(camera.position, ToVector4(trace.position))
-                    if distance > collision.threshold then
-                        target.distance = distance
-                        target.collision = collision
-                        table.insert(results, target)
+            local stepPosition = camera.position
+            local stepDistance = 0.1
+            local lastTargetHash
+            while true do
+                local success, trace = spatialQuerySystem:SyncRaycastByCollisionGroup(stepPosition, camera.destination, collision.name, false, false)
+                if success then
+                    local target = inspectionSystem:GetPhysicsTraceObject(trace)
+                    if target.resolved then
+                        if lastTargetHash == target.hash then
+                            break
+                        end
+
+                        if targetMap[tostring(target.hash)] then
+                            local result = targetMap[tostring(target.hash)]
+                            if not result.proxyID then
+                                result.proxyID = target.proxyID
+                                result.actorIndex = target.actorIndex
+                                result.actorOffset = target.actorOffset
+                                result.shapeIndex = target.shapeIndex
+                                result.distance = target.distance
+                            end
+                        else
+                            local result = target
+                            result.collision = collision
+                            result.distance = result.distance + Vector4.Distance(camera.position, stepPosition)
+
+                            table.insert(results, result)
+
+                            targetMap[tostring(result.hash)] = result
+                        end
+
+                        lastTargetHash = target.hash
+                        stepPosition = Vector4.new(
+                            trace.position.x + camera.forward.x * stepDistance,
+                            trace.position.y + camera.forward.y * stepDistance,
+                            trace.position.z + camera.forward.z * stepDistance,
+                            1.0
+                        )
+                    else
+                        break
                     end
+                else
+                    break
                 end
             end
         end
@@ -205,16 +251,11 @@ local function getLookAtTargets(maxDistance)
             return
         end
 
-        local nearest = results[1]
+        table.sort(results, function(a, b)
+            return (a.distance + a.collision.tolerance) < (b.distance + b.collision.tolerance)
+        end)
 
-        for i = 2, #results do
-            local diff = nearest.distance - results[i].distance
-            if diff > results[i].collision.tolerance then
-                nearest = results[i]
-            end
-        end
-
-        return { nearest }
+        return results
 	end
 
     if userState.targetingMode == TargetingMode.StaticBounds then
@@ -224,8 +265,21 @@ local function getLookAtTargets(maxDistance)
             return
         end
 
-        while #results > userState.maxTargets do
-            table.remove(results)
+        for i = #results, 1, -1 do
+            results[i].collision = collisionGroups[2] -- Static
+
+            if camera.interior and RedHotTools.IsInstanceOf(results[i].nodeDefinition, 'worldStaticLightNode') then
+                results[i].interior = true
+            end
+        end
+
+        if camera.interior then
+            table.sort(results, function(a, b)
+                if a.interior ~= b.interior then
+                    return a.interior
+                end
+                return (a.distance + a.collision.tolerance) < (b.distance + b.collision.tolerance)
+            end)
         end
 
         return results
@@ -235,54 +289,48 @@ end
 -- Highlighting --
 
 local highlight = {
-    target = nil,
     pending = nil,
+    target = nil,
+    profile = nil,
     projections = {},
-    color = 0,
-    outline = 0,
 }
 
-local shimmer = {
-    steps = { 1, 5, 3, 4 },
-    reverse = false,
-    state = 1,
-    tick = 1,
-    delay = 1,
-}
-
-local colorMapping = {
-    [ColorScheme.Green] = 0xFF32FF1D,
-    [ColorScheme.Red] = 0xFF050FFF,
-    [ColorScheme.Yellow] = 0xFF62E8FC,
-    [ColorScheme.White] = 0xFFFFFFFF,
-    [ColorScheme.Shimmer] = 0xFF0060FF,
-}
-
-local outlineMapping = {
-    [ColorScheme.Green] = 1,
-    [ColorScheme.Red] = 2,
-    [ColorScheme.Yellow] = 5,
-    [ColorScheme.White] = 7,
-    [ColorScheme.Shimmer] = 0,
-}
+local highlightProfiles = require(modulePath .. '/data/highlight-profiles')
+local highlightNodeMapping = require(modulePath .. '/data/highlight-node-mapping')
 
 local function initializeHighlighting()
-    highlight.color = colorMapping[userState.highlightColor]
-    highlight.outline = outlineMapping[userState.highlightColor]
-
-    if userState.highlightColor == ColorScheme.Shimmer then
-        shimmer.state = 1
-        shimmer.reverse = false
-        highlight.outline = shimmer.steps[shimmer.state]
-    end
+    --
 end
 
-local function applyHighlightEffect(target, enabled)
+local function resolveHighlightProfile(target)
+   if target then
+       if IsDefined(target.entity) then
+           return highlightProfiles[target.entity:IsA('gameObject') and 'Object' or 'Dynamic']
+       end
+
+       if target.nodeType then
+            return highlightProfiles[highlightNodeMapping[target.nodeType]]
+       end
+   end
+
+   return nil
+end
+
+local function applyHighlightEffect(target, profile, enabled)
+    if not profile or (not profile.focusOutlineIndex and not profile.focusFillIndex) then
+        return false
+    end
+
     local effect = entRenderHighlightEvent.new({
         seeThroughWalls = true,
-        outlineIndex = enabled and highlight.outline or 0,
-        opacity = 1.0
+        outlineIndex = enabled and profile.focusOutlineIndex or 0,
+        fillIndex = enabled and profile.focusFillIndex or 0,
+        opacity = enabled and profile.focusOpacity or 0.0
     })
+
+    if enabled and profile.focusOpacityBoost and not IsEntityInInteriorArea(GetPlayer()) then
+        effect.opacity = effect.opacity + profile.focusOpacityBoost
+    end
 
     if IsDefined(target.entity) then
         return inspectionSystem:ApplyHighlightEffect(target.entity, effect)
@@ -293,9 +341,9 @@ local function applyHighlightEffect(target, enabled)
         return inspectionSystem:ApplyHighlightEffect(target.component:GetEntity(), effect)
     end
 
-    if IsDefined(target.parentInstance) then
-        return inspectionSystem:ApplyHighlightEffect(target.parentInstance, effect)
-    end
+    --if IsDefined(target.parentInstance) then
+    --    return inspectionSystem:ApplyHighlightEffect(target.parentInstance, effect)
+    --end
 
     if IsDefined(target.nodeInstance) then
         return inspectionSystem:ApplyHighlightEffect(target.nodeInstance, effect)
@@ -304,72 +352,13 @@ local function applyHighlightEffect(target, enabled)
     return false
 end
 
-local function enableHighlight(target)
-    local isOutlineActive = false
-    if userState.outlineMode == OutlineMode.ForSupportedObjects then
-        isOutlineActive = applyHighlightEffect(target, true)
-
-        if isOutlineActive and userState.highlightColor == ColorScheme.Shimmer then
-            if shimmer.tick == shimmer.delay then
-                if shimmer.reverse then
-                    shimmer.state = shimmer.state - 1
-                    if shimmer.state == 1 then
-                        shimmer.reverse = false
-                    end
-                else
-                    shimmer.state = shimmer.state + 1
-                    if shimmer.state == #shimmer.steps then
-                        shimmer.reverse = true
-                    end
-                end
-                shimmer.tick = 1
-            else
-                shimmer.tick = shimmer.tick + 1
-            end
-
-            highlight.outline = shimmer.steps[shimmer.state]
-        end
-    end
-
-    highlight.projections = {}
-
-    local showMarker = false
-    if not target.isCollisionNode then
-        if userState.markerMode == MarkerMode.Always then
-            showMarker = true
-        elseif userState.markerMode == MarkerMode.ForStaticMeshes and userState.targetingMode == TargetingMode.StaticBounds then
-            showMarker = true
-        elseif userState.markerMode == MarkerMode.WhenOutlineIsUnsupported and (not isOutlineActive or target.isProxyMeshNode) then
-            showMarker = true
-        end
-    end
-
-    local showBoundingBox = false
-    if not target.isCollisionNode then
-        if userState.boundingBoxMode == BoundingBoxMode.ForAreaNodes and (target.isAreaNode or target.isOccluderNode) then
-            showBoundingBox = true
-        end
-    end
-
-    if showMarker or showBoundingBox then
-        highlight.projections[target.hash] = {
-            target = target,
-            color = highlight.color,
-            showMarker = showMarker,
-            showBoundingBox = showBoundingBox,
-        }
-    end
-end
-
-local function disableHighlight(target)
-    applyHighlightEffect(target, false)
-    highlight.projections = {}
-end
-
 local function disableHighlights()
     if highlight.target then
-        disableHighlight(highlight.target)
+        applyHighlightEffect(highlight.target, highlight.profile, false)
+
         highlight.target = nil
+        highlight.profile = nil
+        highlight.projections = {}
     end
 end
 
@@ -379,16 +368,32 @@ local function updateHighlights()
         return
     end
 
+    highlight.changed = true
+
     if highlight.target then
         if highlight.target.hash ~= highlight.pending.hash then
             disableHighlights()
+        else
+            highlight.changed = false
         end
     end
 
     highlight.target = highlight.pending
     highlight.pending = nil
 
-    enableHighlight(highlight.target)
+    highlight.profile = resolveHighlightProfile(highlight.target)
+    highlight.projections = {}
+
+    if not highlight.profile then
+        return
+    end
+
+    highlight.projections[highlight.target.hash] = {
+        target = highlight.target,
+        profile = highlight.profile,
+    }
+
+    applyHighlightEffect(highlight.target, highlight.profile, true)
 end
 
 local function highlightTarget(target)
@@ -401,130 +406,7 @@ end
 
 -- Resolving --
 
-local nodeGroupMapping = {
-    ['gameCyberspaceBoundaryNode'] = 'Boundaries',
-    ['gameDynamicEventNode'] = 'Maps',
-    ['gameEffectTriggerNode'] = 'Effects',
-    ['gameKillTriggerNode'] = 'Boundaries',
-    ['gameWorldBoundaryNode'] = 'Boundaries',
-    ['MinimapDataNode'] = 'Maps',
-    ['worldAcousticPortalNode'] = 'Audio',
-    ['worldAcousticSectorNode'] = 'Audio',
-    ['worldAcousticsOutdoornessAreaNode'] = 'Audio',
-    ['worldAcousticZoneNode'] = 'Audio',
-    ['worldAdvertisementNode'] = 'Meshes',
-    ['worldAIDirectorSpawnAreaNode'] = 'AI',
-    ['worldAIDirectorSpawnNode'] = 'AI',
-    ['worldAISpotNode'] = 'AI',
-    ['worldAmbientAreaNode'] = 'Audio',
-    ['worldAmbientPaletteExclusionAreaNode'] = 'Audio',
-    ['worldAreaProxyMeshNode'] = 'Other',
-    ['worldAreaShapeNode'] = 'Other',
-    ['worldAudioAttractAreaNode'] = 'Scene',
-    ['worldAudioSignpostTriggerNode'] = 'Audio',
-    ['worldAudioTagNode'] = 'Audio',
-    ['worldBakedDestructionNode'] = 'Meshes',
-    ['worldBendedMeshNode'] = 'Meshes',
-    ['worldBuildingProxyMeshNode'] = 'Meshes',
-    ['worldCableMeshNode'] = 'Meshes',
-    ['worldClothMeshNode'] = 'Meshes',
-    ['worldCollisionAreaNode'] = 'Collisions',
-    ['worldCollisionNode'] = 'Collisions',
-    ['worldCommunityRegistryNode'] = 'Population',
-    ['worldCompiledCommunityAreaNode'] = 'Population',
-    ['worldCompiledCommunityAreaNode_Streamable'] = 'Population',
-    ['worldCompiledCrowdParkingSpaceNode'] = 'Population',
-    ['worldCompiledSmartObjectsNode'] = 'AI',
-    ['worldCrowdNullAreaNode'] = 'Population',
-    ['worldCrowdParkingSpaceNode'] = 'Population',
-    ['worldCrowdPortalNode'] = 'Population',
-    ['worldCurvePathNode'] = 'Other',
-    ['worldDecorationMeshNode'] = 'Meshes',
-    ['worldDecorationProxyMeshNode'] = 'Meshes',
-    ['worldDestructibleEntityProxyMeshNode'] = 'Meshes',
-    ['worldDestructibleProxyMeshNode'] = 'Meshes',
-    ['worldDeviceNode'] = 'Entities',
-    ['worldDistantGINode'] = 'Lighting',
-    ['worldDistantLightsNode'] = 'Lighting',
-    ['worldDynamicMeshNode'] = 'Meshes',
-    ['worldEffectNode'] = 'Effects',
-    ['worldEntityNode'] = 'Entities',
-    ['worldEntityProxyMeshNode'] = 'Entities',
-    ['worldFoliageDestructionNode'] = 'Meshes',
-    ['worldFoliageNode'] = 'Meshes',
-    ['worldGenericProxyMeshNode'] = 'Meshes',
-    ['worldGeometryShapeNode'] = 'Other',
-    ['worldGINode'] = 'Lighting',
-    ['worldGIShapeNode'] = 'Lighting',
-    ['worldGISpaceNode'] = 'Lighting',
-    ['worldGuardAreaNode'] = 'AI',
-    ['worldInstancedDestructibleMeshNode'] = 'Meshes',
-    ['worldInstancedMeshNode'] = 'Meshes',
-    ['worldInstancedOccluderNode'] = 'Culling',
-    ['worldInterestingConversationsAreaNode'] = 'Scene',
-    ['worldInteriorAreaNode'] = 'Areas',
-    ['worldInteriorMapNode'] = 'Maps',
-    ['worldInvalidProxyMeshNode'] = 'Meshes',
-    ['worldLightChannelShapeNode'] = 'Lighting',
-    ['worldLightChannelVolumeNode'] = 'Lighting',
-    ['worldLocationAreaNode'] = 'Maps',
-    ['worldMeshNode'] = 'Meshes',
-    ['worldMinimapConfigAreaNode'] = 'Maps',
-    ['worldMinimapModeOverrideAreaNode'] = 'Maps',
-    ['worldMirrorNode'] = 'Culling',
-    ['worldNavigationConfigAreaNode'] = 'Navigation',
-    ['worldNavigationDeniedAreaNode'] = 'Navigation',
-    ['worldNavigationNode'] = 'Navigation',
-    ['worldOffMeshConnectionNode'] = 'Navigation',
-    ['worldOffMeshSmartObjectNode'] = 'Navigation',
-    ['worldPatrolSplineNode'] = 'Navigation',
-    ['worldPerformanceAreaNode'] = 'Other',
-    ['worldPhysicalDestructionNode'] = 'Meshes',
-    ['worldPhysicalFractureFieldNode'] = 'Physics',
-    ['worldPhysicalImpulseAreaNode'] = 'Physics',
-    ['worldPhysicalTriggerAreaNode'] = 'Physics',
-    ['worldPopulationSpawnerNode'] = 'Population',
-    ['worldPrefabNode'] = 'Other',
-    ['worldPrefabProxyMeshNode'] = 'Meshes',
-    ['worldPreventionFreeAreaNode'] = 'Areas',
-    ['worldQuestProxyMeshNode'] = 'Meshes',
-    ['worldRaceSplineNode'] = 'Navigation',
-    ['worldReflectionProbeNode'] = 'Lighting',
-    ['worldRoadProxyMeshNode'] = 'Meshes',
-    ['worldRotatingMeshNode'] = 'Meshes',
-    ['worldSaveSanitizationForbiddenAreaNode'] = 'Areas',
-    ['worldSceneRecordingContentObserverNode'] = 'Other',
-    ['worldSmartObjectNode'] = 'AI',
-    ['worldSocketNode'] = 'Other',
-    ['worldSpeedSplineNode'] = 'Navigation',
-    ['worldSplineNode'] = 'Other',
-    ['worldStaticDecalNode'] = 'Meshes',
-    ['worldStaticFogVolumeNode'] = 'Lighting',
-    ['worldStaticGpsLocationEntranceMarkerNode'] = 'Maps',
-    ['worldStaticLightNode'] = 'Lighting',
-    ['worldStaticMarkerNode'] = 'Maps',
-    ['worldStaticMeshNode'] = 'Meshes',
-    ['worldStaticOccluderMeshNode'] = 'Culling',
-    ['worldStaticParticleNode'] = 'Particles',
-    ['worldStaticQuestMarkerNode'] = 'Maps',
-    ['worldStaticSoundEmitterNode'] = 'Audio',
-    ['worldStaticStickerNode'] = 'Other',
-    ['worldStaticVectorFieldNode'] = 'Particles',
-    ['worldTerrainCollisionNode'] = 'Collisions',
-    ['worldTerrainMeshNode'] = 'Terrain',
-    ['worldTerrainProxyMeshNode'] = 'Terrain',
-    ['worldTrafficCollisionGroupNode'] = 'Navigation',
-    ['worldTrafficCompiledNode'] = 'Navigation',
-    ['worldTrafficPersistentNode'] = 'Navigation',
-    ['worldTrafficSourceNode'] = 'Navigation',
-    ['worldTrafficSplineNode'] = 'Navigation',
-    ['worldTrafficSpotNode'] = 'Navigation',
-    ['worldTriggerAreaNode'] = 'Areas',
-    ['worldVehicleForbiddenAreaNode'] = 'Areas',
-    ['worldWaterNullAreaNode'] = 'Water',
-    ['worldWaterPatchNode'] = 'Water',
-    ['worldWaterPatchProxyMeshNode'] = 'Water',
-}
+local nodeGroupMapping = require(modulePath .. '/data/target-group-mapping')
 
 local function resolveComponents(entity)
     local components = {}
@@ -566,6 +448,10 @@ local function resolveComponents(entity)
             end
         end
 
+        --if IsDefined(component.filterData) then
+        --    data.collisionPreset = component.filterData.preset.value
+        --end
+
         local description = { data.componentType, data.componentName }
         data.description = table.concat(description, ' | ')
 
@@ -574,6 +460,13 @@ local function resolveComponents(entity)
 
         table.insert(components, data)
     end
+
+    table.sort(components, function(a, b)
+        if a.componentType == b.componentType then
+            return a.componentName < b.componentName
+        end
+        return a.componentType < b.componentType
+    end)
 
     return components
 end
@@ -715,9 +608,15 @@ local function fillTargetEntityData(target, data)
         data.hasComponents = (#data.components > 0)
         data.hasAttachments = (#data.attachments > 0)
         data.hasVisualTags = (#data.visualTags > 0)
+
+        if IsDefined(target.component) then
+            data.componentName = target.component.name.value
+            data.componentType = target.component:GetClassName().value
+        end
     end
 
     data.entity = target.entity
+    data.component = target.component
     data.isEntity = IsDefined(data.entity)
 end
 
@@ -742,6 +641,7 @@ local function fillTargetNodeData(target, data)
     local sectorData
     if IsDefined(target.nodeInstance) then
         sectorData = inspectionSystem:ResolveSectorDataFromNodeInstance(target.nodeInstance)
+        --data.nodeEnabled = inspectionSystem:GetNodeVisibility(target.nodeInstance)
     elseif isNotEmpty(target.nodeID) then
         sectorData = inspectionSystem:ResolveSectorDataFromNodeID(target.nodeID)
     end
@@ -755,6 +655,7 @@ local function fillTargetNodeData(target, data)
         data.nodeID = sectorData.nodeID
         data.parentID = sectorData.parentID
         data.debugName = sectorData.debugName
+        data.interior = sectorData.interior
     end
 
     if IsDefined(target.nodeDefinition) then
@@ -812,6 +713,40 @@ local function fillTargetNodeData(target, data)
         if RedHotTools.IsInstanceOf(node, 'worldAISpotNode') and node.spot and node.spot.resource then
             data.workspotPath = RedHotTools.GetResourcePath(node.spot.resource.hash)
         end
+
+        if RedHotTools.IsInstanceOf(node, 'worldCollisionNode') then
+            data.physicsProxyID = target.proxyID or -1
+            data.physicsActorIndex = target.actorIndex or 0
+            data.physicsActorOffset = target.actorOffset or 0
+            data.physicsShapeIndex = target.shapeIndex or 0
+            data.actorIndex = data.physicsActorIndex + data.physicsActorOffset
+            data.actorCount = node.numActors
+        end
+
+        if RedHotTools.IsInstanceOf(node, 'worldInstancedMeshNode') then
+            data.actorIndex = target.actorIndex or 0
+            data.actorCount = node.worldTransformsBuffer.numElements
+        end
+
+        if RedHotTools.IsInstanceOf(node, 'worldFoliageNode') then
+            data.foliagePath = RedHotTools.GetResourcePath(node.foliageResource.hash)
+            data.actorIndex = target.actorIndex or 0
+            data.actorCount = node.populationSpanInfo.stancesCount
+        end
+
+        if RedHotTools.IsInstanceOf(node, 'worldInstancedOccluderNode') then
+            data.actorIndex = target.actorIndex or 0
+            data.actorCount = target.actorCount or 1
+        end
+
+        if RedHotTools.IsInstanceOf(node, 'worldInstancedDestructibleMeshNode') then
+            data.actorIndex = target.actorIndex or 0
+            data.actorCount = node.cookedInstanceTransforms.numElements or 0
+        end
+
+        if RedHotTools.IsInstanceOf(node, 'worldStaticParticleNode') then
+            data.particlePath = RedHotTools.GetResourcePath(node.particleSystem.hash)
+        end
     end
 
     if isNotEmpty(data.nodeID) then
@@ -820,25 +755,32 @@ local function fillTargetNodeData(target, data)
         data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(target.nodeID)
     end
 
-    if isNotEmpty(data.parentID) then
-        data.parentRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.parentID)
-        if isNotEmpty(data.parentRef) then
-            data.parentInstance = inspectionSystem:FindStreamedNode(data.parentID).nodeInstance
-        end
-    end
+    --if isNotEmpty(data.parentID) then
+    --    data.parentRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.parentID)
+    --    if isNotEmpty(data.parentRef) then
+    --        data.parentInstance = inspectionSystem:FindStreamedNode(data.parentID).nodeInstance
+    --    end
+    --end
 
     data.nodeDefinition = target.nodeDefinition
     data.nodeInstance = target.nodeInstance
 
     data.isNode = IsDefined(data.nodeInstance) or IsDefined(data.nodeDefinition) or isNotEmpty(data.nodeID)
-    data.isAreaNode = data.isNode and RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldAreaShapeNode')
-    data.isOccluderNode = data.isNode and RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldStaticOccluderMeshNode')
-    data.isProxyMeshNode = data.isNode and RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldPrefabProxyMeshNode')
-    data.isCommunityNode = data.isNode and RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldCompiledCommunityAreaNode')
-    data.isSpawnerNode = data.isNode and RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldPopulationSpawnerNode')
-    data.isVisibleNode = data.isNode and (isNotEmpty(data.meshPath) or isNotEmpty(data.materialPath) or isNotEmpty(data.templatePath))
-        or RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldStaticLightNode')
+    data.isMeshNode = data.isNode and (RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldMeshNode') or
+        RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldInstancedMeshNode'))
+    data.isFoliageNode = data.isNode and RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldFoliageNode')
     data.isCollisionNode = data.isNode and RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldCollisionNode')
+    data.isOccluderNode = data.isNode and (RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldStaticOccluderMeshNode') or
+        RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldInstancedOccluderNode'))
+    data.isVisibleNode = data.isNode and (isNotEmpty(data.meshPath) or isNotEmpty(data.materialPath)
+        or isNotEmpty(data.templatePath) or isNotEmpty(data.particlePath)
+        or RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldStaticLightNode'))
+
+    if data.nodeType == 'worldCompiledCommunityAreaNode_Streamable' then
+        data.interior = nil
+    elseif target.interior then
+        data.interior = true
+    end
 
     if isNotEmpty(data.nodeType) then
         data.nodeGroup = nodeGroupMapping[data.nodeType]
@@ -852,27 +794,42 @@ local function fillTargetGeomertyData(target, data)
     data.orientation = target.orientation
     data.boundingBox = target.boundingBox
 
-    if target.testBox and not target.testBox.Min:IsXYZZero() and target.testBox.Min.x <= target.testBox.Max.x then
-        data.testBox = target.testBox
-        data.position = Game['OperatorAdd;Vector4Vector4;Vector4'](data.testBox.Min, data.testBox:GetExtents())
-    end
-
     if IsDefined(data.nodeInstance) then
-        if target.testBox then
-            data.nodePosition = data.position
-            data.nodeOrientation = data.orientation
-            data.nodeScale = data.scale
-        else
-            local geometry = inspectionSystem:GetStreamedNodeGeometry(data.nodeInstance)
-            data.nodePosition = geometry.position
-            data.nodeOrientation = geometry.orientation
-            data.nodeScale = geometry.scale
-        end
+        local geometry = inspectionSystem:GetStreamedNodeGeometry(data.nodeInstance)
+        data.nodePosition = geometry.position
+        data.nodeOrientation = geometry.orientation
+        data.nodeScale = geometry.scale
     end
 
-    if not data.nodePosition and IsDefined(data.entity) then
+    if IsDefined(data.entity) then
         data.entityPosition = data.entity:GetWorldPosition()
         data.entityOrientation = data.entity:GetWorldOrientation()
+    end
+
+    if IsDefined(target.entity) then
+        local geometry = inspectionSystem:GetPhysicsObjectGeometry(target.entity, -1, -1)
+        data.position = geometry.position
+        data.orientation = geometry.orientation
+        data.boundingBox = geometry.boundingBox
+    elseif target.proxyID then
+        data.physicsProxyID = target.proxyID
+        data.physicsActorIndex = target.actorIndex or 0
+        data.physicsActorOffset = target.actorOffset or 0
+        data.physicsShapeIndex = target.shapeIndex or 0
+        data.actorIndex = data.physicsActorIndex + data.physicsActorOffset
+        data.actorCount = target.actorCount or data.actorCount
+        local geometry = inspectionSystem:GetPhysicsProxyGeometry(data.physicsProxyID, data.physicsActorIndex, -1)
+        data.position = geometry.position
+        data.orientation = geometry.orientation
+        data.boundingBox = geometry.boundingBox
+    end
+
+    if data.boundingBox and data.boundingBox:GetRange() <= 0 then
+        data.boundingBox = nil
+    end
+
+    if not data.position then
+        data.position = data.nodePosition or data.entityPosition
     end
 end
 
@@ -884,6 +841,9 @@ local function fillTargetDescription(_, data)
             table.insert(description, resourceName)
         elseif isNotEmpty(data.materialPath) then
             local resourceName = data.materialPath:match('\\([^\\]+)$')
+            table.insert(description, resourceName)
+        elseif isNotEmpty(data.particlePath) then
+            local resourceName = data.particlePath:match('\\([^\\]+)$')
             table.insert(description, resourceName)
         elseif isNotEmpty(data.effectPath) then
             local resourceName = data.effectPath:match('\\([^\\]+)$')
@@ -905,41 +865,17 @@ local function fillTargetDescription(_, data)
     elseif isNotEmpty(data.entityType) then
         data.description = ('%s | %d'):format(data.entityType, data.entityID)
     end
-
-    --if isNotEmpty(data.description) and data.distance then
-    --    data.description = ('%s @ %.2fm'):format(data.description, data.distance)
-    --end
-
-     --if isNotEmpty(data.nodeType) then
-     --    local subs = {
-     --        '^world',
-     --        '^Compiled',
-     --        '^Instanced',
-     --        '^Generic',
-     --        '^Static',
-     --        '_Streamable$',
-     --        'Node$',
-     --        'Proxy',
-     --    }
-     --
-     --    local nodeTypeAlias = data.nodeType
-     --    for _, sub in ipairs(subs) do
-     --        nodeTypeAlias = nodeTypeAlias:gsub(sub, '')
-     --    end
-     --
-     --    data.nodeTypeAlias = nodeTypeAlias
-     --end
 end
 
 local function fillTargetHash(target, data)
     if isNotEmpty(target.hash) then
         data.hash = target.hash
+    elseif IsDefined(target.entity) then
+        data.hash = RedHotTools.GetObjectHash(target.entity)
     elseif IsDefined(target.nodeInstance) then
         data.hash = RedHotTools.GetObjectHash(target.nodeInstance)
     elseif IsDefined(target.nodeDefinition) then
         data.hash = RedHotTools.GetObjectHash(target.nodeDefinition)
-    elseif IsDefined(target.entity) then
-        data.hash = RedHotTools.GetObjectHash(target.entity)
     end
 end
 
@@ -980,6 +916,45 @@ local function resolveTargetData(target)
     return result
 end
 
+local function updateTargetData(target, data)
+    data.distance = target.distance
+
+    if IsDefined(target.entity) then
+        data.entityPosition = data.entity:GetWorldPosition()
+        data.entityOrientation = data.entity:GetWorldOrientation()
+        local geometry = inspectionSystem:GetPhysicsObjectGeometry(target.entity, -1, -1)
+        data.position = geometry.position
+        data.orientation = geometry.orientation
+        data.boundingBox = geometry.boundingBox
+    elseif target.proxyID then
+        data.physicsProxyID = target.proxyID
+        data.physicsActorIndex = target.actorIndex or 0
+        data.physicsActorOffset = target.actorOffset or 0
+        data.physicsShapeIndex = target.shapeIndex or 0
+        data.actorIndex = data.physicsActorIndex + data.physicsActorOffset
+        data.actorCount = target.actorCount or data.actorCount
+        local geometry = inspectionSystem:GetPhysicsProxyGeometry(data.physicsProxyID, data.physicsActorIndex, -1)
+        data.position = geometry.position
+        data.orientation = geometry.orientation
+        data.boundingBox = geometry.boundingBox
+    elseif target.actorCount and target.actorCount > 1 then
+        data.actorIndex = target.actorIndex or 0
+        data.actorCount = target.actorCount or 0
+        data.position = target.position
+        data.orientation = target.orientation
+        data.boundingBox = target.boundingBox
+    end
+
+    --if IsDefined(target.nodeInstance) then
+    --    data.nodeEnabled = inspectionSystem:GetNodeVisibility(target.nodeInstance)
+    --end
+
+    if IsDefined(target.component) then
+        data.componentName = target.component.name.value
+        data.componentType = target.component:GetClassName().value
+    end
+end
+
 -- Nodes --
 
 local lastTarget
@@ -1013,12 +988,11 @@ local inspector = {
     active = nil,
 }
 
-local function isSameTargets(setA, setB)
-    if #setA ~= #setB then
-        return false
-    end
+local function compareTargets(setA, setB, sorted)
+    local sizeA = #setA
+    local sizeB = #setB
+    local size = math.min(sizeA, sizeB)
 
-    local size = #setA
     local hashesA = {}
     local hashesB = {}
 
@@ -1027,23 +1001,25 @@ local function isSameTargets(setA, setB)
         table.insert(hashesB, setB[i].hash)
     end
 
-    table.sort(hashesA)
-    table.sort(hashesB)
+    if sorted then
+        table.sort(hashesA)
+        table.sort(hashesB)
+    end
 
     for i = 1,size do
         if hashesA[i] ~= hashesB[i] then
-            return false
+            return false, i
         end
     end
 
-    return true
+    return sizeA == sizeB, size
 end
 
-local function updateDistances(results, targets)
+local function updateTargets(results, targets)
     for _, target in ipairs(targets) do
         for _, result in ipairs(results) do
             if result.hash == target.hash then
-                result.distance = target.distance
+                updateTargetData(target, result)
                 break
             end
         end
@@ -1058,9 +1034,38 @@ local function inspectTargets(targets)
         return
     end
 
+    for i = #targets, 1, -1 do
+        if IsDefined(targets[i].nodeDefinition) then
+            if targets[i].distance < 0.1 and not targets[i].interior then
+                table.remove(targets, i)
+            elseif
+                RedHotTools.IsInstanceOf(targets[i].nodeDefinition, 'worldTerrainMeshNode') or
+                RedHotTools.IsInstanceOf(targets[i].nodeDefinition, 'worldTerrainCollisionNode') or
+                RedHotTools.IsInstanceOf(targets[i].nodeDefinition, 'worldTerrainProxyMeshNode')
+            then
+                table.remove(targets, i)
+            end
+        end
+    end
+
+    while #targets > userState.maxTargets do
+        table.remove(targets)
+    end
+
+    if not targets or #targets == 0 then
+        inspector.targets = {}
+        inspector.results = {}
+        inspector.active = nil
+        return
+    end
+
+    local sameTargets = false
+    local sameUpToIndex = false
+    local isStaticMode = userState.targetingMode == TargetingMode.StaticBounds
     if inspector.targets then
-        if isSameTargets(inspector.targets, targets) then
-            updateDistances(inspector.results, targets)
+        sameTargets, sameUpToIndex = compareTargets(inspector.targets, targets, isStaticMode)
+        if sameTargets then
+            updateTargets(inspector.results, targets)
             return
         end
     end
@@ -1074,13 +1079,45 @@ local function inspectTargets(targets)
     end
 
     local active = 1
-    if inspector.active and #inspector.results > 1 then
-         for index, result in ipairs(results) do
-             if result.hash == inspector.results[inspector.active].hash then
-                active = index
-                break
+    if inspector.active and #inspector.results > 1 and sameUpToIndex > 0 then
+        if inspector.active <= sameUpToIndex and inspector.results[inspector.active].hash == targets[inspector.active].hash then
+             active = inspector.active
+        else
+            local priority = 0
+             local previous = inspector.results[inspector.active]
+             for index, result in ipairs(results) do
+                 if result.hash == previous.hash then
+                    if isStaticMode then
+                        active = index
+                        break
+                    elseif result.collision.dynamic and not results[active].collision.dynamic then
+                        active = index
+                        break
+                    end
+                 elseif active ~= index then
+                    if isStaticMode then
+                        if priority < 3 then
+                            if result.meshPath and result.meshPath == previous.meshPath
+                            or result.materialPath and result.materialPath == previous.materialPath
+                            or result.particlePath and result.particlePath == previous.particlePath then
+                                if math.abs(result.distance - previous.distance) <= 10 then
+                                    active = index
+                                    priority = 3
+                                end
+                            end
+                        end
+                    end
+                    if priority < 1 then
+                        if result.nodeType and result.nodeType == previous.nodeType and result.interior == previous.interior then
+                            if math.abs(result.distance - previous.distance) <= 0.1 then
+                                active = index
+                                priority = 1
+                            end
+                        end
+                    end
+                 end
              end
-         end
+        end
     end
 
     inspector.targets = targets
@@ -1098,7 +1135,7 @@ local function selectInspectedResult(index)
 end
 
 local function cycleNextInspectedResult()
-    if inspector.active then
+    if inspector.active and not targetingPaused then
         inspector.active = inspector.active + 1
         if inspector.active > #inspector.results then
             inspector.active = 1
@@ -1107,7 +1144,7 @@ local function cycleNextInspectedResult()
 end
 
 local function cyclePrevInspectedResult()
-    if inspector.active then
+    if inspector.active and not targetingPaused then
         inspector.active = inspector.active - 1
         if inspector.active < 1 then
             inspector.active = #inspector.results
@@ -1118,7 +1155,7 @@ end
 local function updateInspector()
     inspectTargets(getLookAtTargets())
 
-    if userState.highlightInspectorResult and inspector.active then
+    if userState.highlightInspectorResult and inspector.active and not targetingPaused then
         highlightTarget(inspector.results[inspector.active])
     end
 end
@@ -1198,6 +1235,7 @@ local partialMatchFields = {
     'templatePath',
     'recordID',
     'triggerNotifiers',
+    'debugName',
 }
 
 local exactMatchFields = {
@@ -1528,10 +1566,10 @@ end
 
 local function initializeViewData()
     viewData.targetingModeOptions = ImGuiEx.BuildComboOptions(TargetingMode.values, true)
-    viewData.colorSchemeOptions = ImGuiEx.BuildComboOptions(ColorScheme.values)
-    viewData.outlineModeOptions = ImGuiEx.BuildComboOptions(OutlineMode.values)
-    viewData.markerModeOptions = ImGuiEx.BuildComboOptions(MarkerMode.values)
-    viewData.boundingBoxModeOptions = ImGuiEx.BuildComboOptions(BoundingBoxMode.values)
+    --viewData.colorSchemeOptions = ImGuiEx.BuildComboOptions(ColorScheme.values)
+    --viewData.outlineModeOptions = ImGuiEx.BuildComboOptions(OutlineMode.values)
+    --viewData.markerModeOptions = ImGuiEx.BuildComboOptions(MarkerMode.values)
+    --viewData.boundingBoxModeOptions = ImGuiEx.BuildComboOptions(BoundingBoxMode.values)
     viewData.windowSnappingOptions = ImGuiEx.BuildComboOptions(WindowSnapping.values, true)
     viewData.nodeGroupOptions = buildMappingOptions(nodeGroupMapping, 'All')
 end
@@ -1567,6 +1605,8 @@ local function initializeViewStyle()
             + ImGuiWindowFlags.NoFocusOnAppearing + ImGuiWindowFlags.NoBringToFrontOnFocus
 
         viewStyle.buttonHeight = 21 * viewStyle.viewScale
+
+        viewStyle.inspectorTargetWidth = ImGui.CalcTextSize(' 00 ') + ImGui.GetStyle().FramePadding.x * 2 - 3
 
         viewStyle.scannerFilterWidth = 95 * viewStyle.viewScale
         viewStyle.scannerGroupWidth = 75 * viewStyle.viewScale
@@ -1654,7 +1694,7 @@ local function formatOrientation(data, field)
     return ('%.3f, %.3f, %.3f, %.3f'):format(quat.i, quat.j, quat.k, quat.r):gsub('%.000', '.0')
 end
 
-local function validateScale(data, field)
+local function isValidScale(data, field)
     local vec = data[field.name]
     return vec and (vec.x ~= 1 or vec.y ~= 1 or vec.z ~= 1)
 end
@@ -1665,7 +1705,7 @@ local function formatScale(data, field)
 end
 
 local function formatDistance(data)
-    return ('%.2fm'):format(type(data) == 'table' and data.distance or data)
+    return ('%.1fm'):format(type(data) == 'table' and data.distance or data)
 end
 
 local function isValidChunkMask(data)
@@ -1716,12 +1756,39 @@ local function isValidNodeIndex(data)
         and type(data.instanceCount) == 'number' and data.instanceCount > 0
 end
 
-local function isValidCommunityIndex(data)
+local function hasValidCommunityIndex(data)
     return type(data.communityIndex) == 'number' and data.communityIndex >= 0
         and type(data.communityCount) == 'number' and data.communityCount > 0
 end
 
-local function isValidCommunityEntryIndex(data)
+local function hasValidActorIndex(data)
+    return type(data.actorIndex) == 'number' and data.actorIndex >= 0
+        and type(data.actorCount) == 'number' and data.actorCount > 0
+end
+
+local function formatActorLabel(data)
+    if IsDefined(data.nodeDefinition) then
+        if data.isCollisionNode then
+            return 'Collision Actor:'
+        end
+
+        if data.isMeshNode then
+            return 'Mesh Instance:'
+        end
+
+        if data.isFoliageNode then
+            return 'Foliage Instance:'
+        end
+
+        if data.isOccluderNode then
+            return 'Occluder Instance:'
+        end
+    end
+
+    return 'Node Actor:'
+end
+
+local function hasValidCommunityEntryIndex(data)
     return type(data.communityEntryIndex) == 'number' and data.communityEntryIndex >= 0
         and type(data.communityEntryCount) == 'number' and data.communityEntryCount > 0
 end
@@ -1731,8 +1798,12 @@ local function isValidCommunityRegistry(data)
         and type(data.communityRegistryIndex) == 'number' and data.communityRegistryIndex > 0
 end
 
-local function formatCommunityRegistry(data, field)
+local function formatCommunityRegistry(data)
     return ('%s (%d)'):format(data.communityRegistryPath, data.communityRegistryIndex)
+end
+
+local function hasValidComponentInfo(data)
+    return type(data.componentName) == 'string' and type(data.componentType) == 'string'
 end
 
 local resultSchema = {
@@ -1743,7 +1814,7 @@ local resultSchema = {
         { name = 'parentRef', label = 'Parent Ref:', wrap = true },
         { name = 'nodePosition', label = 'Node Position:', format = formatPosition, validate = isValidPosition },
         { name = 'nodeOrientation', label = 'Node Orientation:', format = formatOrientation, validate = isValidOrientation },
-        { name = 'nodeScale', label = 'Node Scale:', format = formatScale, validate = validateScale },
+        { name = 'nodeScale', label = 'Node Scale:', format = formatScale, validate = isValidScale },
         { name = 'sectorPath', label = 'Node Sector:', wrap = true },
         { name = 'nodeIndex', label = 'Node Definition:', format = '%d', validate = isValidNodeIndex },
         { name = 'nodeCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
@@ -1756,10 +1827,10 @@ local resultSchema = {
         { name = 'communityEntryName', label = 'Community Entry Name:' },
         { name = 'communityEntryPhase', label = 'Community Entry Phase:' },
         { name = 'communityRegistry', label = 'Community Registry:', format = formatCommunityRegistry, wrap = true, validate = isValidCommunityRegistry },
-        { name = 'communityIndex', label = 'Community Index:', format = '%d', validate = isValidCommunityIndex },
-        { name = 'communityCount', label = '/', format = '%d', inline = true, validate = isValidCommunityIndex },
-        { name = 'communityEntryIndex', label = 'Community Entry Index:', format = '%d', validate = isValidCommunityEntryIndex },
-        { name = 'communityEntryCount', label = '/', format = '%d', inline = true, validate = isValidCommunityEntryIndex },
+        { name = 'communityIndex', label = 'Community Index:', format = '%d', validate = hasValidCommunityIndex },
+        { name = 'communityCount', label = '/', format = '%d', inline = true, validate = hasValidCommunityIndex },
+        { name = 'communityEntryIndex', label = 'Community Entry Index:', format = '%d', validate = hasValidCommunityEntryIndex },
+        { name = 'communityEntryCount', label = '/', format = '%d', inline = true, validate = hasValidCommunityEntryIndex },
     },
     {
         { name = 'entityType', label = 'Entity Type:' },
@@ -1769,16 +1840,24 @@ local resultSchema = {
         { name = 'templatePath', label = 'Entity Template:', wrap = true },
         { name = 'appearanceName', label = 'Entity Appearance:', wrap = true },
         { name = 'deviceClass', label = 'Device Class:' },
-        { name = 'meshPath', label = 'Mesh Resource:', wrap = true },
-        { name = 'meshAppearance', label = 'Mesh Appearance:', wrap = true },
-        { name = 'materialPath', label = 'Material:', wrap = true },
-        { name = 'effectPath', label = 'Effect:', wrap = true },
-        { name = 'workspotPath', label = 'Workspot:', wrap = true },
-        { name = 'triggerNotifiers', label = 'Trigger Notifiers:', format = formatArrayField, validate = isValidArrayField },
-        { name = 'lootTables', label = 'Loot Tables:', format = formatArrayField, validate = isValidArrayField },
-        { name = 'occluderType', label = 'Occluder Type:' },
         { name = 'entityPosition', label = 'Entity Position:', format = formatPosition },
         { name = 'entityOrientation', label = 'Entity Orientation:', format = formatOrientation },
+        { name = 'meshPath', label = 'Mesh Resource:', wrap = true },
+        { name = 'meshAppearance', label = 'Mesh Appearance:', wrap = true },
+        { name = 'materialPath', label = 'Material Resource:', wrap = true },
+        { name = 'particlePath', label = 'Particle Resource:', wrap = true },
+        { name = 'effectPath', label = 'Effect Resource:', wrap = true },
+        { name = 'workspotPath', label = 'Workspot Resource:', wrap = true },
+        { name = 'foliagePath', label = 'Foliage Resource:', wrap = true },
+        { name = 'occluderType', label = 'Occluder Type:' },
+        { name = 'actorIndex', label = formatActorLabel, format = '%d', validate = hasValidActorIndex },
+        { name = 'actorCount', label = '/', format = '%d', inline = true, validate = hasValidActorIndex },
+        { name = 'triggerNotifiers', label = 'Trigger Notifiers:', format = formatArrayField, validate = isValidArrayField },
+        { name = 'lootTables', label = 'Loot Tables:', format = formatArrayField, validate = isValidArrayField },
+    },
+    {
+        { name = 'componentType', label = 'Component Type', validate = hasValidComponentInfo },
+        { name = 'componentName', label = 'Component Name', wrap = true, validate = hasValidComponentInfo },
     },
     {
         { name = 'resolvedPath', label = 'Resource:', wrap = true },
@@ -1824,6 +1903,10 @@ end
 
 local function drawField(field, data)
     local label = field.label
+    if type(label) == 'function' then
+        label = label(data, field)
+    end
+
     if field.inline then
         if type(field.inline) == 'function' then
             local inline = field.inline(data, field)
@@ -1988,7 +2071,7 @@ local function drawFieldset(targetData, withSeparators, withExtras, withExtrasFr
         end
 
         if hasExtras and withExtrasFrame then
-            ImGui.BeginChildFrame(1, 0, 10 * ImGui.GetFrameHeightWithSpacing())
+            ImGui.BeginChildFrame(1, 0, 15 * ImGui.GetFrameHeightWithSpacing())
         end
 
         if targetData.hasComponents then
@@ -2060,21 +2143,27 @@ end
 local function drawInspectorContent(isModal)
     ImGui.Text(viewData.targetingModeOptions[TargetingMode.values[userState.targetingMode]])
     if inspector.active then
-        if inspector.results[inspector.active].collision then
-            ImGui.SameLine()
-            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
-            ImGui.Text('/')
-            ImGui.PopStyleColor()
-            ImGui.SameLine()
-            ImGui.Text(inspector.results[inspector.active].collision.name.value)
-        end
-        if inspector.results[inspector.active].distance then
+        local selected = inspector.results[inspector.active]
+        if selected.distance then
             ImGui.SameLine()
             ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
             ImGui.Text('@')
             ImGui.PopStyleColor()
             ImGui.SameLine()
-            ImGui.Text(formatDistance(inspector.results[inspector.active].distance))
+            ImGui.Text(formatDistance(selected.distance))
+        end
+        local extra = {}
+        if selected.collision then
+            table.insert(extra, selected.collision.name.value)
+        end
+        if selected.interior ~= nil then
+            table.insert(extra, selected.interior and 'Interior' or 'Exterior')
+        end
+        if #extra > 0 then
+            ImGui.SameLine()
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
+            ImGui.Text('(' .. table.concat(extra, ', ') .. ')')
+            ImGui.PopStyleColor()
         end
         if #inspector.results > 1 then
             ImGui.Spacing()
@@ -2086,9 +2175,7 @@ local function drawInspectorContent(isModal)
                     ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 1)
                     ImGui.PushStyleColor(ImGuiCol.Button, 0)
                 end
-                --local label = ('%d %s'):format(index, inspector.results[index].nodeTypeAlias)
-                local label = (' %d '):format(index)
-                if ImGui.Button(label) then
+                if ImGui.Button(tostring(index), viewStyle.inspectorTargetWidth, 0) then
                     selectInspectedResult(index)
                 end
                 if not isActive then
@@ -2099,10 +2186,11 @@ local function drawInspectorContent(isModal)
                 if ImGui.IsItemHovered() then
                     ImGui.SetTooltip(inspector.results[index].nodeType)
                 end
-                ImGui.SameLine()
+                if index % 16 ~= 0 then
+                    ImGui.SameLine()
+                end
             end
             ImGui.EndGroup()
-
         end
         ImGui.Spacing()
         ImGui.Separator()
@@ -2354,82 +2442,82 @@ local function drawSettingsContent()
     ImGui.Separator()
     ImGui.Spacing()
 
-    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-    ImGui.SetWindowFontScale(viewStyle.groupCaptionSize)
-    ImGui.Text('HIGHLIGHTING')
-    ImGui.SetWindowFontScale(1.0)
-    ImGui.PopStyleColor()
-
-    ImGui.BeginGroup()
-    ImGui.AlignTextToFramePadding()
-    ImGui.Text('Color theme:')
-    ImGui.SameLine()
-    ImGui.SetNextItemWidth(viewStyle.settingsShortComboRowWidth - ImGui.GetCursorPosX())
-    state, changed = ImGui.Combo('##HighlightColor', ColorScheme.values[userState.highlightColor] - 1, viewData.colorSchemeOptions, #viewData.colorSchemeOptions)
-    if changed then
-        userState.highlightColor = ColorScheme.values[state + 1]
-        initializeHighlighting()
-    end
-    ImGui.EndGroup()
-
-    ImGui.BeginGroup()
-    ImGui.AlignTextToFramePadding()
-    ImGui.Text('Show outline:')
-    ImGui.SameLine()
-    ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
-    state, changed = ImGui.Combo('##OutlineMode', OutlineMode.values[userState.outlineMode] - 1, viewData.outlineModeOptions, #viewData.outlineModeOptions)
-    if changed then
-        userState.outlineMode = OutlineMode.values[state + 1]
-    end
-    ImGui.EndGroup()
-
-    ImGui.BeginGroup()
-    ImGui.AlignTextToFramePadding()
-    ImGui.Text('Show marker:')
-    ImGui.SameLine()
-    ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
-    state, changed = ImGui.Combo('##MarkerMode', MarkerMode.values[userState.markerMode] - 1, viewData.markerModeOptions, #viewData.markerModeOptions)
-    if changed then
-        userState.markerMode = MarkerMode.values[state + 1]
-    end
-    ImGui.EndGroup()
-    if ImGui.IsItemHovered() then
-        ImGui.SetTooltip(
-            'Shows marker at the center of a mesh or area,\n' ..
-            'or at the world position of a shapeless node.')
-    end
-
-    ImGui.BeginGroup()
-    ImGui.AlignTextToFramePadding()
-    ImGui.Text('Show bounding box:')
-    ImGui.SameLine()
-    ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
-    state, changed = ImGui.Combo('##BoundingBoxMode', BoundingBoxMode.values[userState.boundingBoxMode] - 1, viewData.boundingBoxModeOptions, #viewData.boundingBoxModeOptions)
-    if changed then
-        userState.boundingBoxMode = BoundingBoxMode.values[state + 1]
-    end
-    ImGui.EndGroup()
-    if ImGui.IsItemHovered() then
-        ImGui.SetTooltip(
-            'The bounding box may differ from the actual shape of the area,\n' ..
-            'but helps to understand its general location and boundaries.')
-    end
-
-    ImGui.Spacing()
-
-    state, changed = ImGui.Checkbox('Show distance to the marker', userState.showMarkerDistance)
-    if changed then
-        userState.showMarkerDistance = state
-    end
-
-    state, changed = ImGui.Checkbox('Show distances to the corners of bounding box', userState.showBoundingBoxDistances)
-    if changed then
-        userState.showBoundingBoxDistances = state
-    end
-
-    ImGui.Spacing()
-    ImGui.Separator()
-    ImGui.Spacing()
+    --ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+    --ImGui.SetWindowFontScale(viewStyle.groupCaptionSize)
+    --ImGui.Text('HIGHLIGHTING')
+    --ImGui.SetWindowFontScale(1.0)
+    --ImGui.PopStyleColor()
+    --
+    --ImGui.BeginGroup()
+    --ImGui.AlignTextToFramePadding()
+    --ImGui.Text('Color theme:')
+    --ImGui.SameLine()
+    --ImGui.SetNextItemWidth(viewStyle.settingsShortComboRowWidth - ImGui.GetCursorPosX())
+    --state, changed = ImGui.Combo('##HighlightColor', ColorScheme.values[userState.highlightColor] - 1, viewData.colorSchemeOptions, #viewData.colorSchemeOptions)
+    --if changed then
+    --    userState.highlightColor = ColorScheme.values[state + 1]
+    --    initializeHighlighting()
+    --end
+    --ImGui.EndGroup()
+    --
+    --ImGui.BeginGroup()
+    --ImGui.AlignTextToFramePadding()
+    --ImGui.Text('Show outline:')
+    --ImGui.SameLine()
+    --ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
+    --state, changed = ImGui.Combo('##OutlineMode', OutlineMode.values[userState.outlineMode] - 1, viewData.outlineModeOptions, #viewData.outlineModeOptions)
+    --if changed then
+    --    userState.outlineMode = OutlineMode.values[state + 1]
+    --end
+    --ImGui.EndGroup()
+    --
+    --ImGui.BeginGroup()
+    --ImGui.AlignTextToFramePadding()
+    --ImGui.Text('Show marker:')
+    --ImGui.SameLine()
+    --ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
+    --state, changed = ImGui.Combo('##MarkerMode', MarkerMode.values[userState.markerMode] - 1, viewData.markerModeOptions, #viewData.markerModeOptions)
+    --if changed then
+    --    userState.markerMode = MarkerMode.values[state + 1]
+    --end
+    --ImGui.EndGroup()
+    --if ImGui.IsItemHovered() then
+    --    ImGui.SetTooltip(
+    --        'Shows marker at the center of a mesh or area,\n' ..
+    --        'or at the world position of a shapeless node.')
+    --end
+    --
+    --ImGui.BeginGroup()
+    --ImGui.AlignTextToFramePadding()
+    --ImGui.Text('Show bounding box:')
+    --ImGui.SameLine()
+    --ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
+    --state, changed = ImGui.Combo('##BoundingBoxMode', BoundingBoxMode.values[userState.boundingBoxMode] - 1, viewData.boundingBoxModeOptions, #viewData.boundingBoxModeOptions)
+    --if changed then
+    --    userState.boundingBoxMode = BoundingBoxMode.values[state + 1]
+    --end
+    --ImGui.EndGroup()
+    --if ImGui.IsItemHovered() then
+    --    ImGui.SetTooltip(
+    --        'The bounding box may differ from the actual shape of the area,\n' ..
+    --        'but helps to understand its general location and boundaries.')
+    --end
+    --
+    --ImGui.Spacing()
+    --
+    --state, changed = ImGui.Checkbox('Show distance to the marker', userState.showMarkerDistance)
+    --if changed then
+    --    userState.showMarkerDistance = state
+    --end
+    --
+    --state, changed = ImGui.Checkbox('Show distances to the corners of bounding box', userState.showBoundingBoxDistances)
+    --if changed then
+    --    userState.showBoundingBoxDistances = state
+    --end
+    --
+    --ImGui.Spacing()
+    --ImGui.Separator()
+    --ImGui.Spacing()
 
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
     ImGui.SetWindowFontScale(viewStyle.groupCaptionSize)
@@ -2483,7 +2571,7 @@ local function drawSettingsContent()
     ImGui.SetNextItemWidth(viewStyle.settingsShortInputWidth)
     state, changed = ImGui.InputInt('##StaticMeshTargets', userState.maxTargets, 1, 10, ImGuiInputTextFlags.None)
     if changed then
-        userState.maxTargets = MathEx.Clamp(state, 1, 16)
+        userState.maxTargets = MathEx.Clamp(state, 1, 32)
     end
     ImGui.EndGroup()
     if ImGui.IsItemHovered() then
@@ -2583,19 +2671,13 @@ local function getScreenDescriptor(camera)
     return screen
 end
 
-local clampScreenPoint = false
-
-local function setScreenClamping(enabled)
-    clampScreenPoint = enabled
-end
-
-local function getScreenPoint(screen, point)
+local function getProjectedPoint(screen, point, clamp)
     local projected = inspectionSystem:ProjectWorldPoint(point)
 
     local result = {
         x = projected.x,
-        y = -projected.y,
-        off = projected.w <= 0.0 or projected.z <= 0.0,
+        y = projected.y,
+        behind = projected.w <= 0.0,
     }
 
     if projected.w > 0.0 then
@@ -2603,45 +2685,22 @@ local function getScreenPoint(screen, point)
         result.y = result.y / projected.w
     end
 
-    if clampScreenPoint then
-        result.x = MathEx.Clamp(result.x, -0.995, 0.995)
-        result.y = MathEx.Clamp(result.y, -0.999, 0.999)
-        result.off = false
+    if clamp then
+        result.x = MathEx.Clamp(result.x, -0.99, 0.99)
+        result.y = MathEx.Clamp(result.y, -0.99, 0.99)
     end
 
     result.x = screen.centerX + (result.x * screen.centerX)
-    result.y = screen.centerY + (result.y * screen.centerY)
+    result.y = screen.centerY - (result.y * screen.centerY)
+
+    result.visibleX = not result.behind and result.x >= screen[1].x and result.x <= screen[3].x
+    result.visibleY = not result.behind and result.y >= screen[1].y and result.y <= screen[3].y
+    result.visible = result.visibleX and result.visibleY
 
     return result
 end
 
-local function getScreenShape(screen, shape)
-    local projected = {}
-    for i = 1,#shape do
-        projected[i] = getScreenPoint(screen, shape[i])
-    end
-    return projected
-end
-
-local function isOffScreenPoint(point)
-    return point.off
-end
-
-local function isOffScreenShape(points)
-    for _, point in ipairs(points) do
-        if not isOffScreenPoint(point) then
-            return false
-        end
-    end
-    return true
-end
-
-local function insideBox(point, box)
-    return point.x >= box.Min.x and point.y >= box.Min.y and point.z >= box.Min.z
-        and point.x <= box.Max.x and point.y <= box.Max.y and point.z <= box.Max.z
-end
-
-local function drawPoint(point, color, radius, thickness)
+local function drawCircle(point, color, radius, thickness)
     if thickness == nil then
         ImGui.ImDrawListAddCircleFilled(ImGui.GetWindowDrawList(), point.x, point.y, radius, color, -1)
     else
@@ -2654,6 +2713,36 @@ local function drawLine(line, color, thickness)
         line[1].x, line[1].y,
         line[2].x, line[2].y,
         color, thickness or 1)
+end
+
+local function drawTriangle(triangle, color, thickness)
+    if thickness == nil then
+        ImGui.ImDrawListAddTriangleFilled(ImGui.GetWindowDrawList(),
+            triangle[1].x, triangle[1].y,
+            triangle[2].x, triangle[2].y,
+            triangle[3].x, triangle[3].y,
+            color)
+    else
+        ImGui.ImDrawListAddTriangle(ImGui.GetWindowDrawList(),
+            triangle[1].x, triangle[1].y,
+            triangle[2].x, triangle[2].y,
+            triangle[3].x, triangle[3].y,
+            color, thickness)
+    end
+end
+
+local function drawRoundRect(rect, color, radius, thickness)
+    if thickness == nil then
+        ImGui.ImDrawListAddRectFilled(ImGui.GetWindowDrawList(),
+            rect[1].x, rect[1].y,
+            rect[2].x, rect[2].y,
+            color, radius)
+    else
+        ImGui.ImDrawListAddRect(ImGui.GetWindowDrawList(),
+            rect[1].x, rect[1].y,
+            rect[2].x, rect[2].y,
+            color, thickness, radius)
+    end
 end
 
 local function drawQuad(quad, color, thickness)
@@ -2678,74 +2767,81 @@ local function drawText(position, color, size, text)
     ImGui.ImDrawListAddText(ImGui.GetWindowDrawList(), size, position.x, position.y, color, tostring(text))
 end
 
-local function drawProjectedPoint(screen, point, color, radius, thickness)
-    local projected = getScreenPoint(screen, point)
-    if not isOffScreenPoint(projected) then
-        drawPoint(projected, color, radius, thickness)
-    end
-end
-
-local function drawProjectedLine(screen, line, color, thickness)
-    local projected = getScreenShape(screen, line)
-    if not isOffScreenShape(projected) then
-        drawLine(projected, color, thickness)
-    end
-end
-
-local function drawProjectedQuad(screen, quad, color, thickness)
-    local projected = getScreenShape(screen, quad)
-    if not isOffScreenShape(projected) then
-        drawQuad(projected, color, thickness)
-    end
-end
-
---local function drawProjectedText(screen, position, color, size, text)
---    local projected = getScreenPoint(screen, position)
---    if not isOffScreenPoint(projected) then
---        drawText(projected, color, size, text)
---    end
---end
-
-local function drawProjectedDistance(screen, position, offsetX, offsetY, textColor, fontSize, fontBold)
-    local projected = getScreenPoint(screen, position)
-    if not isOffScreenPoint(projected) then
-        local distance = Vector4.Distance(screen.camera.position, position)
-        local formattedDistance = formatDistance(distance)
-        local textWidth, textHeight = ImGui.CalcTextSize(formattedDistance)
-        local fontRatio = fontSize / viewStyle.fontSize
-
-        if type(offsetX) == 'number' then
-            projected.x = projected.x + offsetX
-        else
-            projected.x = projected.x - (textWidth * fontRatio / 2.0)
-        end
-
-        if type(offsetY) == 'number' then
-            projected.y = projected.y + offsetY
-        else
-            projected.y = projected.y - (textHeight * fontRatio / 2.0)
-        end
-
-        drawText(projected, textColor, fontSize, formattedDistance)
-
-        if fontBold then
-            drawText(projected, textColor, fontSize, formattedDistance)
-        end
-    end
-end
-
-local function drawProjectedMarker(screen, position, outerColor, innerColor, distanceColor)
-    setScreenClamping(true)
-
-    drawProjectedPoint(screen, position, outerColor, 10, 3)
-    drawProjectedPoint(screen, position, innerColor, 5)
-
-    if userState.showMarkerDistance then
-        drawProjectedDistance(screen, position, true, -32, distanceColor, viewStyle.fontSize, true)
+local function drawBadge(origin, text, offsetX, offsetY, badgeColor, textColor, fontRatio)
+    if not fontRatio then
+        fontRatio = 0.8
     end
 
-    setScreenClamping(false)
+    local fontSize = viewStyle.fontSize * fontRatio
+    local textWidth, textHeight = ImGui.CalcTextSize(text)
+
+    textWidth = textWidth * fontRatio
+    textHeight = textHeight * fontRatio
+
+    local position = { x = origin.x, y = origin.y }
+    local paddingX = 5
+    local paddingY = 2
+
+    if type(offsetX) == 'number' then
+        position.x = position.x + (offsetX > 0 and offsetX or (offsetX - textWidth))
+    else
+        position.x = position.x - (textWidth / 2.0)
+    end
+
+    if type(offsetY) == 'number' then
+        position.y = position.y + (offsetY > 0 and offsetY or (offsetY - textHeight))
+    else
+        position.y = position.y - (textHeight / 2.0)
+    end
+
+    local label = { x = position.x, y = position.y - 1 }
+    local badge = {
+        { x = position.x - paddingX, y = position.y - paddingX },
+        { x = position.x + paddingX + textWidth, y = position.y + paddingY + textHeight },
+    }
+
+    drawRoundRect(badge, badgeColor, 4)
+
+    drawText(label, textColor, fontSize, text)
+    drawText(label, textColor, fontSize, text)
 end
+
+local cubeEdgeVertices = {
+    { 1, 2 },
+    { 2, 4 },
+    { 3, 4 },
+    { 1, 3 },
+    { 5, 6 },
+    { 6, 8 },
+    { 7, 8 },
+    { 5, 7 },
+    { 1, 5 },
+    { 2, 6 },
+    { 3, 7 },
+    { 4, 8 },
+}
+
+local cubeFaceVertices = {
+    { 1, 2, 4, 3 },
+    { 1, 5, 6, 2 },
+    { 7, 8, 6, 5 },
+    { 3, 4, 8, 7 },
+    { 2, 6, 8, 4 },
+    { 1, 3, 7, 5 },
+}
+
+local cubeFaceEdges = {
+    { 1, 2, 3, 4 },
+    { 9, 5, 10, 1 },
+    { 7, 6, 5, 8 },
+    { 3, 12, 7, 11 },
+    { 10, 6, 12, 2 },
+    { 4, 11, 8, 9 },
+}
+
+local cubeFadeLimit = 0.8
+local cubeFadeRangeMin = 50
+local cubeFadeRangeMax = 200
 
 local function makeCubeFromBox(box, position, orientation)
     local vertices = {
@@ -2768,60 +2864,316 @@ local function makeCubeFromBox(box, position, orientation)
     return vertices
 end
 
-local function drawProjectedCube(screen, vertices, faceColor, edgeColor, verticeColor, frame, fill, fadeWithDistance)
-    if fill then
-        local faces = {
-            { vertices[1], vertices[2], vertices[4], vertices[3] },
-            { vertices[2], vertices[4], vertices[8], vertices[6] },
-            { vertices[1], vertices[2], vertices[6], vertices[5] },
-            { vertices[1], vertices[3], vertices[7], vertices[5] },
-            { vertices[5], vertices[7], vertices[8], vertices[6] },
-            { vertices[3], vertices[4], vertices[8], vertices[7] },
+local function drawProjectedBox(screen, position, orientation, box, profile)
+    local vertices = makeCubeFromBox(box, position, orientation)
+    local points = {}
+    local outline = {
+        { x = screen[3].x, y = screen[3].y },
+        { x = screen[1].x, y = screen[1].y },
+    }
+
+    for id, vertice in ipairs(vertices) do
+        local point = getProjectedPoint(screen, vertice)
+        point.id = id
+        point.distance = Vector4.Distance(screen.camera.world, vertice)
+
+        table.insert(points, point)
+
+        outline[1].x = math.min(outline[1].x, point.x)
+        outline[2].x = math.max(outline[2].x, point.x)
+        outline[1].y = math.min(outline[1].y, point.y)
+        outline[2].y = math.max(outline[2].y, point.y)
+    end
+
+    if outline[1].x >= screen[3].x or outline[2].x <= screen[1].x
+    or outline[1].y >= screen[3].y or outline[2].y <= screen[1].y then
+        return
+    end
+
+    local edges = {}
+    local faces = {}
+    local clippings = {}
+    local inside = true
+
+    for id, indexes in ipairs(cubeEdgeVertices) do
+        local edge = {}
+        edge.id = id
+        edge.indexes = indexes
+        edge.vertices = {
+            vertices[indexes[1]],
+            vertices[indexes[2]],
+        }
+        edge.points = {
+            points[indexes[1]],
+            points[indexes[2]],
         }
 
-        for _, face in ipairs(faces) do
-            drawProjectedQuad(screen, face, faceColor)
+        edge.behind = edge.points[1].behind and edge.points[2].behind
+
+        if edge.points[1].behind ~= edge.points[2].behind then
+            local b = edge.points[1].behind and 1 or 2
+            local a = 3 - b
+
+            local clipIndex = indexes[b]
+            local linkIndex = indexes[a]
+
+            local clipLine = { vertices[linkIndex], vertices[clipIndex] }
+            local clipVertice, clipDistance = MathEx.IntersectPlane(screen.camera.nearPlane, clipLine)
+
+            if clipVertice and clipDistance >= 0 then
+                local clipPoint = getProjectedPoint(screen, clipVertice)
+
+                edge.points[b] = clipPoint
+
+                if not clippings[clipIndex] then
+                    clippings[clipIndex] = {}
+                end
+
+                clippings[clipIndex][linkIndex] = clipPoint
+            else
+                edge.behind = true
+            end
+        end
+
+        edge.distance = Vector4.DistanceToEdge(screen.camera.world, edge.vertices[1], edge.vertices[2])
+        edge.fading = MathEx.Clamp((edge.distance - cubeFadeRangeMin) / (cubeFadeRangeMax - cubeFadeRangeMin), 0, 1)
+
+        table.insert(edges, edge)
+    end
+
+    for id, indexes in ipairs(cubeFaceVertices) do
+        local face = {}
+        face.id = id
+        face.indexes = indexes
+        face.vertices = {
+            vertices[indexes[1]],
+            vertices[indexes[2]],
+            vertices[indexes[3]],
+            vertices[indexes[4]],
+        }
+        face.points = {}
+
+        for b = 1, #indexes do
+            local a = b > 1 and b - 1 or #indexes
+            local c = b < #indexes and b + 1 or 1
+
+            local aIndex = indexes[a]
+            local bIndex = indexes[b]
+            local cIndex = indexes[c]
+
+            local abClip = clippings[bIndex] and clippings[bIndex][aIndex]
+            local bcClip = clippings[bIndex] and clippings[bIndex][cIndex]
+
+            if abClip then
+                table.insert(face.points, clippings[bIndex][aIndex])
+            end
+
+            if not points[bIndex].behind and (abClip ~= bcClip or not abClip) then
+                table.insert(face.points, points[bIndex])
+            end
+
+            if bcClip then
+                table.insert(face.points, clippings[bIndex][cIndex])
+            end
+        end
+
+        if #face.points >= 3 then
+            local a = Vector4.new(face.points[1].x, face.points[1].y)
+            local b = Vector4.new(face.points[2].x, face.points[2].y)
+            local c = Vector4.new(face.points[3].x, face.points[3].y)
+
+            local ab = Game['OperatorSubtract;Vector4Vector4;Vector4'](b, a)
+            local ac = Game['OperatorSubtract;Vector4Vector4;Vector4'](c, a)
+            local normal = Vector4.Cross(ab, ac)
+
+            face.front = normal.z <= 0
+
+            if face.front then
+                inside = false
+
+                for _, edgeId in ipairs(cubeFaceEdges[face.id]) do
+                    edges[edgeId].front = true
+
+                    for _, index in ipairs(edges[edgeId].indexes) do
+                        points[index].front = true
+                    end
+                end
+            end
+        end
+
+        for _, edgeId in ipairs(cubeFaceEdges[face.id]) do
+            face.distance = math.min(face.distance or 999, edges[edgeId].distance)
+            face.fading = MathEx.Clamp((face.distance - cubeFadeRangeMin) / (cubeFadeRangeMax - cubeFadeRangeMin), 0, 1)
+        end
+
+        table.insert(faces, face)
+    end
+
+    local frontFaceColor = profile.shadingColor
+    local insideFaceColor = profile.shadingColor -- ImGuiEx.FadeFactor(profile.shadingColor, 1.5)
+    local frontEdgeColor = profile.primaryColor
+    local backEdgeColor = ImGuiEx.Fade(frontEdgeColor, 0x44)
+    local edgeWidth = 2
+    local labelColor = profile.labelColor
+
+    for _, face in ipairs(faces) do
+        if face.front then
+            local faceColor = frontFaceColor
+
+            --if not inside and face.fading > 0 then
+            --    local faceOpacity = MathEx.Clamp(ImGuiEx.Opacity(faceColor) + 0x44 * face.fading, 0x11, 0x55)
+            --    faceColor = ImGuiEx.Fade(faceColor, faceOpacity)
+            --end
+
+            if #face.points > 4 then
+                local start = 0
+                local visible = false
+                for i = 1, #face.points do
+                    local j = i < #face.points and i + 1 or 1
+                    if face.points[i].visible then
+                        if face.points[j].visible then
+                            start = i
+                            visible = true
+                            break
+                        elseif not visible then
+                            start = i
+                            visible = true
+                        end
+                    elseif face.points[i].visibleY and face.points[j].visibleY then
+                        if not visible then
+                            start = i
+                        end
+                    end
+                end
+                if start ~= 0 then
+                    start = start > 1 and start - 1 or #face.points
+                    while start ~= 1 do
+                        table.insert(face.points, table.remove(face.points, 1))
+                        start = start - 1
+                    end
+                end
+            end
+
+            local offset = 2
+            if #face.points >= 4 then
+                drawQuad(face.points, faceColor)
+                offset = 4
+            end
+
+            for i = offset, #face.points - 1 do
+                drawTriangle({ face.points[1], face.points[i], face.points[i + 1] }, faceColor)
+            end
         end
     end
 
-    if frame then
-        local edges = {
-            { vertices[1], vertices[2] },
-            { vertices[2], vertices[4] },
-            { vertices[4], vertices[3] },
-            { vertices[3], vertices[1] },
-            { vertices[5], vertices[6] },
-            { vertices[6], vertices[8] },
-            { vertices[8], vertices[7] },
-            { vertices[7], vertices[5] },
-            { vertices[1], vertices[5] },
-            { vertices[2], vertices[6] },
-            { vertices[3], vertices[7] },
-            { vertices[4], vertices[8] },
-        }
+    if inside then
+        drawQuad(screen, insideFaceColor)
+    end
 
-        if fadeWithDistance then
-            local edgeOpacity = ImGuiEx.Opacity(edgeColor)
-            for _, edge in ipairs(edges) do
-                local distance = Vector4.DistanceToEdge(screen.camera.position, edge[1], edge[2])
-                local distanceFactor = (MathEx.Clamp(distance, 10, 1010) - 10) / 1000
-                local edgeColorAdjusted = ImGuiEx.Fade(edgeColor, edgeOpacity - 0x80 * distanceFactor)
-                drawProjectedLine(screen, edge, edgeColorAdjusted, 1)
+    for _, edge in ipairs(edges) do
+        if edge.front then
+            drawLine(edge.points, 0x22000000, edgeWidth + 1)
+        end
+    end
+
+    for _, edge in ipairs(edges) do
+        if not edge.behind then
+            local edgeColor = edge.front and frontEdgeColor or backEdgeColor
+
+            if not inside and edge.fading then
+                local faceOpacity = MathEx.Clamp(ImGuiEx.Opacity(edgeColor) * (1 - edge.fading * cubeFadeLimit), edge.front and 0x88 or 0x44, 0xFF)
+                edgeColor = ImGuiEx.Fade(edgeColor, faceOpacity)
             end
+
+            drawLine(edge.points, edgeColor, edgeWidth)
+        end
+    end
+
+    local shown = 0
+    local nearest = 0
+    local farthest = 0
+    local bounds = {}
+    local showBounds = false
+    local showOrigin = true
+
+    local origin = getProjectedPoint(screen, position, true)
+    origin.distance = Vector4.Distance(screen.camera.world, position)
+
+    for _, point in ipairs(points) do
+        if point.visible then
+            if nearest == 0 or point.distance < points[nearest].distance then
+                nearest = point.id
+            end
+
+            if farthest == 0 or point.distance > points[farthest].distance then
+                farthest = point.id
+            end
+
+            shown = shown + 1
+        end
+    end
+
+    table.insert(bounds, points[nearest])
+    if nearest ~= farthest and farthest ~= 0 then
+        table.insert(bounds, points[farthest])
+    end
+
+    if #bounds > 0 then
+        if inside or not origin.visible then
+            showBounds = true
         else
-            for _, edge in ipairs(edges) do
-                drawProjectedLine(screen, edge, edgeColor, 1)
+            outline[1].x = math.max(outline[1].x, screen[1].x)
+            outline[2].x = math.min(outline[2].x, screen[3].x)
+            outline[1].y = math.max(outline[1].y, screen[1].y)
+            outline[2].y = math.min(outline[2].y, screen[3].y)
+
+            local outlineArea = (outline[2].x - outline[1].x) * (outline[2].y - outline[1].y)
+            local screenArea = (screen[3].x - screen[1].x) * (screen[3].y - screen[1].y)
+            local coverage = outlineArea / screenArea
+
+            if shown <= 4 then
+                showBounds = coverage >= 0.3
+            elseif shown <= 6 then
+                showBounds = coverage >= 0.3 and bounds[1].distance >= 10
+            else
+                showBounds = coverage >= 0.1 and bounds[1].distance >= 50
             end
         end
 
-        for _, vertice in ipairs(vertices) do
-            drawProjectedPoint(screen, vertice, verticeColor, 1)
+        if showBounds then
+            for _, point in ipairs(bounds) do
+                local pointColor = ImGuiEx.FadeFactor(point.front and frontEdgeColor or backEdgeColor, 1.1)
 
-            if userState.showBoundingBoxDistances then
-                drawProjectedDistance(screen, vertice, 4, -20, verticeColor, viewStyle.fontSize)
+                drawCircle(point, pointColor, 4)
+                drawCircle(point, labelColor, 2)
+
+                drawBadge(point, formatDistance(point.distance), true, point.front and -10 or 11, pointColor, labelColor)
+
+                if showOrigin then
+                    if math.abs(point.x - origin.x) <= 40 and math.abs(point.y - origin.y) <= 40 then
+                        showOrigin = false
+                    end
+                end
             end
         end
     end
+
+    if showOrigin then
+        drawCircle(origin, profile.primaryColor, 5)
+        drawCircle(origin, profile.labelColor, 3)
+
+        drawBadge(origin, formatDistance(origin.distance), true, -12, profile.primaryColor, profile.labelColor)
+    end
+end
+
+local function drawProjectedMarker(screen, position, profile)
+    local point = getProjectedPoint(screen, position, true)
+
+    drawCircle(point, profile.primaryColor, 5)
+    drawCircle(point, profile.labelColor, 3)
+
+    local distance = Vector4.Distance(screen.camera.world, position)
+    drawBadge(point, formatDistance(distance), true, -12, profile.primaryColor, profile.labelColor)
 end
 
 local function drawProjections()
@@ -2846,29 +3198,10 @@ local function drawProjections()
 
     if ImGui.Begin('##RHT:WorldTools:Projections', true, viewStyle.projectionWindowFlags) then
         for _, projection in pairs(highlight.projections) do
-            local target = projection.target
-
-            if projection.showBoundingBox and target.boundingBox then
-                local insideColor = ImGuiEx.Fade(projection.color, 0x1D)
-                local faceColor = ImGuiEx.Fade(projection.color, 0x0D)
-                local edgeColor = ImGuiEx.Fade(projection.color, 0xF0)
-                local verticeColor = projection.color
-                local visualBox = makeCubeFromBox(target.boundingBox, target.position, target.orientation)
-
-                if target.testBox and insideBox(camera.position, target.testBox) then
-                    drawQuad(screen, insideColor)
-                    drawProjectedCube(screen, visualBox, faceColor, edgeColor, verticeColor, true, false, true)
-                else
-                    drawProjectedCube(screen, visualBox, faceColor, edgeColor, verticeColor, true, true, true)
-                end
-            end
-
-            if projection.showMarker and target.position then
-                local outerColor = projection.color
-                local innerColor = projection.color
-                local distanceColor = projection.color
-
-                drawProjectedMarker(screen, target.position, outerColor, innerColor, distanceColor)
+            if projection.target.boundingBox then
+                drawProjectedBox(screen, projection.target.position, projection.target.orientation, projection.target.boundingBox, projection.profile)
+            else
+                drawProjectedMarker(screen, projection.target.position, projection.profile)
             end
         end
     end
@@ -3043,18 +3376,6 @@ local function onCycleTargetingModeHotkey()
     end
 end
 
---local function onCycleHighlightColorHotkey()
---    if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
---        local nextColorIndex = ColorScheme.values[userState.highlightColor] + 1
---        if nextColorIndex > #ColorScheme.values then
---            nextColorIndex = 1
---        end
---        userState.highlightColor = ColorScheme.values[nextColorIndex]
---        initializeHighlighting()
---        saveUserState()
---    end
---end
-
 -- Module --
 
 local function isActive()
@@ -3077,7 +3398,7 @@ local function onInit()
     initializeWatcher()
     initializeViewData()
 
-    Cron.Every(0.2, function()
+    Cron.Every(1 / 60, function()
         if userState.isModuleActive then
             if viewState.isConsoleOpen then
                 if viewState.isWindowExpanded then
@@ -3132,7 +3453,7 @@ return {
         GetWorldScannerResults = function()
             return scanner.results
         end,
-        GetWorldScannerFilteredResults = function ()
+        GetWorldScannerFilteredResults = function()
             return scanner.filtered
         end,
         GetLookupResult = function()

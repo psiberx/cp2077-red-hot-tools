@@ -6,6 +6,7 @@ constexpr uint32_t Main = 240386859;
 constexpr uint32_t ExecuteProcess = 2203918127; // CProcessRunner::Run
 constexpr uint32_t InvokeSCC = 2746819158;
 constexpr uint32_t LogChannel = 3083410640;
+constexpr uint32_t UnpackFloat = 88935777;
 
 constexpr uint32_t AsyncFileAPI_Instance = 2124810438;
 constexpr uint32_t AsyncFileAPI_OpenSystemHandle = 582815077;
@@ -20,6 +21,8 @@ constexpr uint32_t EntityID_ToStringDEBUG = 3457552837;
 
 constexpr uint32_t FileSystem_Instance = 3788966949;
 constexpr uint32_t FileSystem_Close = 633872857;
+
+constexpr uint32_t IMaterial_GetRenderData = 3016235445;
 
 // constexpr uint32_t ISerializable_SetReference = 2587561854;
 constexpr uint32_t ISerializable_Clone = 2601784524;
@@ -63,11 +66,23 @@ constexpr uint32_t JobHandle_Wait = 1576079097;
 
 constexpr uint32_t NodeRef_Create = 3491172781;
 
-constexpr uint32_t PhysicsTraceResult_GetHitObject = 2394822845;
+constexpr uint32_t PhysicsGeometry_Destruct = 4084208396;
+constexpr uint32_t PhysicsGeometry_GetBoundingBox = 1323310044;
+constexpr uint32_t PhysicsGeometry_FixOrientation = 3480428029;
 
+constexpr uint32_t PhysicsProxy_GetHitObject = 2394822845;
+constexpr uint32_t PhysicsProxy_GetActorPhysxPtr = 814094301;
+constexpr uint32_t PhysicsProxy_GetActorWorldTransform = 391385890;
+constexpr uint32_t PhysicsProxy_GetShapeLocalTransform = 2380600610;
+constexpr uint32_t PhysicsProxy_GetShapeGeometry = 578361242;
+
+constexpr uint32_t RenderDataPtr_Release = 2996308699;
+
+constexpr uint32_t RenderProxy_SetMaterialOverride = 429336746;
 constexpr uint32_t RenderProxy_SetHighlightParams = 1093803822;
 constexpr uint32_t RenderProxy_SetScanningState = 2838044016;
 constexpr uint32_t RenderProxy_SetVisibility = 1790971865;
+constexpr uint32_t RenderProxy_UpdateVisibility = 2124419179;
 
 constexpr uint32_t ResourceBank_ForgetResource = 2288918343;
 

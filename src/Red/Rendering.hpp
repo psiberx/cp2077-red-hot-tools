@@ -2,6 +2,12 @@
 
 namespace Red
 {
+struct RenderData
+{
+};
+
+using RenderDataPtr = RenderData*;
+
 struct RenderProxy
 {
     virtual ~RenderProxy() = 0;
@@ -18,6 +24,20 @@ struct HighlightParams
 };
 }
 
+namespace Raw::IMaterial
+{
+constexpr auto GetRenderData = Core::RawFunc<
+    /* addr = */ Red::AddressLib::IMaterial_GetRenderData,
+    /* type = */ void* (*)(Red::IMaterial* aMaterial, Red::RenderDataPtr& aOut)>();
+}
+
+namespace Raw::RenderDataPtr
+{
+constexpr auto Release = Core::RawFunc<
+    /* addr = */ Red::AddressLib::RenderDataPtr_Release,
+    /* type = */ void (*)(Red::RenderDataPtr aPtr)>();
+}
+
 namespace Raw::RenderProxy
 {
 using Flags = Core::OffsetPtr<0x23, uint8_t>;
@@ -27,6 +47,14 @@ inline bool IsVisible(Red::RenderProxy* aProxy)
     return (Flags::Ref(aProxy) & 6) == 6;
 }
 
+constexpr auto SetVisibility = Core::RawFunc<
+    /* addr = */ Red::AddressLib::RenderProxy_SetVisibility,
+    /* type = */ void (*)(Red::RenderProxy* aProxy, bool aVisible)>();
+
+constexpr auto UpdateVisibility = Core::RawFunc<
+    /* addr = */ Red::AddressLib::RenderProxy_UpdateVisibility,
+    /* type = */ void (*)(Red::RenderProxy* aProxy, bool aVisible)>();
+
 constexpr auto SetHighlightParams = Core::RawFunc<
     /* addr = */ Red::AddressLib::RenderProxy_SetHighlightParams,
     /* type = */ uint8_t (*)(Red::RenderProxy* aProxy, const Red::HighlightParams& aParams)>();
@@ -35,7 +63,8 @@ constexpr auto SetScanningState = Core::RawFunc<
     /* addr = */ Red::AddressLib::RenderProxy_SetScanningState,
     /* type = */ uint8_t (*)(Red::RenderProxy* aProxy, Red::rendPostFx_ScanningState aState)>();
 
-constexpr auto SetVisibility = Core::RawFunc<
-    /* addr = */ Red::AddressLib::RenderProxy_SetVisibility,
-    /* type = */ void (*)(Red::RenderProxy* aProxy, bool aVisible)>();
+constexpr auto SetMaterialOverride = Core::RawFunc<
+    /* addr = */ Red::AddressLib::RenderProxy_SetMaterialOverride,
+    /* type = */ void (*)(Red::RenderProxy* aProxy, const Red::RenderDataPtr& aMaterial,
+                          const Red::RenderDataPtr& a3, bool aReplace)>();
 }

@@ -22,6 +22,8 @@ void App::WorldInspector::OnWorldAttached(Red::world::RuntimeScene*)
 
 void App::WorldInspector::OnAfterWorldDetach()
 {
+    m_ready = false;
+
     m_nodeRegistry->UnregisterWatcher(this);
     m_nodeRegistry->ClearRuntimeData();
 
@@ -37,12 +39,17 @@ void App::WorldInspector::OnAfterWorldDetach()
     }
 }
 
+void App::WorldInspector::OnGamePrepared()
+{
+    m_ready = true;
+}
+
 void App::WorldInspector::OnRegisterUpdates(Red::UpdateRegistrar* aRegistrar)
 {
     aRegistrar->RegisterUpdate(Red::UpdateTickGroup::FrameBegin, this, "WorldInspector/UpdateNodes",
                                [this](Red::FrameInfo& aFrame, Red::JobQueue&)
                                {
-                                   if (!m_nodesUpdating)
+                                   if (m_ready && !m_nodesUpdating)
                                    {
                                        m_nodesUpdateDelay -= aFrame.deltaTime;
                                        if (m_nodesUpdateDelay <= 0)
@@ -117,28 +124,158 @@ void App::WorldInspector::UpdateStreamedNodes()
             continue;
         }
 
+        if (!nodeDefinition.instance->isVisibleInGame)
+        {
+            continue;
+        }
+
         WorldNodeStaticSceneData streamedNode{request.nodeInstance, request.nodeDefinition,
-                                              request.nodeSetup->transform, request.nodeSetup->scale};
+                                              request.nodeSetup->transform.position,
+                                              request.nodeSetup->transform.orientation,
+                                              request.nodeSetup->scale,
+                                              (request.nodeSetup->unk7A & 0x40) == 0x40};
 
-        auto& transform = Raw::WorldNodeInstance::Transform::Ref(nodeInstance);
-        auto& scale = Raw::WorldNodeInstance::Scale::Ref(nodeInstance);
+        auto& nodeTransform = Raw::WorldNodeInstance::Transform::Ref(nodeInstance);
+        auto& nodeScale = Raw::WorldNodeInstance::Scale::Ref(nodeInstance);
 
-        if (Red::IsInstanceOf<Red::worldMeshNode>(nodeDefinition))
+        if (Red::IsInstanceOf<Red::worldInstancedMeshNode>(nodeDefinition))
+        {
+            auto& meshResource = Raw::WorldInstancedMeshNodeInstance::Mesh::Ref(nodeInstance);
+
+            if (meshResource)
+            {
+                auto& meshNode = Red::Cast<Red::worldInstancedMeshNode>(nodeDefinition);
+                auto& meshBuffer = meshNode->worldTransformsBuffer;
+                auto* meshInstances = std::bit_cast<Red::RenderProxyTransformData*>(&meshBuffer.sharedDataBuffer->buffer);
+
+                streamedNode.actors.reserve(meshBuffer.numElements);
+
+                for (auto i = 0; i < meshBuffer.numElements; ++i)
+                {
+                    auto* meshInstance = meshInstances->Get(meshBuffer.startIndex + i);
+                    auto& nodeActor = streamedNode.actors.emplace_back();
+
+                    nodeActor.position = meshInstance->transform.Position;
+                    nodeActor.orientation = meshInstance->transform.Orientation;
+                    nodeActor.boundingBox = meshResource->boundingBox;
+
+                    Red::ScaleBox(nodeActor.boundingBox, meshInstance->scale);
+
+                    nodeActor.testBox = nodeActor.boundingBox;
+
+                    Red::TransformBox(nodeActor.testBox, {nodeActor.position, nodeActor.orientation});
+                }
+
+                streamedNode.isTargetable = true;
+            }
+            else
+            {
+                postponedRequests[hash] = request;
+                continue;
+            }
+        }
+        else if (Red::IsInstanceOf<Red::worldInstancedOccluderNode>(nodeDefinition))
+        {
+            auto& meshResource = Raw::WorldInstancedOccluderNodeInstance::Mesh::Ref(nodeInstance);
+
+            if (meshResource)
+            {
+                auto& occluderNode = Red::Cast<Red::worldInstancedOccluderNode>(nodeDefinition);
+                auto& occluderInstances = Raw::WorldInstancedOccluderNode::Instances::Ref(nodeDefinition);
+
+                streamedNode.actors.reserve(occluderInstances.size);
+
+                for (auto i = 0; i < occluderInstances.size; ++i)
+                {
+                    auto& occluderMatrix = occluderInstances[i];
+                    auto& nodeActor = streamedNode.actors.emplace_back();
+
+                    Red::CallStatic("Matrix", "GetTranslation", nodeActor.position, occluderMatrix);
+                    Red::CallStatic("Matrix", "ToQuat", nodeActor.orientation, occluderMatrix);
+
+                    nodeActor.boundingBox = meshResource->boundingBox;
+
+                    Red::Vector4 occluderScale;
+                    Red::CallStatic("Matrix", "GetScale", occluderScale, occluderMatrix);
+                    Red::ScaleBox(nodeActor.boundingBox, occluderScale);
+
+                    nodeActor.testBox = nodeActor.boundingBox;
+
+                    Red::TransformBox(nodeActor.testBox, {nodeActor.position, nodeActor.orientation});
+                }
+
+                streamedNode.isTargetable = true;
+            }
+            else
+            {
+                postponedRequests[hash] = request;
+                continue;
+            }
+        }
+        else if (Red::IsInstanceOf<Red::worldFoliageNode>(nodeDefinition))
+        {
+            auto& meshResource = Raw::WorldFoliageNodeInstance::Mesh::Ref(nodeInstance);
+            auto& foliageResource = Raw::WorldFoliageNodeInstance::Foliage::Ref(nodeInstance);
+
+            if (meshResource && foliageResource)
+            {
+                auto& foliageNode = Red::Cast<Red::worldFoliageNode>(nodeDefinition);
+                auto instanceOffset = foliageNode->populationSpanInfo.stancesBegin;
+                auto instanceCount = foliageNode->populationSpanInfo.stancesCount;
+
+                streamedNode.actors.reserve(instanceCount);
+
+                auto foliageBuffer = Red::FoliageBufferAccessor(foliageResource);
+
+                for (auto i = 0; i < instanceCount; ++i)
+                {
+                    auto& nodeActor = streamedNode.actors.emplace_back();
+                    auto instanceIndex = instanceOffset + i;
+
+                    nodeActor.position = nodeTransform.position + foliageBuffer.GetPosition(instanceIndex);
+                    nodeActor.orientation = foliageBuffer.GetOrientation(instanceIndex);
+                    nodeActor.boundingBox = meshResource->boundingBox;
+
+                    auto instanceScale = foliageBuffer.GetScale(instanceIndex);
+                    Red::ScaleBox(nodeActor.boundingBox, {instanceScale, instanceScale, instanceScale});
+
+                    nodeActor.testBox = nodeActor.boundingBox;
+
+                    Red::TransformBox(nodeActor.testBox, {nodeActor.position, nodeActor.orientation});
+                }
+
+                streamedNode.isTargetable = true;
+            }
+            else
+            {
+                postponedRequests[hash] = request;
+                continue;
+            }
+        }
+        else if (Red::IsInstanceOf<Red::worldBakedDestructionNode>(nodeDefinition) ||
+                 Red::IsInstanceOf<Red::worldInstancedDestructibleMeshNode>(nodeDefinition))
+        {
+            // Treat as dynamic
+        }
+        else if (Red::IsInstanceOf<Red::worldMeshNode>(nodeDefinition))
         {
             auto& meshResource = Raw::WorldMeshNodeInstance::Mesh::Ref(nodeInstance);
 
             if (meshResource)
             {
-                Red::Box boundingBox = meshResource->boundingBox;
-                Red::ScaleBox(boundingBox, scale);
+                auto& actor = streamedNode.actors.emplace_back();
 
-                streamedNode.boundingBox = boundingBox;
+                actor.position = nodeTransform.position;
+                actor.orientation = nodeTransform.orientation;
+                actor.boundingBox = meshResource->boundingBox;
 
-                Red::TransformBox(boundingBox, transform);
+                Red::ScaleBox(actor.boundingBox, nodeScale);
 
-                streamedNode.testBoxes.push_back(boundingBox);
-                streamedNode.isStaticMesh = !Red::IsInstanceOf<Red::worldTerrainProxyMeshNode>(nodeDefinition) &&
-                                            !Red::IsInstanceOf<Red::worldRoadProxyMeshNode>(nodeDefinition);
+                actor.testBox = actor.boundingBox;
+
+                Red::TransformBox(actor.testBox, nodeTransform);
+
+                streamedNode.isTargetable = true;
             }
             else
             {
@@ -146,29 +283,102 @@ void App::WorldInspector::UpdateStreamedNodes()
                 continue;
             }
         }
+        else if (Red::IsInstanceOf<Red::worldBendedMeshNode>(nodeDefinition))
+        {
+            auto& bendedNode = Red::Cast<Red::worldBendedMeshNode>(nodeDefinition);
+
+            auto& actor = streamedNode.actors.emplace_back();
+
+            actor.position = nodeTransform.position;
+            actor.orientation = nodeTransform.orientation;
+            actor.boundingBox = bendedNode->deformedBox;
+
+            Red::ScaleBox(actor.boundingBox, nodeScale);
+
+            actor.testBox = actor.boundingBox;
+
+            Red::TransformBox(actor.testBox, nodeTransform);
+
+            streamedNode.isTargetable = true;
+        }
+        else if (Red::IsInstanceOf<Red::worldTerrainMeshNode>(nodeDefinition))
+        {
+            auto& meshResource = Raw::WorldTerrainMeshNodeInstance::Mesh::Ref(nodeInstance);
+
+            if (meshResource)
+            {
+                auto& actor = streamedNode.actors.emplace_back();
+
+                actor.position = nodeTransform.position;
+                actor.orientation = nodeTransform.orientation;
+                actor.boundingBox = meshResource->boundingBox;
+
+                Red::ScaleBox(actor.boundingBox, nodeScale);
+
+                actor.testBox = actor.boundingBox;
+
+                Red::TransformBox(actor.testBox, nodeTransform);
+
+                streamedNode.isTargetable = true;
+            }
+            else
+            {
+                postponedRequests[hash] = request;
+                continue;
+            }
+        }
+        // else if (Red::IsInstanceOf<Red::worldStaticParticleNode>(nodeDefinition))
+        // {
+        //     auto& particleResource = Raw::WorldStaticParticleNodeInstance::ParticleSystem::Ref(nodeInstance);
+        //
+        //     if (particleResource)
+        //     {
+        //         auto& actor = streamedNode.actors.emplace_back();
+        //
+        //         actor.position = nodeTransform.position;
+        //         actor.orientation = nodeTransform.orientation;
+        //         actor.boundingBox = particleResource->boundingBox;
+        //
+        //         Red::ScaleBox(actor.boundingBox, nodeScale);
+        //
+        //         actor.testBox = actor.boundingBox;
+        //
+        //         Red::TransformBox(actor.testBox, nodeTransform);
+        //
+        //         streamedNode.isTargetable = true;
+        //     }
+        //     else
+        //     {
+        //         postponedRequests[hash] = request;
+        //         continue;
+        //     }
+        // }
         else if (Red::IsInstanceOf<Red::worldStaticDecalNode>(nodeDefinition) ||
-                 Red::IsInstanceOf<Red::worldBendedMeshNode>(nodeDefinition) ||
-                 Red::IsInstanceOf<Red::worldFoliageNode>(nodeDefinition) ||
-                 Red::IsInstanceOf<Red::worldEntityNode>(nodeDefinition) ||
-                 Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition) ||
+                 Red::IsInstanceOf<Red::worldStaticOccluderMeshNode>(nodeDefinition) ||
+                 Red::IsInstanceOf<Red::worldReflectionProbeNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition) ||
-                 Red::IsInstanceOf<Red::worldStaticOccluderMeshNode>(nodeDefinition))
+                 Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition))
         {
-            Red::Box boundingBox{{1.0, 0.0, 0.0, 0.0}, {-1.0, 0.0, 0.0, 0.0}};
-            Raw::WorldNode::GetBoundingBox(nodeDefinition, boundingBox);
+            Red::Box nodeBoundingBox{{1.0, 0.0, 0.0, 0.0}, {-1.0, 0.0, 0.0, 0.0}};
+            Raw::WorldNode::GetBoundingBox(nodeDefinition, nodeBoundingBox);
 
-            if (Red::IsValidBox(boundingBox))
+            if (Red::IsValidBox(nodeBoundingBox))
             {
-                Red::ScaleBox(boundingBox, scale);
+                auto& actor = streamedNode.actors.emplace_back();
 
-                streamedNode.boundingBox = boundingBox;
+                actor.position = nodeTransform.position;
+                actor.orientation = nodeTransform.orientation;
+                actor.boundingBox = nodeBoundingBox;
 
-                Red::TransformBox(boundingBox, transform);
+                Red::ScaleBox(actor.boundingBox, nodeScale);
 
-                streamedNode.testBoxes.push_back(boundingBox);
-                streamedNode.isStaticMesh = !Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition) &&
-                                            !Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition) &&
-                                            !Red::IsInstanceOf<Red::worldStaticOccluderMeshNode>(nodeDefinition);
+                actor.testBox = actor.boundingBox;
+
+                Red::TransformBox(actor.testBox, nodeTransform);
+
+                streamedNode.isTargetable = !Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition) &&
+                                            !Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition) &&
+                                            !Red::IsInstanceOf<Red::worldWaterPatchNode>(nodeDefinition);
             }
             else
             {
@@ -176,22 +386,61 @@ void App::WorldInspector::UpdateStreamedNodes()
                 continue;
             }
         }
-        else if (Red::IsInstanceOf<Red::worldInstancedMeshNode>(nodeDefinition))
+        else if (Red::IsInstanceOf<Red::worldStaticLightNode>(nodeDefinition))
         {
-            auto& instanceBoxes = Raw::WorldInstancedMeshNode::Bounds::Ref(nodeDefinition);
-            if (instanceBoxes.size > 0)
-            {
-                for (const auto& instanceBox : instanceBoxes)
-                {
-                    streamedNode.testBoxes.push_back(instanceBox);
-                    streamedNode.isStaticMesh = true;
-                }
-            }
-            else
-            {
-                postponedRequests[hash] = request;
-                continue;
-            }
+            auto& actor = streamedNode.actors.emplace_back();
+
+            actor.position = nodeTransform.position;
+            actor.orientation = nodeTransform.orientation;
+            actor.boundingBox = {{-0.3, -0.3, -0.3, 1.0}, {0.3, 0.3, 0.3, 1.0}};
+
+            Red::ScaleBox(actor.boundingBox, nodeScale);
+
+            actor.testBox = actor.boundingBox;
+
+            Red::TransformBox(actor.testBox, nodeTransform);
+
+            streamedNode.isTargetable = true;
+        }
+        else if (Red::IsInstanceOf<Red::worldStaticParticleNode>(nodeDefinition))
+        {
+            auto& actor = streamedNode.actors.emplace_back();
+
+            actor.position = nodeTransform.position;
+            actor.orientation = nodeTransform.orientation;
+            actor.boundingBox = {{-0.5, -0.5, 0, 1.0}, {0.5, 0.5, 0.5, 1.0}};
+
+            Red::ScaleBox(actor.boundingBox, nodeScale);
+
+            actor.testBox = actor.boundingBox;
+
+            Red::TransformBox(actor.testBox, nodeTransform);
+
+            streamedNode.isTargetable = true;
+        }
+        else if (Red::IsInstanceOf<Red::worldAISpotNode>(nodeDefinition))
+        {
+            auto& actor = streamedNode.actors.emplace_back();
+
+            actor.position = nodeTransform.position;
+            actor.orientation = nodeTransform.orientation;
+            actor.boundingBox = {{-0.4, -0.4, 0, 1.0}, {0.4, 0.4, 0.05, 1.0}};
+
+            Red::ScaleBox(actor.boundingBox, nodeScale);
+
+            actor.testBox = actor.boundingBox;
+
+            Red::TransformBox(actor.testBox, nodeTransform);
+
+            streamedNode.isTargetable = true;
+        }
+        else if (Red::IsInstanceOf<Red::worldCollisionNode>(nodeDefinition))
+        {
+            // TODO: Add actors for static scanning
+        }
+        else if (Red::IsInstanceOf<Red::worldTerrainCollisionNode>(nodeDefinition))
+        {
+            // TODO: Add actors for static scanning
         }
 
         m_streamedNodes.emplace(request.hash, std::move(streamedNode));
@@ -219,8 +468,10 @@ void App::WorldInspector::UpdateFrustumNodes()
 #ifndef NDEBUG
     std::chrono::duration<double, std::milli> initDuration{};
     std::chrono::duration<double, std::milli> resolveDuration{};
-    std::chrono::duration<double, std::milli> raycastDuration{};
     std::chrono::duration<double, std::milli> commitDuration{};
+    std::chrono::duration<double, std::milli> frustumDuration{};
+    std::chrono::duration<double, std::milli> raycastDuration{};
+    std::chrono::duration<double, std::milli> collectDuration{};
     const auto updateStart = std::chrono::steady_clock::now();
 #endif
 
@@ -241,7 +492,7 @@ void App::WorldInspector::UpdateFrustumNodes()
     Raw::CameraSystem::GetCameraForward(m_cameraSystem, cameraForward);
     Raw::CameraSystem::GetCameraFrustum(m_cameraSystem, cameraFrustum);
 
-    const Red::Vector4 cameraInverseDirection{1.0f / cameraForward.X, 1.0f / cameraForward.Y, 1.0f / cameraForward.Z, 0.0};
+    const Red::Box invalidBox{{1.0, 0.0, 0.0, 0.0}, {-1.0, 0.0, 0.0, 0.0}};
 
 #ifndef NDEBUG
     initDuration = std::chrono::steady_clock::now() - updateStart;
@@ -249,83 +500,180 @@ void App::WorldInspector::UpdateFrustumNodes()
 
     {
         std::shared_lock _(m_streamedNodesLock);
+
+#ifndef NDEBUG
+        const auto resolveStart = std::chrono::steady_clock::now();
+#endif
+
         for (const auto& [hash, streamedNode] : m_streamedNodes)
         {
             if (streamedNode.nodeInstance.Expired() || streamedNode.nodeDefinition.Expired())
                 continue;
 
-            // if (!Raw::WorldNodeInstance::SetupInfo::Ptr(streamedNode.nodeInstance.instance))
-            //     continue;
-
 #ifndef NDEBUG
-            const auto resolveStart = std::chrono::steady_clock::now();
+            const auto frustumStart = std::chrono::steady_clock::now();
 #endif
 
             Red::FrustumResult frustumResult{};
-            Red::Box testBox{{1.0, 0.0, 0.0, 0.0}, {-1.0, 0.0, 0.0, 0.0}};
+            Core::Vector<int32_t> frustumActorIndexes;
+            frustumActorIndexes.reserve(streamedNode.actors.size());
 
-            if (!streamedNode.testBoxes.empty())
+            if (!streamedNode.actors.empty())
             {
-                for (const auto& candidateBox : streamedNode.testBoxes)
+                for (auto candidateActorIndex = 0; candidateActorIndex < streamedNode.actors.size(); ++candidateActorIndex)
                 {
-                    if ((frustumResult = cameraFrustum.Test(candidateBox)) != Red::FrustumResult::Outside)
+                    const auto& candidateActor = streamedNode.actors[candidateActorIndex];
+                    const auto candidateResult = cameraFrustum.Test(candidateActor.testBox);
+
+                    if (candidateResult != Red::FrustumResult::Outside)
                     {
-                        testBox = candidateBox;
-                        break;
+                        frustumActorIndexes.push_back(candidateActorIndex);
+                        frustumResult = candidateResult;
                     }
                 }
             }
             else
             {
                 Red::Box dummyBox{{-0.05, -0.05, -0.05, 1.0}, {0.05, 0.05, 0.05, 1.0}};
-                Red::TransformBox(dummyBox, streamedNode.transform);
+                Red::TransformBox(dummyBox, {streamedNode.position, streamedNode.orientation});
 
                 frustumResult = cameraFrustum.Test(dummyBox);
             }
 
 #ifndef NDEBUG
-            resolveDuration += std::chrono::steady_clock::now() - resolveStart;
+            frustumDuration += std::chrono::steady_clock::now() - frustumStart;
+#endif
+
+            if (frustumResult == Red::FrustumResult::Outside && !m_discoverMode)
+                continue;
+
+#ifndef NDEBUG
             const auto raycastStart = std::chrono::steady_clock::now();
 #endif
 
-            float distance;
-            if (Red::IsValidBox(testBox))
-            {
-                distance = Red::Distance(cameraPosition, testBox);
-            }
-            else
-            {
-                distance = Red::Distance(cameraPosition, streamedNode.transform.position);
-            }
+            float nearestDistance = std::numeric_limits<float>::max();
+            int32_t nearestActorIndex = -1;
+            int32_t overlapActorIndex = -1;
 
-            auto inFrustum = (frustumResult != Red::FrustumResult::Outside && distance <= m_frustumDistance);
-            if (inFrustum)
+            if (!frustumActorIndexes.empty())
             {
-                if (streamedNode.nodeDefinition.instance->isVisibleInGame &&
-                    streamedNode.isStaticMesh && Red::IsValidBox(testBox) &&
-                    distance >= 0.0001 && distance <= m_targetingDistance)
+                int32_t targetActorIndex = -1;
+
+                for (const auto candidateActorIndex : frustumActorIndexes)
                 {
-                    if (Red::Intersect(cameraPosition, cameraInverseDirection, testBox))
+                    const auto& candidateActor = streamedNode.actors[candidateActorIndex];
+
+                    Red::Quaternion inverseRotation = candidateActor.orientation;
+                    Red::CallStatic("Quaternion", "SetInverse", inverseRotation);
+
+                    Red::Vector4 localPosition = cameraPosition - candidateActor.position;
+                    Red::CallStatic("Quaternion", "Transform", localPosition, inverseRotation, localPosition);
+
+                    if (Red::InsideBox(localPosition, candidateActor.boundingBox/*, 0.2, 2.0*/))
+                    {
+                        if (overlapActorIndex == -1)
+                        {
+                            overlapActorIndex = candidateActorIndex;
+                        }
+                        continue;
+                    }
+
+                    auto candidateDistance = Red::Distance(localPosition, candidateActor.boundingBox);
+
+                    if (candidateDistance > m_frustumDistance && !m_discoverMode)
+                        continue;
+
+                    auto targeted = false;
+                    if (streamedNode.isTargetable)
+                    {
+                        Red::Vector4 localForward = cameraForward;
+                        Red::CallStatic("Quaternion", "Transform", localForward, inverseRotation, localForward);
+                        Red::Vector4 inverseForward{1.0f / localForward.X, 1.0f / localForward.Y, 1.0f / localForward.Z, 0.0};
+
+                        targeted = Red::IntersectBox(localPosition, inverseForward, candidateActor.boundingBox);
+                    }
+
+                    if (targeted)
+                    {
+                        if (targetActorIndex == -1 || candidateDistance < nearestDistance)
+                        {
+                            targetActorIndex = candidateActorIndex;
+                            nearestActorIndex = candidateActorIndex;
+                            nearestDistance = candidateDistance;
+                        }
+                    }
+                    else
+                    {
+                        if (targetActorIndex == -1 && candidateDistance < nearestDistance)
+                        {
+                            nearestActorIndex = candidateActorIndex;
+                            nearestDistance = candidateDistance;
+                        }
+                    }
+                }
+
+                if (targetActorIndex != -1)
+                {
+                    if (nearestDistance <= m_targetingDistance)
                     {
                         targetedNodeIndexes.push_back(frustumNodes.size());
                     }
                 }
+                else if (overlapActorIndex != -1)
+                {
+                    if (streamedNode.isTargetable)
+                    {
+                        targetActorIndex = overlapActorIndex;
+                        targetedNodeIndexes.push_back(frustumNodes.size());
+                    }
+
+                    nearestActorIndex = overlapActorIndex;
+                    nearestDistance = 0.0;
+                }
             }
             else
             {
-                continue;
+                nearestDistance = Red::Distance(cameraPosition, streamedNode.position);
             }
 
 #ifndef NDEBUG
             raycastDuration += std::chrono::steady_clock::now() - raycastStart;
 #endif
 
-            const auto instanceHash = reinterpret_cast<uint64_t>(streamedNode.nodeInstance.instance);
-            frustumNodes.push_back({streamedNode.nodeInstance, streamedNode.nodeDefinition,
-                                    streamedNode.boundingBox, streamedNode.transform.position,
-                                    streamedNode.transform.orientation, streamedNode.scale,
-                                    testBox, distance, inFrustum, instanceHash, true});
+            if (nearestDistance > m_frustumDistance && !m_discoverMode)
+                continue;
+
+#ifndef NDEBUG
+            const auto collecttStart = std::chrono::steady_clock::now();
+#endif
+
+            const auto nodeHash = reinterpret_cast<uint64_t>(streamedNode.nodeInstance.instance);
+            const bool nodeEnabled = Raw::WorldNodeInstance::State::Ref(streamedNode.nodeInstance.instance).isVisible;
+            const auto* nearestActor = nearestActorIndex != -1 ? &streamedNode.actors[nearestActorIndex] : nullptr;
+
+            frustumNodes.push_back({streamedNode.nodeInstance,
+                                    streamedNode.nodeDefinition,
+                                    nearestActor ? nearestActor->position : streamedNode.position,
+                                    nearestActor ? nearestActor->orientation : streamedNode.orientation,
+                                    streamedNode.scale,
+                                    nearestActor ? nearestActor->boundingBox : invalidBox,
+                                    nearestActor ? nearestActor->testBox : invalidBox,
+                                    nearestActorIndex,
+                                    static_cast<uint32_t>(streamedNode.actors.size()),
+                                    nearestDistance,
+                                    streamedNode.interior,
+                                    nodeEnabled,
+                                    nodeHash,
+                                    true});
+
+#ifndef NDEBUG
+            collectDuration += std::chrono::steady_clock::now() - collecttStart;
+#endif
         }
+
+#ifndef NDEBUG
+        resolveDuration += std::chrono::steady_clock::now() - resolveStart;
+#endif
     }
 
 #ifndef NDEBUG
@@ -361,16 +709,54 @@ void App::WorldInspector::UpdateFrustumNodes()
 
     const std::chrono::duration<double, std::milli> updateDuration = std::chrono::steady_clock::now() - updateStart;
     Core::Log::Debug("UpdateFrustumNodes streamed={} frustum={} targets={} "
-                     "time={:.3f}ms init={:.3f}ms resolving={:.3f}ms raycasting={:.3f}ms commit={:.3f}ms",
+                     "time={:.3f}ms init={:.3f}ms resolve={:.3f}ms commit={:.3f}ms "
+                     "bbox={:.3f}ms raycast={:.3f}ms collect={:.3f}ms",
                      m_streamedNodes.size(), m_frustumNodes.size, targetedNodeIndexes.size(),
-                     updateDuration.count(), initDuration.count(),
-                     resolveDuration.count(), raycastDuration.count(),
-                     commitDuration.count());
+                     updateDuration.count(), initDuration.count(), resolveDuration.count(), commitDuration.count(),
+                     frustumDuration.count(), raycastDuration.count(), collectDuration.count());
 #endif
+}
+
+bool App::WorldInspector::IsReady() const
+{
+    return m_ready;
+}
+
+float App::WorldInspector::GetFrustumDistance() const
+{
+    return m_frustumDistance;
+}
+
+void App::WorldInspector::SetFrustumDistance(float aDistance)
+{
+    m_frustumDistance = std::clamp(aDistance, FrustumMinDistance, FrustumMaxDistance);
+}
+
+float App::WorldInspector::GetTargetingDistance() const
+{
+    return m_targetingDistance;
+}
+
+void App::WorldInspector::SetTargetingDistance(float aDistance)
+{
+    m_targetingDistance = std::clamp(aDistance, TargetingMinDistance, m_frustumDistance);
+}
+
+bool App::WorldInspector::IsDiscoverMode() const
+{
+    return m_discoverMode;
+}
+
+void App::WorldInspector::SetDiscoverMode(bool aEnabled)
+{
+    m_discoverMode = aEnabled;
 }
 
 App::WorldNodeInstanceStaticData App::WorldInspector::ResolveSectorDataFromNodeID(uint64_t aNodeID)
 {
+    if (!m_ready)
+        return {};
+
     {
         static const Red::GlobalNodeRef context{Red::NodeRef::GlobalRoot};
 
@@ -390,12 +776,15 @@ App::WorldNodeInstanceStaticData App::WorldInspector::ResolveSectorDataFromNodeI
 App::WorldNodeInstanceStaticData App::WorldInspector::ResolveSectorDataFromNodeInstance(
     const Red::WeakHandle<Red::worldINodeInstance>& aNodeInstance)
 {
+    if (!m_ready)
+        return {};
+
     return m_nodeRegistry->GetNodeStaticData(aNodeInstance);
 }
 
 Red::CString App::WorldInspector::ResolveNodeRefFromNodeHash(uint64_t aNodeID)
 {
-    if (!aNodeID)
+    if (!m_ready || !aNodeID)
         return {};
 
     {
@@ -434,6 +823,9 @@ uint64_t App::WorldInspector::ComputeNodeRefHash(const Red::CString& aNodeRef)
 
 Red::EntityID App::WorldInspector::ResolveCommunityIDFromEntityID(uint64_t aEntityID)
 {
+    if (!m_ready)
+        return {};
+
     auto entityStubSystem = Red::GetGameSystem<Red::IEntityStubSystem>();
     auto entityStub = entityStubSystem->FindStub(aEntityID);
 
@@ -445,6 +837,9 @@ Red::EntityID App::WorldInspector::ResolveCommunityIDFromEntityID(uint64_t aEnti
 
 App::WorldCommunityEntryData App::WorldInspector::ResolveCommunityEntryDataFromEntityID(uint64_t aEntityID)
 {
+    if (!m_ready)
+        return {};
+
     WorldCommunityEntryData communityEntryData{};
 
     auto entityStubSystem = Red::GetGameSystem<Red::IEntityStubSystem>();
@@ -505,6 +900,9 @@ App::WorldCommunityEntryData App::WorldInspector::ResolveCommunityEntryDataFromE
 
 App::WorldNodeRuntimeSceneData App::WorldInspector::FindStreamedNode(uint64_t aNodeID)
 {
+    if (!m_ready)
+        return {};
+
     auto nodeInstance = m_nodeRegistry->FindStreamedNodeInstance(aNodeID);
 
     if (!nodeInstance)
@@ -515,17 +913,23 @@ App::WorldNodeRuntimeSceneData App::WorldInspector::FindStreamedNode(uint64_t aN
     if (!nodeInstanceWeak)
         return {};
 
-    return {nodeInstanceWeak, nodeDefinitionWeak, {}, setup->transform.position, setup->transform.orientation};
+    return {nodeInstanceWeak, nodeDefinitionWeak, setup->transform.position, setup->transform.orientation};
 }
 
 Red::DynArray<App::WorldNodeRuntimeSceneData> App::WorldInspector::GetStreamedNodesInFrustum()
 {
+    if (!m_ready)
+        return {};
+
     std::shared_lock _(m_frustumNodesLock);
     return m_frustumNodes;
 }
 
 Red::DynArray<App::WorldNodeRuntimeSceneData> App::WorldInspector::GetStreamedNodesInCrosshair()
 {
+    if (!m_ready)
+        return {};
+
     std::shared_lock _(m_frustumNodesLock);
     return m_targetedNodes;
 }
@@ -533,6 +937,9 @@ Red::DynArray<App::WorldNodeRuntimeSceneData> App::WorldInspector::GetStreamedNo
 App::WorldNodeRuntimeGeometryData App::WorldInspector::GetStreamedNodeGeometry(
     const Red::WeakHandle<Red::worldINodeInstance>& aNode)
 {
+    if (!m_ready)
+        return {};
+
     const auto& [setup, nodeInstanceWeak, nodeDefinitionWeak] = m_nodeRegistry->GetNodeRuntimeData(aNode);
 
     if (!setup)
@@ -541,45 +948,47 @@ App::WorldNodeRuntimeGeometryData App::WorldInspector::GetStreamedNodeGeometry(
     return {setup->transform.position, setup->transform.orientation, setup->scale};
 }
 
-float App::WorldInspector::GetFrustumDistance() const
-{
-    return m_frustumDistance;
-}
-
-void App::WorldInspector::SetFrustumDistance(float aDistance)
-{
-    m_frustumDistance = std::clamp(aDistance, FrustumMinDistance, FrustumMaxDistance);
-}
-
-float App::WorldInspector::GetTargetingDistance() const
-{
-    return m_targetingDistance;
-}
-
-void App::WorldInspector::SetTargetingDistance(float aDistance)
-{
-    m_targetingDistance = std::clamp(aDistance, FrustumMinDistance, m_frustumDistance);
-}
-
 bool App::WorldInspector::SetNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aVisible)
 {
+    if (!m_ready)
+        return false;
+
     return UpdateNodeVisibility(aNodeInstance, false, true);
 }
 
 bool App::WorldInspector::ToggleNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance)
 {
+    if (!m_ready)
+        return false;
+
     return UpdateNodeVisibility(aNodeInstance, true, true);
 }
 
-bool App::WorldInspector::UpdateNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance,
-                                                 bool aToggle, bool aVisible)
+bool App::WorldInspector::GetNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance) const
 {
+    if (!m_ready)
+        return false;
+
+    return Raw::WorldNodeInstance::IsVisible(aNodeInstance);
+    // return GetRenderProxyVisibility(aNodeInstance);
+}
+
+bool App::WorldInspector::UpdateNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance,
+                                               bool aToggle, bool aVisible)
+{
+    if (!m_ready)
+        return false;
+
+    if (aToggle)
+    {
+        aVisible = !Raw::WorldNodeInstance::IsVisible(aNodeInstance);
+        aToggle = false;
+    }
+
+    Raw::WorldNodeInstance::SetVisibility(aNodeInstance, aVisible);
+
     if (Red::IsInstanceOf<Red::worldEntityNodeInstance>(aNodeInstance))
     {
-        if (aToggle)
-            aVisible = !Raw::WorldNodeInstance::IsVisible(aNodeInstance);
-
-        Raw::WorldNodeInstance::SetVisibility(aNodeInstance, aVisible);
         return true;
     }
 
@@ -628,13 +1037,21 @@ bool App::WorldInspector::UpdateNodeVisibility(const Red::Handle<Red::worldINode
         return SetRenderProxyVisibility<Raw::WorldStaticLightNodeInstance::RenderProxy>(aNodeInstance, aToggle, aVisible);
     }
 
+    if (Red::IsInstanceOf<Red::worldStaticParticleNodeInstance>(aNodeInstance))
+    {
+        return SetRenderProxyVisibility<Raw::WorldStaticParticleNodeInstance::RenderProxy>(aNodeInstance, aToggle, aVisible);
+    }
+
     return false;
 }
 
 template<typename TRenderProxy>
 bool App::WorldInspector::SetRenderProxyVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance,
-                                                     bool aToggle, bool aVisible)
+                                                   bool aToggle, bool aVisible)
 {
+    if (!m_ready)
+        return false;
+
     if constexpr (Red::IsArray<typename TRenderProxy::Type>)
     {
         auto& renderProxies = TRenderProxy::Ref(aNodeInstance);
@@ -649,6 +1066,7 @@ bool App::WorldInspector::SetRenderProxyVisibility(const Red::Handle<Red::worldI
 
             Raw::RenderProxy::SetVisibility(renderProxy, aVisible);
         }
+
         return true;
     }
     else
@@ -666,9 +1084,104 @@ bool App::WorldInspector::SetRenderProxyVisibility(const Red::Handle<Red::worldI
     }
 }
 
+bool App::WorldInspector::GetRenderProxyVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance) const
+{
+    if (!m_ready)
+        return false;
+
+    // if (Red::IsInstanceOf<Red::worldEntityNodeInstance>(aNodeInstance))
+    // {
+    //     return Raw::WorldNodeInstance::IsVisible(aNodeInstance);
+    // }
+
+    // if (Red::IsInstanceOf<Red::worldInstancedDestructibleMeshNodeInstance>(aNodeInstance))
+    // {
+    //     return GetRenderProxyVisibility<Raw::WorldInstancedDestructibleMeshNodeInstance::RenderProxy>(aNodeInstance);
+    // }
+
+    if (Red::IsInstanceOf<Red::worldMeshNodeInstance>(aNodeInstance))
+    {
+        return GetRenderProxyVisibility<Raw::WorldMeshNodeInstance::RenderProxy>(aNodeInstance);
+    }
+
+    if (Red::IsInstanceOf<Red::worldStaticDecalNodeInstance>(aNodeInstance))
+    {
+        return GetRenderProxyVisibility<Raw::WorldStaticDecalNodeInstance::RenderProxy>(aNodeInstance);
+    }
+
+    if (Red::IsInstanceOf<Red::worldBendedMeshNodeInstance>(aNodeInstance))
+    {
+        return GetRenderProxyVisibility<Raw::WorldBendedMeshNodeInstance::RenderProxy>(aNodeInstance);
+    }
+
+    if (Red::IsInstanceOf<Red::worldPhysicalDestructionNodeInstance>(aNodeInstance))
+    {
+        return GetRenderProxyVisibility<Raw::WorldPhysicalDestructionNodeInstance::RenderProxy>(aNodeInstance);
+    }
+
+    if (Red::IsInstanceOf<Red::worldInstancedMeshNodeInstance>(aNodeInstance))
+    {
+        return GetRenderProxyVisibility<Raw::WorldInstancedMeshNodeInstance::RenderProxies>(aNodeInstance);
+    }
+
+    if (Red::IsInstanceOf<Red::worldFoliageNodeInstance>(aNodeInstance))
+    {
+        return GetRenderProxyVisibility<Raw::WorldFoliageNodeInstance::RenderProxies>(aNodeInstance);
+    }
+
+    if (Red::IsInstanceOf<Red::worldTerrainMeshNodeInstance>(aNodeInstance))
+    {
+        return GetRenderProxyVisibility<Raw::WorldTerrainMeshNodeInstance::RenderProxies>(aNodeInstance);
+    }
+
+    if (Red::IsInstanceOf<Red::worldStaticLightNodeInstance>(aNodeInstance))
+    {
+        return GetRenderProxyVisibility<Raw::WorldStaticLightNodeInstance::RenderProxy>(aNodeInstance);
+    }
+
+    return Raw::WorldNodeInstance::IsVisible(aNodeInstance);
+}
+
+template<typename TRenderProxy>
+bool App::WorldInspector::GetRenderProxyVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance) const
+{
+    if (!m_ready)
+        return false;
+
+    if constexpr (Red::IsArray<typename TRenderProxy::Type>)
+    {
+        auto& renderProxies = TRenderProxy::Ref(aNodeInstance);
+
+        if (!renderProxies.size)
+            return false;
+
+        for (auto& renderProxy : renderProxies)
+        {
+            if (Raw::RenderProxy::IsVisible(renderProxy))
+            {
+                return true;
+            }
+        }
+
+        return true;
+    }
+    else
+    {
+        auto& renderProxy = TRenderProxy::Ref(aNodeInstance);
+
+        if (!renderProxy)
+            return false;
+
+        return Raw::RenderProxy::IsVisible(renderProxy);
+    }
+}
+
 bool App::WorldInspector::ApplyHighlightEffect(const Red::Handle<Red::ISerializable>& aObject,
                                                  const Red::Handle<Red::entRenderHighlightEvent>& aEffect)
 {
+    if (!m_ready)
+        return false;
+
     if (auto& entity = Red::Cast<Red::entEntity>(aObject))
     {
         return SetEntityHighlightEffect(entity, aEffect);
@@ -730,6 +1243,9 @@ template<typename TRenderProxy>
 bool App::WorldInspector::SetRenderProxyHighlightEffect(const Red::Handle<Red::worldINodeInstance>& aNodeInstance,
                                                           const Red::Handle<Red::entRenderHighlightEvent>& aEffect)
 {
+    if (!m_ready)
+        return false;
+
     if constexpr (Red::IsArray<typename TRenderProxy::Type>)
     {
         auto& renderProxies = TRenderProxy::Ref(aNodeInstance);
@@ -759,12 +1275,13 @@ bool App::WorldInspector::SetRenderProxyHighlightEffect(const Red::Handle<Red::w
 
         Raw::RenderProxy::SetScanningState(renderProxy, Red::rendPostFx_ScanningState::Complete);
         Raw::RenderProxy::SetHighlightParams(renderProxy, highlight);
+
         return true;
     }
 }
 
 bool App::WorldInspector::SetEntityHighlightEffect(const Red::Handle<Red::entEntity>& aEntity,
-                                                     const Red::Handle<Red::entRenderHighlightEvent>& aEffect)
+                                                   const Red::Handle<Red::entRenderHighlightEvent>& aEffect) const
 {
     if (!aEntity)
         return false;
@@ -782,12 +1299,12 @@ App::PhysicsTraceResultObject App::WorldInspector::GetPhysicsTraceObject(Red::Sc
     if (!aTrace)
         return result;
 
-    auto& resultID = Raw::PhysicsTraceResult::ResultID::Ref(aTrace.ref);
+    auto trace = aTrace.ref;
 
     for (uint32_t i = 0; i < 2; ++i)
     {
         Red::Handle<Red::ISerializable> object;
-        Raw::PhysicsTraceResult::GetHitObject(object, resultID, i);
+        Raw::PhysicsProxy::GetHitObject(object, trace->proxyID, i);
 
         if (object)
         {
@@ -796,11 +1313,13 @@ App::PhysicsTraceResultObject App::WorldInspector::GetPhysicsTraceObject(Red::Sc
                 result.nodeInstance = nodeInstance;
                 result.nodeDefinition = Raw::WorldNodeInstance::Node::Ref(nodeInstance);
                 result.hash = reinterpret_cast<uint64_t>(nodeInstance.instance);
+                result.resolved = true;
             }
             else if (auto& entity = Red::Cast<Red::entEntity>(object))
             {
                 result.entity = entity;
                 result.hash = reinterpret_cast<uint64_t>(entity.instance);
+                result.resolved = true;
 
                 if (entity->entityID.IsStatic())
                 {
@@ -809,21 +1328,187 @@ App::PhysicsTraceResultObject App::WorldInspector::GetPhysicsTraceObject(Red::Sc
                     {
                         result.nodeInstance = nodeInstance;
                         result.nodeDefinition = Raw::WorldNodeInstance::Node::Ref(nodeInstance);
-                        result.hash = reinterpret_cast<uint64_t>(nodeInstance.instance);
+                        // result.hash = reinterpret_cast<uint64_t>(nodeInstance.instance);
                     }
                 }
             }
-            else
+            else if (auto& component = Red::Cast<Red::entIComponent>(object))
+            {
+                result.component = component;
+            }
+            else if (!result.resolved)
             {
                 result.hash = reinterpret_cast<uint64_t>(object.instance);
+                result.resolved = true;
             }
+        }
+    }
 
-            result.resolved = true;
-            break;
+    if (result.resolved)
+    {
+        result.proxyID = trace->proxyID;
+        result.actorIndex = trace->actorIndex;
+        result.actorOffset = 0;
+        result.shapeIndex = trace->shapeIndex;
+        result.distance = trace->distance;
+
+        if (auto nodeInstance = Red::Cast<Red::worldCollisionNodeInstance>(result.nodeInstance.Lock()))
+        {
+            if (result.proxyID == Raw::WorldCollisionNodeInstance::SecondaryProxyID::Ref(nodeInstance))
+            {
+                auto& nodeDefinition = Raw::WorldCollisionNodeInstance::Node::Ref(nodeInstance);
+                result.actorOffset = nodeDefinition->numActors / 2;
+            }
         }
     }
 
     return result;
+}
+
+Red::Box App::WorldInspector::GetPhysicsProxyBoundingBox(uint32_t aProxyID, int32_t aActorIndex, int32_t aShapeIndex)
+{
+    Red::Box finalBox{{1,1,1,0}, {-1,-1,-1,0}};
+
+    bool allActors = aActorIndex == -1;
+    bool allShapes = allActors || aShapeIndex == -1;
+
+    int32_t actorIndex = allActors ? 0 : aActorIndex;
+    while (true)
+    {
+        Red::Transform actorTransform;
+        Raw::PhysicsProxy::GetActorWorldTransform(actorTransform, aProxyID, actorIndex);
+
+        if (actorTransform.position.X == 0 && actorTransform.position.Y == 0 && actorTransform.position.Z == 0)
+            break;
+
+        int32_t shapeIndex = allShapes ? 0 : aShapeIndex;
+        while (true)
+        {
+            Red::PhysicsGeometryProxy shapeGeometry;
+            Raw::PhysicsProxy::GetShapeGeometry(shapeGeometry, aProxyID, actorIndex, shapeIndex);
+
+            if (shapeGeometry.type == Red::PhysicsGeometryType::Invalid)
+            {
+                Raw::PhysicsGeometry::Destruct(shapeGeometry);
+                break;
+            }
+
+            Red::Transform shapeTransform;
+            Raw::PhysicsProxy::GetShapeLocalTransform(shapeTransform, aProxyID, actorIndex, shapeIndex);
+
+            Red::Box shapeBox;
+            Raw::PhysicsGeometry::GetBoundingBox(shapeGeometry, shapeBox, shapeTransform);
+
+            Raw::PhysicsGeometry::Destruct(shapeGeometry);
+
+            Red::CombineBox(finalBox, shapeBox);
+
+            if (!allShapes)
+                break;
+
+            ++shapeIndex;
+        }
+
+        if (!allActors)
+            break;
+
+        ++actorIndex;
+    }
+
+    return finalBox;
+}
+
+App::PhysicsTraceResulGeometry App::WorldInspector::GetPhysicsProxyGeometry(uint32_t aProxyID, int32_t aActorIndex, int32_t aShapeIndex)
+{
+    bool allActors = aActorIndex == -1;
+
+    Red::Transform finalTransform;
+    Raw::PhysicsProxy::GetActorWorldTransform(finalTransform, aProxyID, allActors ? 0 : aActorIndex);
+
+    return {finalTransform.position, finalTransform.orientation, GetPhysicsProxyBoundingBox(aProxyID, aActorIndex, aShapeIndex)};
+}
+
+App::PhysicsTraceResulGeometry App::WorldInspector::GetPhysicsObjectGeometry(
+    const Red::Handle<Red::ISerializable>& aObject, int32_t aActorIndex, int32_t aShapeIndex)
+{
+    if (auto entity = Red::Cast<Red::entEntity>(aObject))
+    {
+        if (entity->entityID.hash == 1)
+            return {};
+
+        Red::Box entityBox{};
+        Red::Vector4 entityPosition = entity->transformComponent->worldTransform.Position;
+        Red::Quaternion entityRotation = entity->transformComponent->worldTransform.Orientation;
+
+        Red::Transform inverseTransform = {entityPosition, entityRotation};
+        Red::CallStatic("Transform", "SetInverse", inverseTransform);
+
+        for (const auto& component : entity->components)
+        {
+            const auto& placedComponent = Red::Cast<Red::entIPlacedComponent>(component);
+
+            if (!placedComponent || !placedComponent->isEnabled)
+                continue;
+#ifndef NDEBUG
+            auto _componentName = placedComponent->name.ToString();
+            auto _componentType = placedComponent->GetType()->GetName().ToString();
+#endif
+            uint32_t componentProxyID = -1;
+            Red::Vector3 componentScale = {1, 1, 1};
+
+            if (const auto& collider = Red::Cast<Red::entColliderComponent>(placedComponent))
+            {
+                if (collider->filterData->preset == "NPC Hitbox")
+                    continue;
+
+                componentProxyID = *std::bit_cast<uint32_t*>(&collider->unk1A2[2]);
+            }
+            else if (const auto& simpleCollider = Red::Cast<Red::entSimpleColliderComponent>(placedComponent))
+            {
+                componentProxyID = *std::bit_cast<uint32_t*>(&simpleCollider->unk140);
+            }
+            else if (const auto& physicalMesh = Red::Cast<Red::entPhysicalMeshComponent>(placedComponent))
+            {
+                if (physicalMesh->LODMode == Red::entMeshComponentLODMode::AppearanceProxy)
+                    continue;
+
+                componentProxyID = *std::bit_cast<uint32_t*>(&physicalMesh->unk228);
+                componentScale = physicalMesh->visualScale;
+            }
+            else if (const auto& physicalSkinnedMesh = Red::Cast<Red::entPhysicalSkinnedMeshComponent>(placedComponent))
+            {
+                if (physicalSkinnedMesh->LODMode == Red::entMeshComponentLODMode::AppearanceProxy)
+                    continue;
+
+                componentProxyID = *std::bit_cast<uint32_t*>(&physicalSkinnedMesh->unk2B8[8]);
+            }
+            else if (const auto& physicalDestruction = Red::Cast<Red::entPhysicalDestructionComponent>(placedComponent))
+            {
+                componentProxyID = *std::bit_cast<uint32_t*>(&physicalDestruction->unk310);
+            }
+            else if (const auto& corpse = Red::Cast<Red::entCorpseComponent>(placedComponent))
+            {
+                componentProxyID = *std::bit_cast<uint32_t*>(&corpse->unk178);
+            }
+
+            if (componentProxyID == -1)
+                continue;
+
+            auto componentGeometry = GetPhysicsProxyGeometry(componentProxyID, -1, -1);
+            auto& componentBox = componentGeometry.boundingBox;
+
+            Red::Transform componentTransform = {componentGeometry.position, componentGeometry.orientation};
+            Red::CallGlobal("OperatorMultiply;TransformTransform;Transform", componentTransform, componentTransform, inverseTransform);
+
+            Red::TransformBox(componentBox, componentTransform);
+            Red::ScaleBox(componentBox, componentScale);
+            Red::CombineBox(entityBox, componentBox);
+        }
+
+        return {entityPosition, entityRotation, entityBox};
+    }
+
+    return {};
 }
 
 Red::Vector4 App::WorldInspector::ProjectWorldPoint(const Red::Vector4& aPoint)
@@ -835,4 +1520,12 @@ Red::Vector4 App::WorldInspector::ProjectWorldPoint(const Red::Vector4& aPoint)
     Raw::Camera::ProjectPoint(camera, result, point);
 
     return result;
+}
+
+Red::Vector4 App::WorldInspector::GetFrustumNearPlane()
+{
+    Red::Frustum cameraFrustum;
+    Raw::CameraSystem::GetCameraFrustum(m_cameraSystem, cameraFrustum);
+
+    return *std::bit_cast<Red::Vector4*>(&cameraFrustum.planes[0]);
 }
