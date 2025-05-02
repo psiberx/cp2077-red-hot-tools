@@ -467,12 +467,11 @@ void App::WorldInspector::UpdateFrustumNodes()
 {
 #ifndef NDEBUG
     std::chrono::duration<double, std::milli> initDuration{};
-    std::chrono::duration<double, std::milli> resolveDuration{};
     std::chrono::duration<double, std::milli> commitDuration{};
     std::chrono::duration<double, std::milli> frustumDuration{};
     std::chrono::duration<double, std::milli> raycastDuration{};
     std::chrono::duration<double, std::milli> collectDuration{};
-    const auto updateStart = std::chrono::steady_clock::now();
+    const auto functionStart = std::chrono::steady_clock::now();
 #endif
 
     Core::Vector<WorldNodeRuntimeSceneData> frustumNodes{};
@@ -495,15 +494,13 @@ void App::WorldInspector::UpdateFrustumNodes()
     const Red::Box invalidBox{{1.0, 0.0, 0.0, 0.0}, {-1.0, 0.0, 0.0, 0.0}};
 
 #ifndef NDEBUG
-    initDuration = std::chrono::steady_clock::now() - updateStart;
+    initDuration = std::chrono::steady_clock::now() - functionStart;
 #endif
 
     {
         std::shared_lock _(m_streamedNodesLock);
 
-#ifndef NDEBUG
-        const auto resolveStart = std::chrono::steady_clock::now();
-#endif
+        Core::Vector<int32_t> frustumActorIndexes;
 
         for (const auto& [hash, streamedNode] : m_streamedNodes)
         {
@@ -515,11 +512,11 @@ void App::WorldInspector::UpdateFrustumNodes()
 #endif
 
             Red::FrustumResult frustumResult{};
-            Core::Vector<int32_t> frustumActorIndexes;
-            frustumActorIndexes.reserve(streamedNode.actors.size());
 
             if (!streamedNode.actors.empty())
             {
+                frustumActorIndexes.clear();
+
                 for (auto candidateActorIndex = 0; candidateActorIndex < streamedNode.actors.size(); ++candidateActorIndex)
                 {
                     const auto& candidateActor = streamedNode.actors[candidateActorIndex];
@@ -534,17 +531,14 @@ void App::WorldInspector::UpdateFrustumNodes()
             }
             else
             {
-                Red::Box dummyBox{{-0.05, -0.05, -0.05, 1.0}, {0.05, 0.05, 0.05, 1.0}};
-                Red::TransformBox(dummyBox, {streamedNode.position, streamedNode.orientation});
-
-                frustumResult = cameraFrustum.Test(dummyBox);
+                frustumResult = cameraFrustum.Test(streamedNode.position);
             }
 
 #ifndef NDEBUG
             frustumDuration += std::chrono::steady_clock::now() - frustumStart;
 #endif
 
-            if (frustumResult == Red::FrustumResult::Outside && !m_discoverMode)
+            if (frustumResult != Red::FrustumResult::Inside && frustumResult != Red::FrustumResult::Intersecting && !m_discoverMode)
                 continue;
 
 #ifndef NDEBUG
@@ -555,7 +549,7 @@ void App::WorldInspector::UpdateFrustumNodes()
             int32_t nearestActorIndex = -1;
             int32_t overlapActorIndex = -1;
 
-            if (!frustumActorIndexes.empty())
+            if (!streamedNode.actors.empty() && !frustumActorIndexes.empty())
             {
                 int32_t targetActorIndex = -1;
 
@@ -563,11 +557,13 @@ void App::WorldInspector::UpdateFrustumNodes()
                 {
                     const auto& candidateActor = streamedNode.actors[candidateActorIndex];
 
-                    Red::Quaternion inverseRotation = candidateActor.orientation;
-                    Red::CallStatic("Quaternion", "SetInverse", inverseRotation);
+                    // Red::Quaternion inverseRotation = candidateActor.orientation;
+                    // Red::CallStatic("Quaternion", "SetInverse", inverseRotation);
+                    Red::Quaternion inverseRotation = candidateActor.orientation.Inverse();
 
-                    Red::Vector4 localPosition = cameraPosition - candidateActor.position;
-                    Red::CallStatic("Quaternion", "Transform", localPosition, inverseRotation, localPosition);
+                    // Red::Vector4 localPosition = cameraPosition - candidateActor.position;
+                    // Red::CallStatic("Quaternion", "Transform", localPosition, inverseRotation, localPosition);
+                    Red::Vector4 localPosition = inverseRotation * (cameraPosition - candidateActor.position);
 
                     if (Red::InsideBox(localPosition, candidateActor.boundingBox/*, 0.2, 2.0*/))
                     {
@@ -586,8 +582,9 @@ void App::WorldInspector::UpdateFrustumNodes()
                     auto targeted = false;
                     if (streamedNode.isTargetable)
                     {
-                        Red::Vector4 localForward = cameraForward;
-                        Red::CallStatic("Quaternion", "Transform", localForward, inverseRotation, localForward);
+                        // Red::Vector4 localForward = cameraForward;
+                        // Red::CallStatic("Quaternion", "Transform", localForward, inverseRotation, localForward);
+                        Red::Vector4 localForward = inverseRotation * cameraForward;
                         Red::Vector4 inverseForward{1.0f / localForward.X, 1.0f / localForward.Y, 1.0f / localForward.Z, 0.0};
 
                         targeted = Red::IntersectBox(localPosition, inverseForward, candidateActor.boundingBox);
@@ -670,10 +667,6 @@ void App::WorldInspector::UpdateFrustumNodes()
             collectDuration += std::chrono::steady_clock::now() - collecttStart;
 #endif
         }
-
-#ifndef NDEBUG
-        resolveDuration += std::chrono::steady_clock::now() - resolveStart;
-#endif
     }
 
 #ifndef NDEBUG
@@ -707,13 +700,20 @@ void App::WorldInspector::UpdateFrustumNodes()
 #ifndef NDEBUG
     commitDuration = std::chrono::steady_clock::now() - commitStart;
 
-    const std::chrono::duration<double, std::milli> updateDuration = std::chrono::steady_clock::now() - updateStart;
+    const auto resolveDuration = frustumDuration + raycastDuration + collectDuration;
+    const auto updateDuration = initDuration + resolveDuration + commitDuration;
+
+    const std::chrono::duration<double, std::milli> functionDuration = std::chrono::steady_clock::now() - functionStart;
+    const auto measurementCost = functionDuration - updateDuration;
+
     Core::Log::Debug("UpdateFrustumNodes streamed={} frustum={} targets={} "
-                     "time={:.3f}ms init={:.3f}ms resolve={:.3f}ms commit={:.3f}ms "
-                     "bbox={:.3f}ms raycast={:.3f}ms collect={:.3f}ms",
+                     "time={:.3f}ms init={:.3f}ms resolve={:.3f}ms "
+                     "(frustum={:.3f}ms raycast={:.3f}ms collect={:.3f}ms) "
+                     "commit={:.3f}ms ",
                      m_streamedNodes.size(), m_frustumNodes.size, targetedNodeIndexes.size(),
-                     updateDuration.count(), initDuration.count(), resolveDuration.count(), commitDuration.count(),
-                     frustumDuration.count(), raycastDuration.count(), collectDuration.count());
+                     updateDuration.count(), initDuration.count(), resolveDuration.count(),
+                     frustumDuration.count(), raycastDuration.count(), collectDuration.count(),
+                     commitDuration.count());
 #endif
 }
 

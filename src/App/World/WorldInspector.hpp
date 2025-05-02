@@ -78,7 +78,7 @@ class WorldInspector
     , public IWorldNodeInstanceWatcher
 {
 public:
-    static constexpr auto FrustumUpdateFreq = 1.0f / 20;
+    static constexpr auto FrustumUpdateFreq = 1.0f / 30;
     static constexpr auto FrustumMinDistance = 120.0f;
     static constexpr auto FrustumMaxDistance = 999.0f;
     static constexpr auto TargetingMinDistance = 2.0f;
