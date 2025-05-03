@@ -3009,8 +3009,9 @@ local function drawProjectedBox(screen, position, orientation, box, profile)
         table.insert(faces, face)
     end
 
-    local frontFaceColor = profile.shadingColor
-    local insideFaceColor = profile.shadingColor -- ImGuiEx.FadeFactor(profile.shadingColor, 1.5)
+    local frontFaceColor = profile.fillingColor
+    local insideFaceColor = profile.fillingColor -- ImGuiEx.FadeFactor(profile.fillingColor, 1.5)
+    local frontEdgeShadow = profile.shadingColor
     local frontEdgeColor = profile.primaryColor
     local backEdgeColor = ImGuiEx.Fade(frontEdgeColor, 0x44)
     local edgeWidth = 2
@@ -3072,7 +3073,7 @@ local function drawProjectedBox(screen, position, orientation, box, profile)
 
     for _, edge in ipairs(edges) do
         if edge.front then
-            drawLine(edge.points, 0x22000000, edgeWidth + 1)
+            drawLine(edge.points, frontEdgeShadow, edgeWidth + 1)
         end
     end
 
@@ -3136,7 +3137,8 @@ local function drawProjectedBox(screen, position, orientation, box, profile)
             elseif shown <= 6 then
                 showBounds = coverage >= 0.3 and bounds[1].distance >= 10
             else
-                showBounds = coverage >= 0.1 and bounds[1].distance >= 50
+                showBounds = (coverage >= 0.1 and bounds[1].distance >= 50)
+                    or (coverage >= 0.2 and bounds[1].distance >= 20)
             end
         end
 

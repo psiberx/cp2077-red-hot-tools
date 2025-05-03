@@ -408,7 +408,7 @@ void App::WorldInspector::UpdateStreamedNodes()
 
             actor.position = nodeTransform.position;
             actor.orientation = nodeTransform.orientation;
-            actor.boundingBox = {{-0.5, -0.5, 0, 1.0}, {0.5, 0.5, 0.5, 1.0}};
+            actor.boundingBox = {{-0.5, -0.5, -0.25, 1.0}, {0.5, 0.5, 0.25, 1.0}};
 
             Red::ScaleBox(actor.boundingBox, nodeScale);
 
@@ -424,7 +424,7 @@ void App::WorldInspector::UpdateStreamedNodes()
 
             actor.position = nodeTransform.position;
             actor.orientation = nodeTransform.orientation;
-            actor.boundingBox = {{-0.4, -0.4, 0, 1.0}, {0.4, 0.4, 0.05, 1.0}};
+            actor.boundingBox = {{-0.5, -0.5, 0, 1.0}, {0.5, 0.5, 0.05, 1.0}};
 
             Red::ScaleBox(actor.boundingBox, nodeScale);
 
@@ -563,7 +563,7 @@ void App::WorldInspector::UpdateFrustumNodes()
 
                     // Red::Vector4 localPosition = cameraPosition - candidateActor.position;
                     // Red::CallStatic("Quaternion", "Transform", localPosition, inverseRotation, localPosition);
-                    Red::Vector4 localPosition = inverseRotation * (cameraPosition - candidateActor.position);
+                    Red::Vector4 localPosition = (cameraPosition - candidateActor.position) * inverseRotation;
 
                     if (Red::InsideBox(localPosition, candidateActor.boundingBox/*, 0.2, 2.0*/))
                     {
@@ -584,7 +584,7 @@ void App::WorldInspector::UpdateFrustumNodes()
                     {
                         // Red::Vector4 localForward = cameraForward;
                         // Red::CallStatic("Quaternion", "Transform", localForward, inverseRotation, localForward);
-                        Red::Vector4 localForward = inverseRotation * cameraForward;
+                        Red::Vector4 localForward = cameraForward * inverseRotation;
                         Red::Vector4 inverseForward{1.0f / localForward.X, 1.0f / localForward.Y, 1.0f / localForward.Z, 0.0};
 
                         targeted = Red::IntersectBox(localPosition, inverseForward, candidateActor.boundingBox);
