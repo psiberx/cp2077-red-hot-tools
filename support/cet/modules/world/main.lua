@@ -65,6 +65,7 @@ local userStateSchema = {
 --     showBoundingBoxDistances = { type = 'boolean', default = false },
     targetingMode = { type = TargetingMode, default = TargetingMode.GamePhysics },
     maxTargets = { type = 'number', default = 16 },
+    cycleInspectorResults = { type = 'boolean', default = false },
     highlightInspectorResult = { type = 'boolean', default = true },
     highlightScannerResult = { type = 'boolean', default = true },
     highlightLookupResult = { type = 'boolean', default = false },
@@ -1138,7 +1139,7 @@ local function cycleNextInspectedResult()
     if inspector.active and not targetingPaused then
         inspector.active = inspector.active + 1
         if inspector.active > #inspector.results then
-            inspector.active = 1
+            inspector.active = userState.cycleInspectorResults and 1 or #inspector.results
         end
     end
 end
@@ -1147,7 +1148,7 @@ local function cyclePrevInspectedResult()
     if inspector.active and not targetingPaused then
         inspector.active = inspector.active - 1
         if inspector.active < 1 then
-            inspector.active = #inspector.results
+            inspector.active = userState.cycleInspectorResults and #inspector.results or 1
         end
     end
 end
@@ -2579,6 +2580,11 @@ local function drawSettingsContent()
     end
 
     ImGui.Spacing()
+
+    state, changed = ImGui.Checkbox('Cycle inspector targets', userState.cycleInspectorResults)
+    if changed then
+        userState.cycleInspectorResults = state
+    end
 
     state, changed = ImGui.Checkbox('Highlight inspected target', userState.highlightInspectorResult)
     if changed then
