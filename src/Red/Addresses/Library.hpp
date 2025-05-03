@@ -112,6 +112,8 @@ constexpr uint32_t ScriptValidator_Validate = 898639042;
 constexpr uint32_t StreamingSector_dtor = 3420392384;
 constexpr uint32_t StreamingSector_OnReady = 3972601611;
 
+constexpr uint32_t StreamingSystem_CollectNodeParallel = 288107567;
+
 constexpr uint32_t Transform_ApplyToBox = 4207022512;
 
 constexpr uint32_t WorldNodeInstance_Initialize = 624308217;

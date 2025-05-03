@@ -1,3 +1,4 @@
+#include "WorldInspector.hpp"
 #include "Core/Facades/Container.hpp"
 #include "Core/Facades/Log.hpp"
 #include "Red/CameraSystem.hpp"
@@ -6,9 +7,14 @@
 #include "Red/Math.hpp"
 #include "Red/Physics.hpp"
 #include "Red/Rendering.hpp"
+#include "Red/StreamingSystem.hpp"
 #include "Red/Transform.hpp"
 #include "Red/WorldNode.hpp"
-#include "WorldInspector.hpp"
+
+void App::WorldInspector::OnInitialize(const Red::JobHandle& aJob)
+{
+    HookBefore<Raw::StreamingSystem::CollectNodeParallel>(&OnCollectNodeParallel);
+}
 
 void App::WorldInspector::OnWorldAttached(Red::world::RuntimeScene*)
 {
@@ -1528,4 +1534,33 @@ Red::Vector4 App::WorldInspector::GetFrustumNearPlane()
     Raw::CameraSystem::GetCameraFrustum(m_cameraSystem, cameraFrustum);
 
     return *std::bit_cast<Red::Vector4*>(&cameraFrustum.planes[0]);
+}
+
+void App::WorldInspector::OnCollectNodeParallel(uint64_t a1, uint64_t a2, Red::Vector3* aPosition,
+                                                uint64_t a4, uint32_t a5)
+{
+    if (s_streamingOverride)
+    {
+        *aPosition = s_streamingOverridePosition.AsVector3();
+    }
+}
+
+void App::WorldInspector::SetStreamingOverrideState(bool aState)
+{
+    s_streamingOverride = aState;
+}
+
+bool App::WorldInspector::GetStreamingOverrideState()
+{
+    return s_streamingOverride;
+}
+
+void App::WorldInspector::SetStreamingOverridePosition(const Red::Vector4& aPosition)
+{
+    s_streamingOverridePosition = aPosition;
+}
+
+Red::Vector4 App::WorldInspector::GetStreamingOverridePosition()
+{
+    return s_streamingOverridePosition;
 }

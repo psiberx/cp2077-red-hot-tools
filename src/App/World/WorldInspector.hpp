@@ -2,6 +2,8 @@
 
 #include "App/World/PhysicsTraceResult.hpp"
 #include "App/World/WorldNodeRegistry.hpp"
+#include "Core/Hooking/HookingAgent.hpp"
+#include "Core/Logging/LoggingAgent.hpp"
 
 namespace App
 {
@@ -76,6 +78,8 @@ struct WorldCommunityEntryData : WorldCommunityStaticData
 class WorldInspector
     : public Red::IGameSystem
     , public IWorldNodeInstanceWatcher
+    , public Core::LoggingAgent
+    , public Core::HookingAgent
 {
 public:
     static constexpr auto FrustumUpdateFreq = 1.0f / 30;
@@ -120,11 +124,19 @@ public:
     Red::Vector4 ProjectWorldPoint(const Red::Vector4& aPoint);
     Red::Vector4 GetFrustumNearPlane();
 
-private:
+    void SetStreamingOverrideState(bool aState);
+    bool GetStreamingOverrideState();
+    void SetStreamingOverridePosition(const Red::Vector4& aPosition);
+    Red::Vector4 GetStreamingOverridePosition();
+
+    void OnInitialize(const Red::JobHandle& aJob) override;
     void OnWorldAttached(Red::world::RuntimeScene*) override;
     void OnAfterWorldDetach() override;
     void OnRegisterUpdates(Red::UpdateRegistrar* aRegistrar) override;
     void OnGamePrepared() override;
+
+private:
+    static void OnCollectNodeParallel(uint64_t a1, uint64_t a2, Red::Vector3* aPosition, uint64_t a4, uint32_t a5);
 
     void OnNodeStreamedIn(uint64_t aNodeHash,
                           Red::worldNode* aNodeDefinition,
@@ -166,6 +178,9 @@ private:
     volatile bool m_nodesUpdating{false};
     float m_frustumDistance{FrustumMinDistance};
     float m_targetingDistance{FrustumMinDistance};
+
+    inline static bool s_streamingOverride{false};
+    inline static Red::Vector4 s_streamingOverridePosition{};
 
     RTTI_IMPL_TYPEINFO(App::WorldInspector);
     RTTI_IMPL_ALLOCATOR();
@@ -252,4 +267,9 @@ RTTI_DEFINE_CLASS(App::WorldInspector, {
 
     RTTI_METHOD(ProjectWorldPoint);
     RTTI_METHOD(GetFrustumNearPlane);
+
+    RTTI_METHOD(SetStreamingOverrideState);
+    RTTI_METHOD(GetStreamingOverrideState);
+    RTTI_METHOD(SetStreamingOverridePosition);
+    RTTI_METHOD(GetStreamingOverridePosition);
 });

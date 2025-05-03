@@ -38,7 +38,7 @@ end
 
 -- User State --
 
-local MainTab = Enumeration('None', 'Inspect', 'Scan', 'Watch', 'Lookup', 'Settings', 'Hotkeys')
+local MainTab = Enumeration('None', 'Inspect', 'Scan', 'Watch', 'Lookup', 'Streaming', 'Settings', 'Hotkeys')
 local TargetingMode = Enumeration('GamePhysics', 'StaticBounds')
 -- local ColorScheme = Enumeration('Green', 'Red', 'Yellow', 'White', 'Shimmer')
 -- local OutlineMode = Enumeration('ForSupportedObjects', 'Never')
@@ -70,6 +70,7 @@ local userStateSchema = {
     highlightScannerResult = { type = 'boolean', default = true },
     highlightLookupResult = { type = 'boolean', default = false },
     keepLastHoveredResultHighlighted = { type = 'boolean', default = true },
+    syncObserverPositionWithPlayer = { type = 'boolean', default = true },
 }
 
 local function syncInspectionSystemState()
@@ -2143,6 +2144,16 @@ end
 
 local function drawInspectorContent(isModal)
     ImGui.Text(viewData.targetingModeOptions[TargetingMode.values[userState.targetingMode]])
+
+    if inspectionSystem:GetStreamingOverrideState() then
+        ImGui.SameLine()
+        ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
+        ImGui.Text('+')
+        ImGui.PopStyleColor()
+        ImGui.SameLine()
+        ImGui.Text('Observer Override')
+    end
+
     if inspector.active then
         local selected = inspector.results[inspector.active]
         if selected.distance then
@@ -2431,6 +2442,84 @@ local function drawWatcherContent()
         ImGui.TextWrapped('No entities to watch')
         ImGui.PopStyleColor()
     end
+end
+
+-- GUI :: Streaming --
+
+local function drawStreamingContent()
+    local state, changed
+
+    state = inspectionSystem:GetStreamingOverrideState()
+
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Observer override:')
+    ImGui.SameLine()
+    ImGui.BeginGroup()
+    if state then
+        ImGui.PushStyleColor(ImGuiCol.Button, 0xFF00AA00)
+    end
+    if ImGui.Button(' ON ', 50, 0) then
+        inspectionSystem:SetStreamingOverrideState(true)
+    end
+    if state then
+        ImGui.PopStyleColor()
+    end
+    ImGui.SameLine()
+    ImGui.Text('/')
+    ImGui.SameLine()
+    if not state then
+        ImGui.PushStyleColor(ImGuiCol.Button, 0xFF000088)
+    end
+    if ImGui.Button(' OFF ', 50, 0) then
+        inspectionSystem:SetStreamingOverrideState(false)
+    end
+    if not state then
+        ImGui.PopStyleColor()
+    end
+    ImGui.EndGroup()
+    ImGui.EndGroup()
+
+    ImGui.Spacing()
+
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Observer position:')
+    ImGui.SameLine()
+    ImGui.BeginGroup()
+    ImGui.SetNextItemWidth(viewStyle.settingsShortInputWidth)
+    local position = inspectionSystem:GetStreamingOverridePosition()
+    position.x, changed = ImGui.DragFloat('##ObserverPositionX', position.x, 0.01, -9999, 9999, 'X: %.3f', ImGuiSliderFlags.AlwaysClamp)
+    if changed then
+        inspectionSystem:SetStreamingOverridePosition(position)
+    end
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsShortInputWidth)
+    position.y, changed = ImGui.DragFloat('##ObserverPositionY', position.y, 0.01, -9999, 9999, 'Y: %.3f', ImGuiSliderFlags.AlwaysClamp)
+    if changed then
+        inspectionSystem:SetStreamingOverridePosition(position)
+    end
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsShortInputWidth)
+    position.z, changed = ImGui.DragFloat('##ObserverPositionZ', position.z, 0.01, -9999, 9999, 'Z: %.3f', ImGuiSliderFlags.AlwaysClamp)
+    if changed then
+        inspectionSystem:SetStreamingOverridePosition(position)
+    end
+    ImGui.Spacing()
+    if ImGui.Button('Set to player', viewStyle.settingsShortInputWidth, 0) then
+        inspectionSystem:SetStreamingOverridePosition(GetPlayer():GetWorldPosition())
+    end
+    ImGui.SameLine()
+    if ImGui.Button('Reset to zero', viewStyle.settingsShortInputWidth, 0) then
+        inspectionSystem:SetStreamingOverridePosition(Vector4.new())
+    end
+    ImGui.Spacing()
+    state, changed = ImGui.Checkbox('Sync with player on hotkey activation', userState.syncObserverPositionWithPlayer)
+    if changed then
+        userState.syncObserverPositionWithPlayer = state
+    end
+    ImGui.EndGroup()
+    ImGui.EndGroup()
 end
 
 -- GUI :: Settings --
@@ -3289,8 +3378,9 @@ local function drawMainWindow()
         local featureTabs = {
             { id = MainTab.Inspect, draw = drawInspectorContent },
             { id = MainTab.Scan, draw = drawScannerContent },
-            { id = MainTab.Lookup, draw = drawLookupContent },
             { id = MainTab.Watch, draw = drawWatcherContent },
+            { id = MainTab.Lookup, draw = drawLookupContent },
+            { id = MainTab.Streaming, draw = drawStreamingContent },
             { id = MainTab.Settings, draw = drawSettingsContent },
             { id = MainTab.Hotkeys, draw = drawHotkeysContent },
         }
@@ -3404,6 +3494,18 @@ local function onCycleTargetingModeHotkey()
     end
 end
 
+local function onToggleObserverOverride()
+    if userState.syncObserverPositionWithPlayer then
+        inspectionSystem:SetStreamingOverridePosition(GetPlayer():GetWorldPosition())
+    end
+
+    inspectionSystem:SetStreamingOverrideState(not inspectionSystem:GetStreamingOverrideState())
+end
+
+local function onUpdateObserverPosition()
+    inspectionSystem:SetStreamingOverridePosition(GetPlayer():GetWorldPosition())
+end
+
 -- Module --
 
 local function isActive()
@@ -3472,6 +3574,8 @@ return {
         { id = 'ToggleWorldInspector', group = 'World Inspector', label = 'Toggle overlay', callback = onToggleInspectorHotkey },
         { id = 'CycleTargetingMode', group = 'World Inspector', label = 'Cycle targeting modes', callback = onCycleTargetingModeHotkey },
         { id = 'ToggleTargetState', group = 'World Inspector', label = 'Toggle target visibility', callback = onToggleTargetStateHotkey },
+        { id = 'ToggleObserverOverride', group = 'World Inspector', label = 'Toggle observer override', callback = onToggleObserverOverride },
+        { id = 'UpdateObserverPosition', group = 'World Inspector', label = 'Set observer position to player', callback = onUpdateObserverPosition },
         { id = 'SelectNextResult', group = 'Target Control', label = 'Select next target', callback = onSelectNextResultHotkey },
         { id = 'SelectPrevResult', group = 'Target Control', label = 'Select previous target', callback = onSelectPrevResultHotkey },
     },
