@@ -2209,7 +2209,23 @@ end
 
 -- GUI :: Scanner --
 
-local function drawScannerContent()
+local function drawScannerContent(isModal)
+    if isModal then
+            if scanner.hovered and scanner.results[scanner.hovered] then
+            ImGui.Text(('Scan Result #%d'):format(scanner.hovered))
+            ImGui.Spacing()
+            ImGui.Separator()
+            ImGui.Spacing()
+            drawFieldset(scanner.results[scanner.hovered], true, true, false)
+        else
+            ImGui.SameLine()
+            ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
+            ImGui.Text('No scan results')
+            ImGui.PopStyleColor()
+        end
+        return
+    end
+
     ImGui.TextWrapped('Search for non-collision, hidden and unreachable world nodes.')
     ImGui.Spacing()
 
@@ -3243,12 +3259,16 @@ local function popWindowStyle()
     ImGui.PopStyleVar()
 end
 
-local function drawInspectorWindow()
+local function drawOnScreenWindow()
     pushWindowStyle()
     ImGui.Begin('World Inspector##RHT:WorldTools', viewStyle.inspectorWindowFlags)
 
     ImGui.SetCursorPosY(ImGui.GetCursorPosY() - 2)
-    drawInspectorContent(true)
+    if userState.selectedTab == MainTab.Scan and userState.highlightScannerResult and scanner.hovered and scanner.results[scanner.hovered] then
+        drawScannerContent(true)
+    else
+        drawInspectorContent(true)
+    end
 
     ImGui.End()
     popWindowStyle()
@@ -3324,7 +3344,7 @@ local function onDraw()
         drawMainWindow()
     elseif userState.isOnScreenDisplayActive then
         drawProjections()
-        drawInspectorWindow()
+        drawOnScreenWindow()
     end
 end
 
@@ -3421,7 +3441,11 @@ local function onInit()
                     end
                 end
             elseif userState.isOnScreenDisplayActive then
-                updateInspector()
+                if userState.selectedTab == MainTab.Scan then
+                    updateScanner(userState.scannerDistance, userState.scannerGroup, userState.scannerFilter)
+                else
+                    updateInspector()
+                end
             end
         end
         updateHighlights()
