@@ -146,6 +146,7 @@ local function getCameraData(distance)
         position = position,
         forward = forward,
         destination = destination,
+        distance = distance,
         instigator = Ref.Weak(player),
         interior = IsEntityInInteriorArea(player),
         world = player:GetWorldPosition(),
@@ -161,7 +162,11 @@ local function getLookAtTargets(maxDistance)
         return
 	end
 
-	local camera = getCameraData(maxDistance or userState.targetingDistance)
+	if maxDistance == nil then
+        maxDistance = userState.targetingDistance
+	end
+
+	local camera = getCameraData(maxDistance)
 
 	if not camera then
         return
@@ -202,18 +207,13 @@ local function getLookAtTargets(maxDistance)
         end
 
         for _, collision in ipairs(collisionGroups) do
-            local stepPosition = camera.position
-            local stepDistance = 0.1
-            local lastTargetHash
-            while true do
-                local success, trace = spatialQuerySystem:SyncRaycastByCollisionGroup(stepPosition, camera.destination, collision.name, false, false)
-                if success then
-                    local target = inspectionSystem:GetPhysicsTraceObject(trace)
-                    if target.resolved then
-                        if lastTargetHash == target.hash then
-                            break
-                        end
+            local filter = physicsQueryFilter.AddGroup(collision.name)
+            local traces = inspectionSystem:SyncRaycastMultiple(camera.position, camera.forward, camera.distance, filter)
 
+            for _, trace in ipairs(traces) do
+                local target = inspectionSystem:GetPhysicsTraceObject(trace)
+                if target.resolved then
+                    if not IsDefined(target.entity) or Ref.NotEquals(target.entity, camera.instigator) then
                         if targetMap[tostring(target.hash)] then
                             local result = targetMap[tostring(target.hash)]
                             if not result.proxyID then
@@ -226,28 +226,74 @@ local function getLookAtTargets(maxDistance)
                         else
                             local result = target
                             result.collision = collision
-                            result.distance = result.distance + Vector4.Distance(camera.position, stepPosition)
+                            result.distance = result.distance
 
                             table.insert(results, result)
 
                             targetMap[tostring(result.hash)] = result
                         end
-
-                        lastTargetHash = target.hash
-                        stepPosition = Vector4.new(
-                            trace.position.x + camera.forward.x * stepDistance,
-                            trace.position.y + camera.forward.y * stepDistance,
-                            trace.position.z + camera.forward.z * stepDistance,
-                            1.0
-                        )
-                    else
-                        break
                     end
-                else
-                    break
                 end
             end
         end
+
+        --for _, collision in ipairs(collisionGroups) do
+        --    local step = {
+        --        position = Vector4.new(
+        --            camera.position.x + camera.forward.x * collision.offset,
+        --            camera.position.y + camera.forward.y * collision.offset,
+        --            camera.position.z + camera.forward.z * collision.offset,
+        --            1.0),
+        --        distance = collision.offset,
+        --    }
+        --
+        --    while step.distance < maxDistance do
+        --        local success, trace = spatialQuerySystem:SyncRaycastByCollisionGroup(step.position, camera.destination, collision.name, false, false)
+        --
+        --        if not success then
+        --            break
+        --        end
+        --
+        --        local target = inspectionSystem:GetPhysicsTraceObject(trace)
+        --
+        --        if target.resolved then
+        --            if not IsDefined(target.entity) or Ref.NotEquals(target.entity, camera.instigator) then
+        --                if targetMap[tostring(target.hash)] then
+        --                    local result = targetMap[tostring(target.hash)]
+        --                    if not result.proxyID then
+        --                        result.proxyID = target.proxyID
+        --                        result.actorIndex = target.actorIndex
+        --                        result.actorOffset = target.actorOffset
+        --                        result.shapeIndex = target.shapeIndex
+        --                        result.distance = target.distance
+        --                    end
+        --                else
+        --                    local result = target
+        --                    result.collision = collision
+        --                    result.distance = result.distance + step.distance
+        --
+        --                    table.insert(results, result)
+        --
+        --                    targetMap[tostring(result.hash)] = result
+        --                end
+        --            end
+        --        else
+        --            --if collision.name.value == 'Shooting' then
+        --            --    print(step.distance, success, target.resolved, Vector4.Distance(camera.position, ToVector4(trace.position)))
+        --            --end
+        --            break
+        --        end
+        --
+        --        step.position = Vector4.new(
+        --            trace.position.x + camera.forward.x * collision.step,
+        --            trace.position.y + camera.forward.y * collision.step,
+        --            trace.position.z + camera.forward.z * collision.step,
+        --            1.0)
+        --        step.distance = Vector4.Distance(camera.position, step.position)
+        --
+        --        break
+        --    end
+        --end
 
         if #results == 0 then
             return
@@ -506,11 +552,14 @@ local function resolveAttachments(entity)
     local slotIDs = {}
 
     if isItem then
-        for _, slotID in ipairs(entity:GetItemData():GetUsedSlotsOnItem()) do
-            table.insert(slotIDs, slotID)
-        end
-        for _, slotID in ipairs(entity:GetItemData():GetEmptySlotsOnItem()) do
-            table.insert(slotIDs, slotID)
+        local itemData = entity:GetItemData()
+        if IsDefined(itemData) then
+            for _, slotID in ipairs(itemData:GetUsedSlotsOnItem()) do
+                table.insert(slotIDs, slotID)
+            end
+            for _, slotID in ipairs(itemData:GetEmptySlotsOnItem()) do
+                table.insert(slotIDs, slotID)
+            end
         end
     elseif not isGarment then
         slotIDs = TweakDB:GetFlat(TweakDBID.new(recordID, '.attachmentSlots'))
@@ -757,12 +806,12 @@ local function fillTargetNodeData(target, data)
         data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(target.nodeID)
     end
 
-    --if isNotEmpty(data.parentID) then
-    --    data.parentRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.parentID)
-    --    if isNotEmpty(data.parentRef) then
-    --        data.parentInstance = inspectionSystem:FindStreamedNode(data.parentID).nodeInstance
-    --    end
-    --end
+    if isNotEmpty(data.parentID) then
+        data.parentRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.parentID)
+        --if isNotEmpty(data.parentRef) then
+        --    data.parentInstance = inspectionSystem:FindStreamedNode(data.parentID).nodeInstance
+        --end
+    end
 
     data.nodeDefinition = target.nodeDefinition
     data.nodeInstance = target.nodeInstance
@@ -954,6 +1003,22 @@ local function updateTargetData(target, data)
     if IsDefined(target.component) then
         data.componentName = target.component.name.value
         data.componentType = target.component:GetClassName().value
+    end
+end
+
+local function updateGeometryData(data)
+    if IsDefined(data.entity) then
+        data.entityPosition = data.entity:GetWorldPosition()
+        data.entityOrientation = data.entity:GetWorldOrientation()
+        local geometry = inspectionSystem:GetPhysicsObjectGeometry(data.entity, -1, -1)
+        data.position = geometry.position
+        data.orientation = geometry.orientation
+        data.boundingBox = geometry.boundingBox
+    elseif data.physicsProxyID then
+        local geometry = inspectionSystem:GetPhysicsProxyGeometry(data.physicsProxyID, data.physicsActorIndex, -1)
+        data.position = geometry.position
+        data.orientation = geometry.orientation
+        data.boundingBox = geometry.boundingBox
     end
 end
 
@@ -3121,7 +3186,6 @@ local function drawProjectedBox(screen, position, orientation, box, profile)
     end
 
     local frontFaceColor = profile.fillingColor
-    local insideFaceColor = profile.fillingColor -- ImGuiEx.FadeFactor(profile.fillingColor, 1.5)
     local frontEdgeShadow = profile.shadingColor
     local frontEdgeColor = profile.primaryColor
     local backEdgeColor = ImGuiEx.Fade(frontEdgeColor, 0x44)
@@ -3178,9 +3242,9 @@ local function drawProjectedBox(screen, position, orientation, box, profile)
         end
     end
 
-    if inside then
-        drawQuad(screen, insideFaceColor)
-    end
+    --if inside then
+    --    drawQuad(screen, frontFaceColor)
+    --end
 
     for _, edge in ipairs(edges) do
         if edge.front then
@@ -3311,6 +3375,7 @@ local function drawProjections()
 
     if ImGui.Begin('##RHT:WorldTools:Projections', true, viewStyle.projectionWindowFlags) then
         for _, projection in pairs(highlight.projections) do
+            updateGeometryData(projection.target)
             if projection.target.boundingBox then
                 drawProjectedBox(screen, projection.target.position, projection.target.orientation, projection.target.boundingBox, projection.profile)
             else
@@ -3372,7 +3437,7 @@ local function drawMainWindow()
     if viewState.isWindowOpen and viewState.isWindowExpanded then
         app.drawSharedMenu(moduleID)
 
-        ImGui.BeginTabBar('##RHT:WorldToolsTabBar')
+        ImGui.BeginTabBar('##RHT:WorldTools:TabBar')
 
         local selectedTab
         local featureTabs = {
@@ -3543,7 +3608,7 @@ local function onInit()
                     end
                 end
             elseif userState.isOnScreenDisplayActive then
-                if userState.selectedTab == MainTab.Scan then
+                if userState.selectedTab == MainTab.Scan and userState.highlightScannerResult and scanner.hovered and scanner.results[scanner.hovered] then
                     updateScanner(userState.scannerDistance, userState.scannerGroup, userState.scannerFilter)
                 else
                     updateInspector()

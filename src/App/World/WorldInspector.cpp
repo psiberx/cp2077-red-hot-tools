@@ -537,7 +537,10 @@ void App::WorldInspector::UpdateFrustumNodes()
             }
             else
             {
-                frustumResult = cameraFrustum.Test(streamedNode.position);
+                Red::Box testBox{{-0.05, -0.05, -0.05, 1.0}, {0.05, 0.05, 0.05, 1.0}};
+                Red::TransformBox(testBox, {streamedNode.position, streamedNode.orientation});
+
+                frustumResult = cameraFrustum.Test(testBox);
             }
 
 #ifndef NDEBUG
@@ -563,15 +566,10 @@ void App::WorldInspector::UpdateFrustumNodes()
                 {
                     const auto& candidateActor = streamedNode.actors[candidateActorIndex];
 
-                    // Red::Quaternion inverseRotation = candidateActor.orientation;
-                    // Red::CallStatic("Quaternion", "SetInverse", inverseRotation);
                     Red::Quaternion inverseRotation = candidateActor.orientation.Inverse();
-
-                    // Red::Vector4 localPosition = cameraPosition - candidateActor.position;
-                    // Red::CallStatic("Quaternion", "Transform", localPosition, inverseRotation, localPosition);
                     Red::Vector4 localPosition = (cameraPosition - candidateActor.position) * inverseRotation;
 
-                    if (Red::InsideBox(localPosition, candidateActor.boundingBox/*, 0.2, 2.0*/))
+                    if (Red::InsideBox(localPosition, candidateActor.boundingBox))
                     {
                         if (overlapActorIndex == -1)
                         {
@@ -1407,7 +1405,10 @@ Red::Box App::WorldInspector::GetPhysicsProxyBoundingBox(uint32_t aProxyID, int3
 
             Raw::PhysicsGeometry::Destruct(shapeGeometry);
 
-            Red::CombineBox(finalBox, shapeBox);
+            if (Red::IsValidBox(shapeBox))
+            {
+                Red::CombineBox(finalBox, shapeBox);
+            }
 
             if (!allShapes)
                 break;
@@ -1464,7 +1465,9 @@ App::PhysicsTraceResulGeometry App::WorldInspector::GetPhysicsObjectGeometry(
 
             if (const auto& collider = Red::Cast<Red::entColliderComponent>(placedComponent))
             {
-                if (collider->filterData->preset == "NPC Hitbox")
+                if (collider->filterData->preset == "NPC Hitbox" ||
+                    collider->filterData->preset == "NPC Collision" ||
+                    collider->filterData->preset == "Interaction Object")
                     continue;
 
                 componentProxyID = *std::bit_cast<uint32_t*>(&collider->unk1A2[2]);
@@ -1475,7 +1478,8 @@ App::PhysicsTraceResulGeometry App::WorldInspector::GetPhysicsObjectGeometry(
             }
             else if (const auto& physicalMesh = Red::Cast<Red::entPhysicalMeshComponent>(placedComponent))
             {
-                if (physicalMesh->LODMode == Red::entMeshComponentLODMode::AppearanceProxy)
+                if (physicalMesh->LODMode == Red::entMeshComponentLODMode::AppearanceProxy ||
+                    physicalMesh->unk234[1] == 1)
                     continue;
 
                 componentProxyID = *std::bit_cast<uint32_t*>(&physicalMesh->unk228);
@@ -1492,6 +1496,10 @@ App::PhysicsTraceResulGeometry App::WorldInspector::GetPhysicsObjectGeometry(
             {
                 componentProxyID = *std::bit_cast<uint32_t*>(&physicalDestruction->unk310);
             }
+            else if (const auto& vehicleChassis = Red::Cast<Red::vehicleChassisComponent>(placedComponent))
+            {
+                componentProxyID = *std::bit_cast<uint32_t*>(&vehicleChassis->unk158[8]);
+            }
             else if (const auto& corpse = Red::Cast<Red::entCorpseComponent>(placedComponent))
             {
                 componentProxyID = *std::bit_cast<uint32_t*>(&corpse->unk178);
@@ -1503,12 +1511,15 @@ App::PhysicsTraceResulGeometry App::WorldInspector::GetPhysicsObjectGeometry(
             auto componentGeometry = GetPhysicsProxyGeometry(componentProxyID, -1, -1);
             auto& componentBox = componentGeometry.boundingBox;
 
-            Red::Transform componentTransform = {componentGeometry.position, componentGeometry.orientation};
-            Red::CallGlobal("OperatorMultiply;TransformTransform;Transform", componentTransform, componentTransform, inverseTransform);
+            if (Red::IsValidBox(componentBox))
+            {
+                Red::Transform componentTransform = {componentGeometry.position, componentGeometry.orientation};
+                Red::CallGlobal("OperatorMultiply;TransformTransform;Transform", componentTransform, componentTransform, inverseTransform);
 
-            Red::TransformBox(componentBox, componentTransform);
-            Red::ScaleBox(componentBox, componentScale);
-            Red::CombineBox(entityBox, componentBox);
+                Red::TransformBox(componentBox, componentTransform);
+                Red::ScaleBox(componentBox, componentScale);
+                Red::CombineBox(entityBox, componentBox);
+            }
         }
 
         return {entityPosition, entityRotation, entityBox};

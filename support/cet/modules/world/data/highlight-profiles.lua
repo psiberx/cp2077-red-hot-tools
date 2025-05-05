@@ -19,7 +19,7 @@ return {
     },
     ['Static'] = {
         primaryColor = 0XFF1155FF,
-        fillingColor = 0x113366FF,
+        fillingColor = 0x116699FF,
         shadingColor = 0x22000000,
         labelColor = 0xFFFFFFFF,
         focusOutlineIndex = 1,
@@ -27,17 +27,14 @@ return {
         focusOpacity = 0.35,
         focusOpacityBoost = 0.15,
     },
-    ['Effect'] = {
-        primaryColor = 0xFF6600FF,
-        fillingColor = 0x156600FF,
-        shadingColor = 0x22000000,
-        labelColor = 0xFFFFFFFF,
-    },
     ['Proxy'] = {
         primaryColor = 0xFFFF6600,
         fillingColor = 0x11FFCC00,
         shadingColor = 0x22000000,
         labelColor = 0xFFFFFFFF,
+        focusOutlineIndex = 6,
+        focusFillIndex = 0,
+        focusOpacity = 1.0,
     },
     ['Collision'] = {
         primaryColor = 0XFFE000E0,
@@ -56,6 +53,12 @@ return {
         fillingColor = 0x18FFFF99,
         shadingColor = 0x22996600,
         labelColor = 0xFF885500,
+    },
+    ['Effect'] = {
+        primaryColor = 0xFF6600FF,
+        fillingColor = 0x156600FF,
+        shadingColor = 0x22000000,
+        labelColor = 0xFFFFFFFF,
     },
     ['Area'] = {
         primaryColor = 0xFF99FF00,

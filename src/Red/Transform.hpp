@@ -58,18 +58,21 @@ inline bool IsZeroBox(const Box& aBox)
 
 inline void CombineBox(Box& aBox, const Box& aOther)
 {
-    if (!IsValidBox(aBox) || IsZeroBox(aBox))
+    if (IsValidBox(aOther))
     {
-        aBox = aOther;
-    }
-    else
-    {
-        aBox.Min.X = std::min(aBox.Min.X, aOther.Min.X);
-        aBox.Min.Y = std::min(aBox.Min.Y, aOther.Min.Y);
-        aBox.Min.Z = std::min(aBox.Min.Z, aOther.Min.Z);
-        aBox.Max.X = std::max(aBox.Max.X, aOther.Max.X);
-        aBox.Max.Y = std::max(aBox.Max.Y, aOther.Max.Y);
-        aBox.Max.Z = std::max(aBox.Max.Z, aOther.Max.Z);
+        if (!IsValidBox(aBox) || IsZeroBox(aBox))
+        {
+            aBox = aOther;
+        }
+        else
+        {
+            aBox.Min.X = std::min(aBox.Min.X, aOther.Min.X);
+            aBox.Min.Y = std::min(aBox.Min.Y, aOther.Min.Y);
+            aBox.Min.Z = std::min(aBox.Min.Z, aOther.Min.Z);
+            aBox.Max.X = std::max(aBox.Max.X, aOther.Max.X);
+            aBox.Max.Y = std::max(aBox.Max.Y, aOther.Max.Y);
+            aBox.Max.Z = std::max(aBox.Max.Z, aOther.Max.Z);
+        }
     }
 }
 }
