@@ -42,21 +42,21 @@ struct InkSystem
     KeyboardState keyboardState;                           // 2F8
     uint8_t unk2FA[0x328 - 0x2FA];                         // 2FA
     DynArray<Handle<inkWidget>> hoverWidgets;              // 328
-    uint8_t unk330[0x368 - 0x338];                         // 330
-    WeakHandle<inkISystemRequestsHandler> requestsHandler; // 368
-    DynArray<SharedPtr<InkLayerManager>> layerManagers;    // 378
-    WeakPtr<InkLayerManager> activeManager;                // 388
-    WeakHandle<inkLayer> activeLayer;                      // 398
-    bool isPreGame;                                        // 3A8
+    uint8_t unk330[0x370 - 0x338];                         // 330
+    WeakHandle<inkISystemRequestsHandler> requestsHandler; // 370
+    DynArray<SharedPtr<InkLayerManager>> layerManagers;    // 380
+    WeakPtr<InkLayerManager> activeManager;                // 390
+    WeakHandle<inkLayer> activeLayer;                      // 3A0
+    bool isPreGame;                                        // 3B0
 };
 RED4EXT_ASSERT_OFFSET(InkSystem, pointerScreenPosition, 0x2C0);
 RED4EXT_ASSERT_OFFSET(InkSystem, inputWidget, 0x2E8);
 RED4EXT_ASSERT_OFFSET(InkSystem, keyboardState, 0x2F8);
 RED4EXT_ASSERT_OFFSET(InkSystem, hoverWidgets, 0x328);
-RED4EXT_ASSERT_OFFSET(InkSystem, requestsHandler, 0x368);
-RED4EXT_ASSERT_OFFSET(InkSystem, layerManagers, 0x378);
-RED4EXT_ASSERT_OFFSET(InkSystem, activeManager, 0x388);
-RED4EXT_ASSERT_OFFSET(InkSystem, activeLayer, 0x398);
+RED4EXT_ASSERT_OFFSET(InkSystem, requestsHandler, 0x370);
+RED4EXT_ASSERT_OFFSET(InkSystem, layerManagers, 0x380);
+RED4EXT_ASSERT_OFFSET(InkSystem, activeManager, 0x390);
+RED4EXT_ASSERT_OFFSET(InkSystem, activeLayer, 0x3A0);
 }
 
 namespace Raw::inkSystem
