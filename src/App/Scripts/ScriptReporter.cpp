@@ -68,7 +68,7 @@ bool App::ScriptReporter::OnLoadScripts(Red::CBaseEngine& aEngine, Red::CString&
 
     bool success = Raw::CBaseEngine::LoadScripts(aEngine, aPath, aTimestamp, a4);
 
-    if (!success && aEngine.scriptsValidationErrors.size > 0)
+    if (!success && !aEngine.scriptsValidationErrors.IsEmpty())
     {
         ShowErrorBox("Validation error", aEngine.scriptsValidationErrors);
         ExitProcess(0xDEAD);

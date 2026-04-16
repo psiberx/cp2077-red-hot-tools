@@ -14,7 +14,7 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
     std::scoped_lock _(s_nodeStaticDataLock, s_nodeInstanceDataLock);
     auto& buffer = Raw::StreamingSector::NodeBuffer::Ref(aSector);
     auto instanceCount = static_cast<uint32_t>(buffer.nodeSetups.end() - buffer.nodeSetups.begin());
-    auto nodeCount = buffer.nodes.size;
+    auto nodeCount = buffer.nodes.Size();
     auto sectorHash = aSector->path.hash;
 
     for (auto& nodeRef : buffer.nodeRefs)

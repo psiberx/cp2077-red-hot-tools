@@ -4,7 +4,7 @@
 #include "ScriptReport.hpp"
 
 #include <functional>
-#include <RED4ext/DynArray.hpp>
+#include <RED4ext/Containers/DynArray.hpp>
 #include <RED4ext/RTTISystem.hpp>
 
 namespace Red

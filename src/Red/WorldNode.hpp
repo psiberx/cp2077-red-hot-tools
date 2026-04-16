@@ -266,7 +266,7 @@ using SecondaryProxyID = Core::OffsetPtr<0x94, uint32_t>;
 
 namespace Raw::WorldNodeRegistry
 {
-using EntriesLock = Core::OffsetPtr<0x48, Red::SharedMutex>;
+using EntriesLock = Core::OffsetPtr<0x48, Red::SharedSpinLock>;
 using Entries = Core::OffsetPtr<0x50, Red::WorldNodeRegistryEntry*>;
 using EntriesCount = Core::OffsetPtr<0x58, uint32_t>;
 

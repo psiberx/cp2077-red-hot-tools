@@ -30,7 +30,7 @@ bool App::ArchiveLoader::SwapArchives(const std::filesystem::path& aArchiveHotDi
 
     auto invalidated = false;
 
-    if (archiveHotPaths.size != 0)
+    if (!archiveHotPaths.IsEmpty())
     {
         LogInfo("[ArchiveLoader] Found archives:");
         for (const auto& archivePath : archiveHotPaths)
@@ -86,7 +86,7 @@ bool App::ArchiveLoader::CollectArchiveGroups(Red::DynArray<Red::ArchiveGroup*>&
         }
     }
 
-    return aGroups.size > 0;
+    return !aGroups.IsEmpty();
 }
 
 bool App::ArchiveLoader::ResolveArchivePaths(const Red::DynArray<Red::ArchiveGroup*>& aGroups,
@@ -152,7 +152,7 @@ void App::ArchiveLoader::MoveArchiveFiles(Red::DynArray<Red::CString>& aHotPaths
 {
     std::error_code error;
 
-    for (uint32_t i = 0; i < aHotPaths.size; ++i)
+    for (uint32_t i = 0; i < aHotPaths.Size(); ++i)
     {
         const std::filesystem::path hotPath = aHotPaths[i].c_str();
         const std::filesystem::path modPath = aModPaths[i].c_str();
@@ -179,7 +179,7 @@ void App::ArchiveLoader::UnloadModArchives(const Red::DynArray<Red::ArchiveGroup
                                            const Red::DynArray<Red::CString>& aArchivePaths)
 {
     Red::DynArray<Red::Archive> archivesToUnload;
-    archivesToUnload.Reserve(aArchivePaths.size);
+    archivesToUnload.Reserve(aArchivePaths.Size());
 
     for (const auto& group : aGroups)
     {
@@ -196,7 +196,7 @@ void App::ArchiveLoader::UnloadModArchives(const Red::DynArray<Red::ArchiveGroup
         }
     }
 
-    if (archivesToUnload.size > 0)
+    if (!archivesToUnload.IsEmpty())
     {
         auto fileHandleCache = Red::AsyncFileHandleCache::Get();
 
@@ -267,13 +267,13 @@ Red::Archive* App::ArchiveLoader::FindArchivePosition(Red::DynArray<Red::Archive
     return std::lower_bound(aArchives.Begin(), aArchives.End(), aArchivePath,
                             [](const Red::Archive& aArchive, const Red::CString& aPath) {
                                 return strcmp(aArchive.path.c_str(), aPath.c_str()) < 0;
-                            });
+                            }).Base();
 }
 
 bool App::ArchiveLoader::InvalidateResources(const Red::DynArray<Red::ResourcePath>& aPaths,
                                              Core::UniquePtr<DepotLocker>& aDepotLocker)
 {
-    if (aPaths.size == 0)
+    if (aPaths.IsEmpty())
         return true;
 
     // Force reload existing tokens:

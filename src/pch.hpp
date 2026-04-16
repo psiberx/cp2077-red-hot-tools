@@ -19,6 +19,7 @@
 
 #include <RED4ext/RED4ext.hpp>
 
+#include <RED4ext/Containers/Span.hpp>
 #include <RED4ext/ResourceDepot.hpp>
 #include <RED4ext/ResourceLoader.hpp>
 #include <RED4ext/Scripting/Natives/Generated/Box.hpp>
@@ -150,7 +151,6 @@
 #include <RED4ext/Scripting/Natives/Generated/world/TerrainProxyMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/WaterPatchNode.hpp>
 #include <RED4ext/Scripting/Natives/ScriptGameInstance.hpp>
-#include <RED4ext/Span.hpp>
 #include <RED4ext/StringView.hpp>
 
 #include <nameof.hpp>

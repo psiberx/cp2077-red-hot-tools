@@ -4,6 +4,7 @@
 #include "App/Scripts/ObjectRegistry.hpp"
 #include "Core/Facades/Container.hpp"
 #include "Red/GameEngine.hpp"
+#include "Red/RawDynArray.hpp"
 #include "Red/ScriptCompiler.hpp"
 #include "Red/ScriptBinder.hpp"
 #include "Red/ScriptBundle.hpp"
@@ -161,7 +162,7 @@ bool App::ScriptLoader::BindScripts(Red::ScriptBundle& aBundle, Red::ScriptRepor
             {
                 bool resolved = false;
 
-                for (uint32_t i = 0; i < scriptEnum->rttiEnum->hashList.size; ++i)
+                for (uint32_t i = 0; i < scriptEnum->rttiEnum->hashList.Size(); ++i)
                 {
                     if (scriptConstant->name == scriptEnum->rttiEnum->hashList[i])
                     {
@@ -308,7 +309,7 @@ bool App::ScriptLoader::BindScripts(Red::ScriptBundle& aBundle, Red::ScriptRepor
     {
         auto& listeners = scriptClass->rttiClass->listeners;
 
-        for (uint32_t i = listeners.size; i > 0; --i)
+        for (uint32_t i = listeners.Size(); i > 0; --i)
         {
             if (listeners[i - 1].isScripted)
             {
@@ -337,16 +338,18 @@ bool App::ScriptLoader::HasScriptedProperties(Red::CClass* aClass)
 
 void App::ScriptLoader::ClearScriptedProperties(Red::CClass* aClass)
 {
-    const auto numMemberFuncs = aClass->funcs.size;
-    const auto numStaticFuncs = aClass->staticFuncs.size;
+    auto* memberFuncs = reinterpret_cast<Red::RawDynArray<void>*>(&aClass->funcs);
+    auto* staticFuncs = reinterpret_cast<Red::RawDynArray<void>*>(&aClass->staticFuncs);
+    const auto numMemberFuncs = memberFuncs->size;
+    const auto numStaticFuncs = staticFuncs->size;
 
-    aClass->funcs.size = 0;
-    aClass->staticFuncs.size = 0;
+    memberFuncs->size = 0;
+    staticFuncs->size = 0;
 
     aClass->ClearScriptedData();
 
-    aClass->funcs.size = numMemberFuncs;
-    aClass->staticFuncs.size = numStaticFuncs;
+    memberFuncs->size = numMemberFuncs;
+    staticFuncs->size = numStaticFuncs;
 }
 
 void App::ScriptLoader::CaptureScriptableData()

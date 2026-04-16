@@ -189,9 +189,9 @@ void App::WorldInspector::UpdateStreamedNodes()
                 auto& occluderNode = Red::Cast<Red::worldInstancedOccluderNode>(nodeDefinition);
                 auto& occluderInstances = Raw::WorldInstancedOccluderNode::Instances::Ref(nodeDefinition);
 
-                streamedNode.actors.reserve(occluderInstances.size);
+                streamedNode.actors.reserve(occluderInstances.Size());
 
-                for (auto i = 0; i < occluderInstances.size; ++i)
+                for (auto i = 0; i < occluderInstances.Size(); ++i)
                 {
                     auto& occluderMatrix = occluderInstances[i];
                     auto& nodeActor = streamedNode.actors.emplace_back();
@@ -485,8 +485,8 @@ void App::WorldInspector::UpdateFrustumNodes()
 
     {
         std::shared_lock _(m_frustumNodesLock);
-        frustumNodes.reserve(m_frustumNodes.size);
-        targetedNodeIndexes.reserve(m_targetedNodes.size);
+        frustumNodes.reserve(m_frustumNodes.Size());
+        targetedNodeIndexes.reserve(m_targetedNodes.Size());
     }
 
     Red::Frustum cameraFrustum;
@@ -880,7 +880,7 @@ App::WorldCommunityEntryData App::WorldInspector::ResolveCommunityEntryDataFromE
         communityEntryData.communityID = communityID;
     }
 
-    const auto communityEntryCount = community.instance->entries.size;
+    const auto communityEntryCount = community.instance->entries.Size();
     for (auto communityEntryIndex = 0; communityEntryIndex < communityEntryCount; ++communityEntryIndex)
     {
         const auto& communityEntry = community.instance->entries[communityEntryIndex];
@@ -890,7 +890,7 @@ App::WorldCommunityEntryData App::WorldInspector::ResolveCommunityEntryDataFromE
             communityEntryData.entryIndex = communityEntryIndex;
             communityEntryData.entryCount = communityEntryCount;
 
-            if (communityEntry->unk2C >= 0 && communityEntry->unk2C < communityEntry->phases.size)
+            if (communityEntry->unk2C >= 0 && communityEntry->unk2C < communityEntry->phases.Size())
             {
                 communityEntryData.entryPhase = communityEntry->phases[communityEntry->unk2C];
             }
@@ -1060,7 +1060,7 @@ bool App::WorldInspector::SetRenderProxyVisibility(const Red::Handle<Red::worldI
     {
         auto& renderProxies = TRenderProxy::Ref(aNodeInstance);
 
-        if (!renderProxies.size)
+        if (renderProxies.IsEmpty())
             return false;
 
         for (auto& renderProxy : renderProxies)
@@ -1156,7 +1156,7 @@ bool App::WorldInspector::GetRenderProxyVisibility(const Red::Handle<Red::worldI
     {
         auto& renderProxies = TRenderProxy::Ref(aNodeInstance);
 
-        if (!renderProxies.size)
+        if (renderProxies.IsEmpty())
             return false;
 
         for (auto& renderProxy : renderProxies)
@@ -1254,7 +1254,7 @@ bool App::WorldInspector::SetRenderProxyHighlightEffect(const Red::Handle<Red::w
     {
         auto& renderProxies = TRenderProxy::Ref(aNodeInstance);
 
-        if (!renderProxies.size)
+        if (renderProxies.IsEmpty())
             return false;
 
         Red::HighlightParams highlight{aEffect->seeThroughWalls, 0, aEffect->fillIndex, aEffect->outlineIndex,

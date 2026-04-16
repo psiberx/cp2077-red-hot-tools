@@ -14,7 +14,7 @@ constexpr bool IsFakeStatic(CName aTypeName)
 
 using CallFunction_t = bool (*)(IFunction*, IScriptable* aContext, CStackFrame* aFrame, void* aRet, void* aRetType);
 
-#ifdef RED4EXT_SDK_0_5_0
+#if defined(RED4EXT_V1_SDK_VERSION_CURRENT) || defined(RED4EXT_SDK_0_5_0)
 inline UniversalRelocFunc<CallFunction_t> CallFunctionWithFrame(RED4ext::Detail::AddressHashes::CBaseFunction_InternalExecute);
 #else
 inline RelocFunc<CallFunction_t> CallFunctionWithFrame(RED4ext::Addresses::CBaseFunction_InternalExecute);
@@ -31,7 +31,7 @@ inline bool CallFunctionWithStack(Red::CStackFrame* aFrame, CBaseFunction* aFunc
     char code[MaxCodeSize];
     CStackFrame frame(nullptr, code);
 
-    for (uint32_t i = 0; i < aFunc->params.size; ++i)
+    for (uint32_t i = 0; i < aFunc->params.Size(); ++i)
     {
         const auto& param = aFunc->params[i];
         const auto& arg = aStack.args[i];
@@ -86,7 +86,7 @@ inline bool CallFunctionWithArgs(Red::CStackFrame* aFrame, CBaseFunction* aFunc,
     if (!aFunc)
         return false;
 
-    const auto combinedArgCount = aFunc->params.size + (aFunc->returnType ? 1 : 0);
+    const auto combinedArgCount = aFunc->params.Size() + (aFunc->returnType ? 1 : 0);
 
     if (combinedArgCount != sizeof...(Args))
         return false;
@@ -125,7 +125,7 @@ inline bool CallFunctionWithArgs(Red::CStackFrame* aFrame, CBaseFunction* aFunc,
                 return false;
             }
 
-            if (aFunc->params.size)
+            if (!aFunc->params.IsEmpty())
             {
                 stack.args = args.data() + 1;
             }
@@ -135,11 +135,11 @@ inline bool CallFunctionWithArgs(Red::CStackFrame* aFrame, CBaseFunction* aFunc,
             stack.args = args.data();
         }
 
-        if (aFunc->params.size)
+        if (!aFunc->params.IsEmpty())
         {
-            stack.argsCount = aFunc->params.size;
+            stack.argsCount = aFunc->params.Size();
 
-            for (uint32_t i = 0; i < aFunc->params.size; ++i)
+            for (uint32_t i = 0; i < aFunc->params.Size(); ++i)
             {
                 const auto& param = aFunc->params[i];
                 const auto& arg = stack.args[i];

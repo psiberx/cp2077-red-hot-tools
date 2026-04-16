@@ -3,8 +3,8 @@
 #include <cstdarg>
 #include <cstdint>
 #include <RED4ext/Common.hpp>
+#include <RED4ext/Containers/DynArray.hpp>
 #include <RED4ext/CString.hpp>
-#include <RED4ext/DynArray.hpp>
 
 namespace Red
 {
@@ -50,12 +50,12 @@ struct ScriptReport
 
     [[nodiscard]] inline bool HasErrors() const noexcept
     {
-        return errors && errors->size > 0;
+        return errors && !errors->IsEmpty();
     }
 
     [[nodiscard]] inline CString ToString() const noexcept
     {
-        if (!errors || errors->size == 0)
+        if (!errors || errors->IsEmpty())
         {
             return {};
         }

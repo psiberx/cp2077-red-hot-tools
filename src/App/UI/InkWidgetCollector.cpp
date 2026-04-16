@@ -336,7 +336,7 @@ App::InkWidgetCollectionData App::InkWidgetCollector::CollectHoveredWidgets()
         }
     }
 
-    for (auto i = static_cast<int32_t>(collectionData.widgets.size) - 1; i >= 0; --i)
+    for (auto i = static_cast<int32_t>(collectionData.widgets.Size()) - 1; i >= 0; --i)
     {
         if (parentWidgets.contains(collectionData.widgets[i].handle.instance))
         {

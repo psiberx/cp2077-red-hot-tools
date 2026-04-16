@@ -29,7 +29,7 @@ const Red::inkDrawContext* Red::inkDrawContext::Resolve(const RED4ext::Handle<RE
 
     if (parentWidget)
     {
-        const auto& drawContexts = Raw::inkWidget::DrawContexts::Ref(parentWidget);
+        const auto& drawContexts = *Raw::inkWidget::DrawContexts::Ref(parentWidget);
         for (const auto& drawContext : drawContexts)
         {
             if (drawContext.widget.instance == aWidget)
