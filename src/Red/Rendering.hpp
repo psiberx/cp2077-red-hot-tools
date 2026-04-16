@@ -68,3 +68,10 @@ constexpr auto SetMaterialOverride = Core::RawFunc<
     /* type = */ void (*)(Red::RenderProxy* aProxy, const Red::RenderDataPtr& aMaterial,
                           const Red::RenderDataPtr& a3, bool aReplace)>();
 }
+
+namespace Raw::VisionModeSystem
+{
+constexpr auto SetBraindanceMode = Core::RawFunc<
+    /* addr = */ Red::AddressLib::VisionModeSystem_SetBraindanceMode,
+    /* type = */ void (*)(void* aSystem, uint32_t aMode)>();
+}

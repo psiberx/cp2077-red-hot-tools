@@ -25,7 +25,7 @@ return {
         focusOutlineIndex = 1,
         focusFillIndex = 6,
         focusOpacity = 0.35,
-        focusOpacityBoost = 0.15,
+        focusOpacityBoost = 0.25,
     },
     ['Proxy'] = {
         primaryColor = 0xFFFF6600,

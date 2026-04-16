@@ -116,6 +116,8 @@ constexpr uint32_t StreamingSystem_CollectNodeParallel = 288107567;
 
 constexpr uint32_t Transform_ApplyToBox = 4207022512;
 
+constexpr uint32_t VisionModeSystem_SetBraindanceMode = 1070077985;
+
 constexpr uint32_t WorldNodeInstance_Initialize = 624308217;
 constexpr uint32_t WorldNodeInstance_Attach = 3515291207;
 constexpr uint32_t WorldNodeInstance_Detach = 3473806907;

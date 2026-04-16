@@ -364,10 +364,14 @@ local function resolveHighlightProfile(target)
    return nil
 end
 
-local function applyHighlightEffect(target, profile, enabled)
+local function applyHighlightEffect(target, profile, enabled, changed)
     if not profile or (not profile.focusOutlineIndex and not profile.focusFillIndex) then
         return false
     end
+
+    --if not changed then
+    --    return false
+    --end
 
     local effect = entRenderHighlightEvent.new({
         seeThroughWalls = true,
@@ -402,7 +406,7 @@ end
 
 local function disableHighlights()
     if highlight.target then
-        applyHighlightEffect(highlight.target, highlight.profile, false)
+        applyHighlightEffect(highlight.target, highlight.profile, false, true)
 
         highlight.target = nil
         highlight.profile = nil
@@ -441,7 +445,7 @@ local function updateHighlights()
         profile = highlight.profile,
     }
 
-    applyHighlightEffect(highlight.target, highlight.profile, true)
+    applyHighlightEffect(highlight.target, highlight.profile, true, highlight.changed)
 end
 
 local function highlightTarget(target)

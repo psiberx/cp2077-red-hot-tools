@@ -158,6 +158,7 @@ private:
                                        const Red::Handle<Red::entRenderHighlightEvent>& aEffect);
     bool SetEntityHighlightEffect(const Red::Handle<Red::entEntity>& aEntity,
                                   const Red::Handle<Red::entRenderHighlightEvent>& aEffect) const;
+    void EnhanceHighlightEffect(const Red::Handle<Red::entRenderHighlightEvent>& aEffect) const;
 
     Core::SharedPtr<WorldNodeRegistry> m_nodeRegistry;
     Red::gameICameraSystem* m_cameraSystem;

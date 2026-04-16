@@ -55,6 +55,7 @@
 #include <RED4ext/Scripting/Natives/Generated/game/ICommunitySystem.hpp>
 #include <RED4ext/Scripting/Natives/Generated/game/IEntityStubSystem.hpp>
 #include <RED4ext/Scripting/Natives/Generated/game/IGameSystem.hpp>
+#include <RED4ext/Scripting/Natives/Generated/game/IVisionModeSystem.hpp>
 #include <RED4ext/Scripting/Natives/Generated/game/ScriptableSystem.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ink/CacheWidget.hpp>
 #include <RED4ext/Scripting/Natives/Generated/ink/CharacterEvent.hpp>

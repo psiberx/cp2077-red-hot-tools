@@ -1257,14 +1257,17 @@ bool App::WorldInspector::SetRenderProxyHighlightEffect(const Red::Handle<Red::w
         if (renderProxies.IsEmpty())
             return false;
 
+        EnhanceHighlightEffect(aEffect);
+
         Red::HighlightParams highlight{aEffect->seeThroughWalls, 0, aEffect->fillIndex, aEffect->outlineIndex,
                                        aEffect->opacity, true};
 
         for (auto& renderProxy : renderProxies)
         {
-            Raw::RenderProxy::SetScanningState(renderProxy, Red::rendPostFx_ScanningState::Complete);
             Raw::RenderProxy::SetHighlightParams(renderProxy, highlight);
+            Raw::RenderProxy::SetScanningState(renderProxy, Red::rendPostFx_ScanningState::Complete);
         }
+
         return true;
     }
     else
@@ -1274,11 +1277,13 @@ bool App::WorldInspector::SetRenderProxyHighlightEffect(const Red::Handle<Red::w
         if (!renderProxy)
             return false;
 
+        EnhanceHighlightEffect(aEffect);
+
         Red::HighlightParams highlight{aEffect->seeThroughWalls, 0, aEffect->fillIndex, aEffect->outlineIndex,
                                        aEffect->opacity, true};
 
-        Raw::RenderProxy::SetScanningState(renderProxy, Red::rendPostFx_ScanningState::Complete);
         Raw::RenderProxy::SetHighlightParams(renderProxy, highlight);
+        Raw::RenderProxy::SetScanningState(renderProxy, Red::rendPostFx_ScanningState::Complete);
 
         return true;
     }
@@ -1290,10 +1295,19 @@ bool App::WorldInspector::SetEntityHighlightEffect(const Red::Handle<Red::entEnt
     if (!aEntity)
         return false;
 
+    EnhanceHighlightEffect(aEffect);
+
     aEffect->unk54[0] = 1; // forced
+    aEffect->unk54[1] = 0; // patternType
     Red::CallVirtual(aEntity, "QueueEvent", aEffect);
 
     return true;
+}
+
+void App::WorldInspector::EnhanceHighlightEffect(const Red::Handle<Red::entRenderHighlightEvent>& aEffect) const
+{
+    auto visionModeSystem = Red::GetGameSystem<Red::gameIVisionModeSystem>();
+    Raw::VisionModeSystem::SetBraindanceMode(visionModeSystem, (aEffect->outlineIndex || aEffect->fillIndex) ? 1 : 0);
 }
 
 App::PhysicsTraceResultObject App::WorldInspector::GetPhysicsTraceObject(Red::ScriptRef<Red::physicsTraceResult>& aTrace)
