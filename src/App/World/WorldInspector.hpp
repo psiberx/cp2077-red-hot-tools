@@ -33,6 +33,7 @@ struct WorldNodeStaticSceneData
     Red::Vector3 scale;
     bool interior;
     Core::Vector<WorldNodeStaticActorData> actors;
+    Red::Box testBox;
     bool isTargetable{false};
 };
 
@@ -120,7 +121,8 @@ public:
     PhysicsTraceResultObject GetPhysicsTraceObject(Red::ScriptRef<Red::physicsTraceResult>& aTrace);
     Red::Box GetPhysicsProxyBoundingBox(uint32_t aProxyID, int32_t aActorIndex, int32_t aShapeIndex);
     PhysicsTraceResulGeometry GetPhysicsProxyGeometry(uint32_t aProxyID, int32_t aActorIndex, int32_t aShapeIndex);
-    PhysicsTraceResulGeometry GetPhysicsObjectGeometry(const Red::Handle<Red::ISerializable>& aObject, int32_t aActorIndex, int32_t aShapeIndex);
+    PhysicsTraceResulGeometry GetPhysicsObjectGeometry(const Red::Handle<Red::ISerializable>& aObject);
+    PhysicsTraceResulGeometry GetVisualObjectGeometry(const Red::Handle<Red::ISerializable>& aObject);
     Red::Vector4 ProjectWorldPoint(const Red::Vector4& aPoint);
     Red::Vector4 GetFrustumNearPlane();
 
@@ -128,6 +130,10 @@ public:
     bool GetStreamingOverrideState();
     void SetStreamingOverridePosition(const Red::Vector4& aPosition);
     Red::Vector4 GetStreamingOverridePosition();
+
+    Red::DynArray<Red::physicsTraceResult> SyncRaycastMultiple(const Red::Vector4& aPosition,
+                                                               const Red::Vector4& aDirection, float aDistance,
+                                                               const Red::QueryFilter& aFilter);
 
     void OnInitialize(const Red::JobHandle& aJob) override;
     void OnWorldAttached(Red::world::RuntimeScene*) override;
@@ -267,6 +273,7 @@ RTTI_DEFINE_CLASS(App::WorldInspector, {
     RTTI_METHOD(GetPhysicsTraceObject);
     RTTI_METHOD(GetPhysicsProxyGeometry);
     RTTI_METHOD(GetPhysicsObjectGeometry);
+    RTTI_METHOD(GetVisualObjectGeometry);
 
     RTTI_METHOD(ProjectWorldPoint);
     RTTI_METHOD(GetFrustumNearPlane);
@@ -275,4 +282,6 @@ RTTI_DEFINE_CLASS(App::WorldInspector, {
     RTTI_METHOD(GetStreamingOverrideState);
     RTTI_METHOD(SetStreamingOverridePosition);
     RTTI_METHOD(GetStreamingOverridePosition);
+
+    RTTI_METHOD(SyncRaycastMultiple);
 });

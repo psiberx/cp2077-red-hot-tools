@@ -797,6 +797,12 @@ local function fillTargetNodeData(target, data)
         end
 
         if RedHotTools.IsInstanceOf(node, 'worldInstancedDestructibleMeshNode') then
+            if node.staticMesh.hash ~= 0 then
+                data.physicsProxyID = target.proxyID or -1
+                data.physicsActorIndex = target.actorIndex or 0
+                data.physicsActorOffset = target.actorOffset or 0
+                data.physicsShapeIndex = target.shapeIndex or 0
+            end
             data.actorIndex = target.actorIndex or 0
             data.actorCount = node.cookedInstanceTransforms.numElements or 0
         end
@@ -856,10 +862,15 @@ local function fillTargetGeomertyData(target, data)
     data.boundingBox = target.boundingBox
 
     if IsDefined(data.nodeInstance) then
+        data.nodePosition = data.position
+        data.nodeOrientation = data.orientation
+
         local geometry = inspectionSystem:GetStreamedNodeGeometry(data.nodeInstance)
-        data.nodePosition = geometry.position
-        data.nodeOrientation = geometry.orientation
-        data.nodeScale = geometry.scale
+        if not Vector4.IsXYZZero(geometry.position) then
+            data.nodePosition = geometry.position
+            data.nodeOrientation = geometry.orientation
+            data.nodeScale = geometry.scale
+        end
     end
 
     if IsDefined(data.entity) then
@@ -868,7 +879,7 @@ local function fillTargetGeomertyData(target, data)
     end
 
     if IsDefined(target.entity) then
-        local geometry = inspectionSystem:GetPhysicsObjectGeometry(target.entity, -1, -1)
+        local geometry = inspectionSystem:GetPhysicsObjectGeometry(target.entity)
         data.position = geometry.position
         data.orientation = geometry.orientation
         data.boundingBox = geometry.boundingBox
@@ -983,10 +994,10 @@ local function updateTargetData(target, data)
     if IsDefined(target.entity) then
         data.entityPosition = data.entity:GetWorldPosition()
         data.entityOrientation = data.entity:GetWorldOrientation()
-        local geometry = inspectionSystem:GetPhysicsObjectGeometry(target.entity, -1, -1)
-        data.position = geometry.position
-        data.orientation = geometry.orientation
-        data.boundingBox = geometry.boundingBox
+        --local geometry = inspectionSystem:GetPhysicsObjectGeometry(target.entity, -1, -1)
+        --data.position = geometry.position
+        --data.orientation = geometry.orientation
+        --data.boundingBox = geometry.boundingBox
     elseif target.proxyID then
         data.physicsProxyID = target.proxyID
         data.physicsActorIndex = target.actorIndex or 0
@@ -994,10 +1005,11 @@ local function updateTargetData(target, data)
         data.physicsShapeIndex = target.shapeIndex or 0
         data.actorIndex = data.physicsActorIndex + data.physicsActorOffset
         data.actorCount = target.actorCount or data.actorCount
-        local geometry = inspectionSystem:GetPhysicsProxyGeometry(data.physicsProxyID, data.physicsActorIndex, -1)
-        data.position = geometry.position
-        data.orientation = geometry.orientation
-        data.boundingBox = geometry.boundingBox
+        --local geometry = inspectionSystem:GetPhysicsProxyGeometry(data.physicsProxyID, data.physicsActorIndex, -1)
+        --data.position = geometry.position
+        --data.orientation = geometry.orientation
+        --data.boundingBox = geometry.boundingBox
+
     elseif target.actorCount and target.actorCount > 1 then
         data.actorIndex = target.actorIndex or 0
         data.actorCount = target.actorCount or 0
@@ -1018,9 +1030,7 @@ end
 
 local function updateGeometryData(data)
     if IsDefined(data.entity) then
-        data.entityPosition = data.entity:GetWorldPosition()
-        data.entityOrientation = data.entity:GetWorldOrientation()
-        local geometry = inspectionSystem:GetPhysicsObjectGeometry(data.entity, -1, -1)
+        local geometry = (data.entity:IsA('gameObject') and (data.entity:IsNPC() or data.entity:IsContainer())) and inspectionSystem:GetPhysicsObjectGeometry(data.entity) or inspectionSystem:GetVisualObjectGeometry(data.entity)
         data.position = geometry.position
         data.orientation = geometry.orientation
         data.boundingBox = geometry.boundingBox
@@ -1029,6 +1039,10 @@ local function updateGeometryData(data)
         data.position = geometry.position
         data.orientation = geometry.orientation
         data.boundingBox = geometry.boundingBox
+        if IsDefined(data.nodeInstance) then
+            data.nodePosition = data.position
+            data.nodeOrientation = data.orientation
+        end
     end
 end
 

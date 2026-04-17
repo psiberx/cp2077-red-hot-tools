@@ -18,8 +18,8 @@ struct Frustum
     {
         auto result = FrustumResult::Inside;
 
-        const auto& boxMin = *reinterpret_cast<const __m128*>(&aBox.Min);
-        const auto& boxMax = *reinterpret_cast<const __m128*>(&aBox.Max);
+        const auto boxMin = *reinterpret_cast<const __m128*>(&aBox.Min);
+        const auto boxMax = *reinterpret_cast<const __m128*>(&aBox.Max);
 
         for (auto i = 0; i < NumberOfPlanes; ++i)
         {

@@ -16,10 +16,27 @@ enum class PhysicsGeometryType : int32_t
 
 struct PhysicsGeometryProxy
 {
-    PhysicsGeometryType type; // 00
-    uint8_t data[0x2C]{};     // 04 physx::PxGeometryHolder
+    PhysicsGeometryType type{PhysicsGeometryType::Invalid}; // 00
+    uint8_t data[0x2C]{};                                   // 04 physx::PxGeometryHolder
 };
 RED4EXT_ASSERT_SIZE(PhysicsGeometryProxy, 0x30);
+
+struct PhysicsRaycastRequest
+{
+    Vector3 position;            // 00
+    Vector3 direction;           // 0C
+    float distance;              // 18
+    physics::QueryFilter filter; // 20
+    uint64_t unk28;              // 30
+    uint8_t flags;               // 38
+};
+RED4EXT_ASSERT_SIZE(PhysicsRaycastRequest, 0x40);
+RED4EXT_ASSERT_OFFSET(PhysicsRaycastRequest, position, 0x0);
+RED4EXT_ASSERT_OFFSET(PhysicsRaycastRequest, direction, 0xC);
+RED4EXT_ASSERT_OFFSET(PhysicsRaycastRequest, distance, 0x18);
+RED4EXT_ASSERT_OFFSET(PhysicsRaycastRequest, filter, 0x20);
+
+using PhysicsTraceResultArray = StaticArray<physics::TraceResult, 32>;
 }
 
 namespace Raw::PhysicsProxy
@@ -58,4 +75,18 @@ constexpr auto GetBoundingBox = Core::RawFunc<
 constexpr auto FixOrientation = Core::RawFunc<
     /* addr = */ Red::AddressLib::PhysicsGeometry_FixOrientation,
     /* type = */ void* (*)(const Red::PhysicsGeometryProxy& aGeometry, Red::Quaternion& aOrientation)>();
+}
+
+namespace Raw::PhysicsScene
+{
+constexpr auto SyncRaycastMultiple = Core::RawFunc<
+    /* addr = */ Red::AddressLib::PhysicsScene_SyncRaycastMultiple,
+    /* type = */ void (*)(uint32_t aSceneProxyID,
+                          const Red::PhysicsRaycastRequest& aRequest,
+                          Red::PhysicsTraceResultArray& aResults)>();
+}
+
+namespace Raw::RuntimeSystemPhysics
+{
+using SceneProxyID = Core::OffsetPtr<0x58, uint32_t>;
 }

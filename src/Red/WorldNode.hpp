@@ -59,6 +59,30 @@ struct RenderProxyTransformData : DataBuffer
 };
 RED4EXT_ASSERT_SIZE(RenderProxyTransformData, 0x28);
 
+struct TransformData : DataBuffer
+{
+    [[nodiscard]] inline Transform* begin() const
+    {
+        return reinterpret_cast<Transform*>(buffer.data);
+    }
+
+    [[nodiscard]] inline Transform* end() const
+    {
+        return reinterpret_cast<Transform*>(reinterpret_cast<uintptr_t>(buffer.data) + buffer.size);
+    }
+
+    [[nodiscard]] Transform* Get(int64_t aIndex) const
+    {
+        return begin() + aIndex;
+    }
+
+    uint32_t GetCount()
+    {
+        return buffer.size / sizeof(Transform);
+    }
+};
+RED4EXT_ASSERT_SIZE(TransformData, 0x28);
+
 struct PackedQuaternion
 {
     operator Quaternion() const noexcept
@@ -231,6 +255,11 @@ namespace Raw::WorldTerrainMeshNodeInstance
 {
 using Mesh = Core::OffsetPtr<0xB0, Red::Handle<Red::CMesh>>;
 using RenderProxies = Core::OffsetPtr<0xC0, Red::DynArray<Red::SharedPtr<Red::RenderProxy>>>;
+}
+
+namespace Raw::WorldTerrainCollisionNodeInstance
+{
+using PhysicsProxyID = Core::OffsetPtr<0x90, int32_t>;
 }
 
 namespace Raw::WorldFoliageNodeInstance

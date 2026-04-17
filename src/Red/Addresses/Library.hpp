@@ -76,6 +76,8 @@ constexpr uint32_t PhysicsProxy_GetActorWorldTransform = 391385890;
 constexpr uint32_t PhysicsProxy_GetShapeLocalTransform = 2380600610;
 constexpr uint32_t PhysicsProxy_GetShapeGeometry = 578361242;
 
+constexpr uint32_t PhysicsScene_SyncRaycastMultiple = 430713883;
+
 constexpr uint32_t RenderDataPtr_Release = 2996308699;
 
 constexpr uint32_t RenderProxy_SetMaterialOverride = 429336746;
