@@ -1664,6 +1664,10 @@ local function initializeViewData()
     --viewData.boundingBoxModeOptions = ImGuiEx.BuildComboOptions(BoundingBoxMode.values)
     viewData.windowSnappingOptions = ImGuiEx.BuildComboOptions(WindowSnapping.values, true)
     viewData.nodeGroupOptions = buildMappingOptions(nodeGroupMapping, 'All')
+
+    if not viewData.nodeGroupOptions[userState.scannerGroup] then
+        userState.scannerGroup = ''
+    end
 end
 
 local function initializeViewStyle()
