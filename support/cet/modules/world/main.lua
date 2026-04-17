@@ -2053,7 +2053,7 @@ local function drawComponents(components)
                 end
             end
             ImGui.PushStyleColor(ImGuiCol.FrameBg, viewStyle.defaultFrameBg)
-            local enabled, changed = ImGui.Checkbox('Enabled', componentData.component:IsEnabled())
+            local enabled, changed = ImGui.Checkbox('Enabled', componentData.component and componentData.component:IsEnabled())
             if changed then
                 componentData.component:Toggle(enabled)
             end
@@ -2283,8 +2283,8 @@ local function drawInspectorContent(isModal)
                     selectInspectedResult(index)
                 end
                 if not isActive then
-                    ImGui.PopStyleVar()
                     ImGui.PopStyleColor()
+                    ImGui.PopStyleVar()
                 end
                 ImGui.PopStyleVar()
                 if ImGui.IsItemHovered() then
@@ -2761,6 +2761,7 @@ local function drawSettingsContent()
         userState.targetingDistance = state
         syncInspectionSystemState()
     end
+    ImGui.EndGroup()
 
     ImGui.BeginGroup()
     ImGui.AlignTextToFramePadding()
@@ -2808,6 +2809,7 @@ local function drawSettingsContent()
         userState.frustumDistance = state
         syncInspectionSystemState()
     end
+    ImGui.EndGroup()
 
     ImGui.Spacing()
 
@@ -3410,6 +3412,8 @@ local function drawProjections()
             end
         end
     end
+
+    ImGui.End()
 end
 
 -- GUI :: Windows --

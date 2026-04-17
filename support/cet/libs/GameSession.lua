@@ -129,6 +129,11 @@ end
 
 local function refreshCurrentState()
     local player = Game.GetPlayer()
+
+    if not IsDefined(player) then
+        return
+    end
+
     local blackboardDefs = Game.GetAllBlackboardDefs()
     local blackboardUI = Game.GetBlackboardSystem():Get(blackboardDefs.UI_System)
     local blackboardPM = Game.GetBlackboardSystem():Get(blackboardDefs.PhotoMode)
