@@ -38,7 +38,14 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
         nodeData.nodeCount = nodeCount;
         nodeData.nodeType = nodeDefinition->GetType()->GetName();
         nodeData.nodeID = nodeSetup.globalNodeID;
+        nodeData.proxyID = nodeSetup.proxyNodeID;
         nodeData.interior = (nodeSetup.unk7A & 0x40) == 0x40;
+
+        if (nodeDefinition->unk18.refCount)
+        {
+            nodeData.sourcePrefabHash = reinterpret_cast<uint64_t>(nodeDefinition->unk18.refCount);
+            nodeDefinition->unk18.refCount = nullptr;
+        }
 
         if (nodeDefinition->unk18.instance)
         {
@@ -58,7 +65,7 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
         else if (auto communityRegistryNode = Red::Cast<Red::worldCommunityRegistryNode>(nodeDefinition))
         {
             const auto& registryIndex = nodeData.nodeIndex;
-            const auto communityCount = communityRegistryNode->communitiesData.size;
+            const auto communityCount = communityRegistryNode->communitiesData.Size();
             for (auto communityIndex = 0; communityIndex < communityCount; ++communityIndex)
             {
                 const auto& communityItem = communityRegistryNode->communitiesData[communityIndex];
@@ -68,9 +75,33 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
                                                          communityIndex, communityCount, communityId};
             }
         }
-        else if (auto proxyMeshNode = Red::Cast<Red::worldEntityProxyMeshNode>(nodeDefinition))
+        else if (auto entityProxyNode = Red::Cast<Red::worldEntityProxyMeshNode>(nodeDefinition))
         {
-            nodeData.parentID = proxyMeshNode->ownerGlobalId.hash;
+            nodeData.parentID = entityProxyNode->ownerGlobalId.hash;
+        }
+        else if (auto meshNode = Red::Cast<Red::worldMeshNode>(nodeDefinition))
+        {
+            s_knownWorldResources.insert(meshNode->mesh.path);
+        }
+        else if (auto instancedMeshNode = Red::Cast<Red::worldInstancedMeshNode>(nodeDefinition))
+        {
+            s_knownWorldResources.insert(instancedMeshNode->mesh.path);
+        }
+        else if (auto occluderNode = Red::Cast<Red::worldStaticOccluderMeshNode>(nodeDefinition))
+        {
+            s_knownWorldResources.insert(occluderNode->mesh.path);
+        }
+        else if (auto instancedOccluderNode = Red::Cast<Red::worldInstancedOccluderNode>(nodeDefinition))
+        {
+            s_knownWorldResources.insert(instancedOccluderNode->mesh.path);
+        }
+        else if (auto foliageNode = Red::Cast<Red::worldFoliageNode>(nodeDefinition))
+        {
+            s_knownWorldResources.insert(foliageNode->mesh.path);
+        }
+        else if (auto terrainNode = Red::Cast<Red::worldTerrainMeshNode>(nodeDefinition))
+        {
+            s_knownWorldResources.insert(terrainNode->meshRef.path);
         }
 
         s_nodeSetupToRuntimeDataMap[&nodeSetup] = {&nodeSetup, {}, buffer.nodes[nodeSetup.nodeIndex]};
@@ -80,6 +111,8 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
     {
         node->ref.instance = node.instance;
         node->ref.refCount = node.refCount;
+        node->unk18.instance = nullptr;
+        node->unk18.refCount = nullptr;
     }
 }
 
@@ -252,6 +285,12 @@ App::WorldCommunityStaticData App::WorldNodeRegistry::GetCommunityStaticData(uin
     return it.value();
 }
 
+bool App::WorldNodeRegistry::IsWorldResource(Red::ResourcePath aPath)
+{
+    std::shared_lock _(s_nodeStaticDataLock);
+    return s_knownWorldResources.contains(aPath);
+}
+
 void App::WorldNodeRegistry::ClearRuntimeData()
 {
     {
@@ -261,6 +300,7 @@ void App::WorldNodeRegistry::ClearRuntimeData()
 #endif
         s_nodeSetupToStaticDataMap.clear();
         s_communityStaticDataMap.clear();
+        s_knownWorldResources.clear();
     }
     {
         std::unique_lock _(s_nodeInstanceDataLock);

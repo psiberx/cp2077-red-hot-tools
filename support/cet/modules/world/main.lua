@@ -708,8 +708,10 @@ local function fillTargetNodeData(target, data)
         data.nodeCount = sectorData.nodeCount
         data.nodeType = sectorData.nodeType.value
         data.nodeID = sectorData.nodeID
-        data.parentID = sectorData.parentID
+        data.nodeProxyID = sectorData.proxyID
+        data.nodeParentID = sectorData.parentID
         data.debugName = sectorData.debugName
+        data.sourcePrefabHash = sectorData.sourcePrefabHash
         data.interior = sectorData.interior
     end
 
@@ -810,10 +812,14 @@ local function fillTargetNodeData(target, data)
         data.nodeRef = inspectionSystem:ResolveNodeRefFromNodeHash(target.nodeID)
     end
 
-    if isNotEmpty(data.parentID) then
-        data.parentRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.parentID)
-        --if isNotEmpty(data.parentRef) then
-        --    data.parentInstance = inspectionSystem:FindStreamedNode(data.parentID).nodeInstance
+    if isNotEmpty(data.nodeProxyID) then
+        data.nodeProxyRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.nodeProxyID)
+    end
+
+    if isNotEmpty(data.nodeParentID) then
+        data.nodeParentRef = inspectionSystem:ResolveNodeRefFromNodeHash(data.nodeParentID)
+        --if isNotEmpty(data.nodeParentRef) then
+        --    data.nodeParentInstance = inspectionSystem:FindStreamedNode(data.nodeParentID).nodeInstance
         --end
     end
 
@@ -1298,7 +1304,8 @@ end
 local partialMatchFields = {
     'nodeType',
     'nodeRef',
-    'parentRef',
+    'nodeProxyRef',
+    'nodeParentRef',
     'sectorPath',
     'meshPath',
     'materialPath',
@@ -1882,7 +1889,8 @@ local resultSchema = {
         { name = 'nodeType', label = 'Node Type:' },
         { name = 'nodeID', label = 'Node ID:', format = '%u' },
         { name = 'nodeRef', label = 'Node Ref:', wrap = true },
-        { name = 'parentRef', label = 'Parent Ref:', wrap = true },
+        { name = 'nodeProxyRef', label = 'Node Proxy:', wrap = true },
+        { name = 'nodeParentRef', label = 'Node Parent:', wrap = true },
         { name = 'nodePosition', label = 'Node Position:', format = formatPosition, validate = isValidPosition },
         { name = 'nodeOrientation', label = 'Node Orientation:', format = formatOrientation, validate = isValidOrientation },
         { name = 'nodeScale', label = 'Node Scale:', format = formatScale, validate = isValidScale },
@@ -1892,6 +1900,7 @@ local resultSchema = {
         { name = 'instanceIndex', label = 'Node Instance:', format = '%d', validate = isValidNodeIndex },
         { name = 'instanceCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
         { name = 'debugName', label = 'Debug Name:' },
+        { name = 'sourcePrefabHash', label = 'Source Prefab Hash:', format = '%u' },
     },
     {
         { name = 'communityID', label = 'Community ID:', format = '%u' },

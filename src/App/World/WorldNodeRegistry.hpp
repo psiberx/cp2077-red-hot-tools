@@ -16,9 +16,11 @@ struct WorldNodeInstanceStaticData
     int32_t nodeIndex{-1};
     uint32_t nodeCount{0};
     uint64_t nodeID{0};
+    uint64_t proxyID{0};
     uint64_t parentID{0};
     Red::CName nodeType;
     Red::CString debugName;
+    uint64_t sourcePrefabHash;
     bool interior;
 };
 
@@ -58,6 +60,7 @@ public:
     WorldNodeInstanceRuntimeData GetNodeRuntimeData(const Red::WeakHandle<Red::worldINodeInstance>& aNode);
     Core::Vector<WorldNodeInstanceRuntimeData> GetAllStreamedNodes();
     WorldCommunityStaticData GetCommunityStaticData(uint64_t aCommunityID);
+    bool IsWorldResource(Red::ResourcePath aPath);
     void ClearRuntimeData();
 
     void RegisterWatcher(IWorldNodeInstanceWatcher* aWatcher);
@@ -86,6 +89,7 @@ protected:
     inline static Core::Map<Red::CompiledNodeInstanceSetupInfo*, WorldNodeInstanceRuntimeData> s_nodeSetupToRuntimeDataMap;
     inline static Core::Map<Red::worldINodeInstance*, Red::CompiledNodeInstanceSetupInfo*> s_nodeInstanceToNodeSetupMap;
     inline static Core::Map<uint64_t, WorldCommunityStaticData> s_communityStaticDataMap;
+    inline static Core::Set<Red::ResourcePath> s_knownWorldResources;
 
     inline static Core::Vector<IWorldNodeInstanceWatcher*> s_watchers;
 };
@@ -93,4 +97,5 @@ protected:
 
 RTTI_EXPAND_CLASS(Red::worldNode, {
     RTTI_PROPERTY(Red::CString, 0x8, "debugName");
+    RTTI_PROPERTY(uint64_t, 0x20, "sourcePrefabHash");
 });
