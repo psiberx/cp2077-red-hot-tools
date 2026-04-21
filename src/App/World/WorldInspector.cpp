@@ -778,7 +778,7 @@ void App::WorldInspector::UpdateFrustumNodes()
                      "time={:.3f}ms init={:.3f}ms resolve={:.3f}ms "
                      "(frustum={:.3f}ms raycast={:.3f}ms collect={:.3f}ms) "
                      "commit={:.3f}ms ",
-                     m_streamedNodes.size(), m_frustumNodes.size, targetedNodeIndexes.size(),
+                     m_streamedNodes.size(), m_frustumNodes.Size(), targetedNodeIndexes.size(),
                      updateDuration.count(), initDuration.count(), resolveDuration.count(),
                      frustumDuration.count(), raycastDuration.count(), collectDuration.count(),
                      commitDuration.count());
