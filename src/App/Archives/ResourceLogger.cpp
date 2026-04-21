@@ -1,14 +1,15 @@
-#include "ArchiveLogger.hpp"
+#include "ResourceLogger.hpp"
 #include "App/Shared/ResourcePathRegistry.hpp"
 #include "Core/Facades/Container.hpp"
 #include "Red/ResourceDepot.hpp"
 
-void App::ArchiveLogger::OnBootstrap()
+void App::ResourceLogger::OnBootstrap()
 {
     HookAfter<Raw::ResourceDepot::RequestResource>(&OnRequestResource);
+    HookBefore<Raw::ResourceReference::EnsureLoaded>(&OnReferenceEnsureLoaded);
 }
 
-void App::ArchiveLogger::OnRequestResource(Red::ResourceDepot* aDepot, const uintptr_t* aResourceHandle,
+void App::ResourceLogger::OnRequestResource(Red::ResourceDepot* aDepot, const uintptr_t* aResourceHandle,
                                              Red::ResourcePath aResourcePath, const int32_t* aArchiveHandle)
 {
     if (!*aResourceHandle)
@@ -30,7 +31,21 @@ void App::ArchiveLogger::OnRequestResource(Red::ResourceDepot* aDepot, const uin
     }
 }
 
-App::ArchiveLogger::ArchiveInfo App::ArchiveLogger::GetArchiveInfo(Red::ResourceDepot* aDepot,
+void App::ResourceLogger::OnReferenceEnsureLoaded(Red::ResourceReference<>* aReference)
+{
+    if (aReference->path && (!aReference->token || !aReference->token->IsFinished()))
+    {
+        if (s_knownBrokenPaths.contains(aReference->path))
+            return;
+
+        auto resourcePathStr = Core::Resolve<ResourcePathRegistry>()->ResolvePath(aReference->path);
+
+        LogWarning(R"(Accessing unloaded rRef: hash={} path="{}")", aReference->path.hash,
+                   !resourcePathStr.empty() ? resourcePathStr.data() : "?");
+    }
+}
+
+App::ResourceLogger::ArchiveInfo App::ResourceLogger::GetArchiveInfo(Red::ResourceDepot* aDepot,
                                                                        const int32_t* aArchiveHandle)
 {
     if (!aArchiveHandle || !*aArchiveHandle)

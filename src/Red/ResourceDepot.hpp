@@ -25,3 +25,10 @@ constexpr auto RequestResource = Core::RawFunc<
                                 Red::ResourcePath aPath,
                                 const int32_t* aArchiveHandle)>{};
 }
+
+namespace Raw::ResourceReference
+{
+constexpr auto EnsureLoaded = Core::RawFunc<
+    /* addr = */ Red::AddressLib::ResourceReference_EnsureLoaded,
+    /* type = */ void (*)(Red::ResourceReference<>* aReference)>{};
+}

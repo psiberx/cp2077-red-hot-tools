@@ -95,6 +95,8 @@ constexpr uint32_t ResourceDepot_RequestResource = 2450934495;
 
 constexpr uint32_t ResourcePath_Create = 3998356057;
 
+constexpr uint32_t ResourceReference_EnsureLoaded = 2017464375;
+
 constexpr uint32_t ScriptBinder_ResolveNatives = 2952800760;
 constexpr uint32_t ScriptBinder_ResolveTypes = 1666326197;
 constexpr uint32_t ScriptBinder_CreateClass = 1040327137;

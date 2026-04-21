@@ -1,7 +1,7 @@
 #include "Application.hpp"
 #include "App/Archives/ArchiveLoader.hpp"
-#include "App/Archives/ArchiveLogger.hpp"
 #include "App/Archives/ArchiveWatcher.hpp"
+#include "App/Archives/ResourceLogger.hpp"
 #include "App/Environment.hpp"
 #include "App/Scripts/ObjectRegistry.hpp"
 #include "App/Scripts/ScriptLoader.hpp"
@@ -30,7 +30,7 @@ App::Application::Application(HMODULE aHandle, const RED4ext::v1::Sdk* aSdk)
 
     Register<App::ArchiveLoader>();
     Register<App::ArchiveWatcher>(Env::ArchiveHotDir());
-    Register<App::ArchiveLogger>();
+    Register<App::ResourceLogger>();
 
     Register<App::ScriptLoader>(Env::ScriptSourceDir(), Env::ScriptBlobPath());
     Register<App::ScriptWatcher>(Env::ScriptHotFile());

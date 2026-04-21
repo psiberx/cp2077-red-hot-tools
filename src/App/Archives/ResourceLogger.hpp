@@ -6,7 +6,7 @@
 
 namespace App
 {
-class ArchiveLogger
+class ResourceLogger
     : public Core::Feature
     , public Core::HookingAgent
     , public Core::LoggingAgent
@@ -21,6 +21,7 @@ protected:
     void OnBootstrap() override;
     static void OnRequestResource(Red::ResourceDepot* aDepot, const uintptr_t* aResourceHandle,
                                   Red::ResourcePath aResourcePath, const int32_t* aArchiveHandle);
+    static void OnReferenceEnsureLoaded(Red::ResourceReference<>* aReference);
 
     static ArchiveInfo GetArchiveInfo(Red::ResourceDepot* aDepot, const int32_t* aArchiveHandle);
 

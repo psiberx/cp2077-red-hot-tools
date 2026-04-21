@@ -1,6 +1,6 @@
-#include "ArchiveLogger.hpp"
+#include "ResourceLogger.hpp"
 
-Core::Set<Red::ResourcePath> App::ArchiveLogger::s_knownBrokenPaths = {
+Core::Set<Red::ResourcePath> App::ResourceLogger::s_knownBrokenPaths = {
     11667225134805795463ull,
     16905695163656296102ull, // base\localization\ru-ru\voiceovermap.json
     11096380914756954598ull, // base\localization\ru-ru\voiceovermap_1.json
