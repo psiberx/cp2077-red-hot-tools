@@ -40,10 +40,9 @@ end
 
 local MainTab = Enumeration('None', 'Inspect', 'Scan', 'Watch', 'Lookup', 'Streaming', 'Settings', 'Hotkeys')
 local TargetingMode = Enumeration('GamePhysics', 'StaticBounds')
--- local ColorScheme = Enumeration('Green', 'Red', 'Yellow', 'White', 'Shimmer')
--- local OutlineMode = Enumeration('ForSupportedObjects', 'Never')
--- local MarkerMode = Enumeration('Always', 'ForStaticMeshes', 'WhenOutlineIsUnsupported', 'Never')
--- local BoundingBoxMode = Enumeration('ForAreaNodes', 'Never')
+local OutlineMode = Enumeration('ForSupportedTargets', 'Never')
+local BoundingBoxMode = Enumeration('Always', 'ForStaticTargets', 'ForInvisibleTargets', 'Never')
+local MarkerMode = Enumeration('Always', 'ForStaticTargets', 'ForInvisibleTargets', 'Never')
 local WindowSnapping = Enumeration('Disabled', 'TopLeft', 'TopRight')
 
 local userState = {}
@@ -57,12 +56,11 @@ local userStateSchema = {
     scannerDistance = { type = 'number', default = 25.0 },
     frustumDistance = { type = 'number', default = 0.0 },
     targetingDistance = { type = 'number', default = 0.0 },
---     highlightColor = { type = ColorScheme, default = ColorScheme.Red },
---     outlineMode = { type = OutlineMode, default = OutlineMode.ForSupportedObjects },
---     markerMode = { type = MarkerMode, default = MarkerMode.ForStaticMeshes },
---     boundingBoxMode = { type = BoundingBoxMode, default = BoundingBoxMode.Never },
---     showMarkerDistance = { type = 'boolean', default = true },
---     showBoundingBoxDistances = { type = 'boolean', default = false },
+    outlineMode = { type = OutlineMode, default = OutlineMode.ForSupportedTargets },
+    markerMode = { type = MarkerMode, default = MarkerMode.Always },
+    boundingBoxMode = { type = BoundingBoxMode, default = BoundingBoxMode.Always },
+    showMarkerDistance = { type = 'boolean', default = true },
+    showBoundingBoxDistances = { type = 'boolean', default = true },
     targetingMode = { type = TargetingMode, default = TargetingMode.GamePhysics },
     maxTargets = { type = 'number', default = 16 },
     cycleInspectorResults = { type = 'boolean', default = false },
@@ -440,12 +438,42 @@ local function updateHighlights()
         return
     end
 
-    highlight.projections[highlight.target.hash] = {
-        target = highlight.target,
-        profile = highlight.profile,
-    }
+    local showOrigin = false
+    if highlight.target.position and not highlight.target.position:IsXYZZero() then
+        if userState.markerMode == MarkerMode.Always then
+            showOrigin = true
+        elseif userState.markerMode == MarkerMode.ForStaticTargets then
+            showOrigin = not highlight.target.isEntity
+        elseif userState.markerMode == MarkerMode.ForInvisibleTargets then
+            showOrigin = not highlight.target.isEntity and not highlight.target.isVisibleNode
+        end
+    end
 
-    applyHighlightEffect(highlight.target, highlight.profile, true, highlight.changed)
+    local showBoundingBox = false
+    if highlight.target.boundingBox and highlight.target.boundingBox:GetRange() > 0 then
+        if userState.boundingBoxMode == BoundingBoxMode.Always then
+            showBoundingBox = true
+        elseif userState.boundingBoxMode == BoundingBoxMode.ForStaticTargets then
+            showBoundingBox = not highlight.target.isEntity
+        elseif userState.boundingBoxMode == BoundingBoxMode.ForInvisibleTargets then
+            showBoundingBox = not highlight.target.isEntity and not highlight.target.isVisibleNode
+        end
+    end
+
+    if showOrigin or showBoundingBox then
+        highlight.projections[highlight.target.hash] = {
+            target = highlight.target,
+            profile = highlight.profile,
+            showOrigin = showOrigin,
+            showOriginDistance = userState.showMarkerDistance,
+            showBoundingBox = showBoundingBox,
+            showBoundingBoxDistances = userState.showBoundingBoxDistances,
+        }
+    end
+
+    if userState.outlineMode == OutlineMode.ForSupportedTargets then
+        applyHighlightEffect(highlight.target, highlight.profile, true, highlight.changed)
+    end
 end
 
 local function highlightTarget(target)
@@ -1658,10 +1686,9 @@ end
 
 local function initializeViewData()
     viewData.targetingModeOptions = ImGuiEx.BuildComboOptions(TargetingMode.values, true)
-    --viewData.colorSchemeOptions = ImGuiEx.BuildComboOptions(ColorScheme.values)
-    --viewData.outlineModeOptions = ImGuiEx.BuildComboOptions(OutlineMode.values)
-    --viewData.markerModeOptions = ImGuiEx.BuildComboOptions(MarkerMode.values)
-    --viewData.boundingBoxModeOptions = ImGuiEx.BuildComboOptions(BoundingBoxMode.values)
+    viewData.outlineModeOptions = ImGuiEx.BuildComboOptions(OutlineMode.values)
+    viewData.markerModeOptions = ImGuiEx.BuildComboOptions(MarkerMode.values)
+    viewData.boundingBoxModeOptions = ImGuiEx.BuildComboOptions(BoundingBoxMode.values)
     viewData.windowSnappingOptions = ImGuiEx.BuildComboOptions(WindowSnapping.values, true)
     viewData.nodeGroupOptions = buildMappingOptions(nodeGroupMapping, 'All')
 
@@ -2644,82 +2671,60 @@ local function drawSettingsContent()
     ImGui.Separator()
     ImGui.Spacing()
 
-    --ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
-    --ImGui.SetWindowFontScale(viewStyle.groupCaptionSize)
-    --ImGui.Text('HIGHLIGHTING')
-    --ImGui.SetWindowFontScale(1.0)
-    --ImGui.PopStyleColor()
-    --
-    --ImGui.BeginGroup()
-    --ImGui.AlignTextToFramePadding()
-    --ImGui.Text('Color theme:')
-    --ImGui.SameLine()
-    --ImGui.SetNextItemWidth(viewStyle.settingsShortComboRowWidth - ImGui.GetCursorPosX())
-    --state, changed = ImGui.Combo('##HighlightColor', ColorScheme.values[userState.highlightColor] - 1, viewData.colorSchemeOptions, #viewData.colorSchemeOptions)
-    --if changed then
-    --    userState.highlightColor = ColorScheme.values[state + 1]
-    --    initializeHighlighting()
-    --end
-    --ImGui.EndGroup()
-    --
-    --ImGui.BeginGroup()
-    --ImGui.AlignTextToFramePadding()
-    --ImGui.Text('Show outline:')
-    --ImGui.SameLine()
-    --ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
-    --state, changed = ImGui.Combo('##OutlineMode', OutlineMode.values[userState.outlineMode] - 1, viewData.outlineModeOptions, #viewData.outlineModeOptions)
-    --if changed then
-    --    userState.outlineMode = OutlineMode.values[state + 1]
-    --end
-    --ImGui.EndGroup()
-    --
-    --ImGui.BeginGroup()
-    --ImGui.AlignTextToFramePadding()
-    --ImGui.Text('Show marker:')
-    --ImGui.SameLine()
-    --ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
-    --state, changed = ImGui.Combo('##MarkerMode', MarkerMode.values[userState.markerMode] - 1, viewData.markerModeOptions, #viewData.markerModeOptions)
-    --if changed then
-    --    userState.markerMode = MarkerMode.values[state + 1]
-    --end
-    --ImGui.EndGroup()
-    --if ImGui.IsItemHovered() then
-    --    ImGui.SetTooltip(
-    --        'Shows marker at the center of a mesh or area,\n' ..
-    --        'or at the world position of a shapeless node.')
-    --end
-    --
-    --ImGui.BeginGroup()
-    --ImGui.AlignTextToFramePadding()
-    --ImGui.Text('Show bounding box:')
-    --ImGui.SameLine()
-    --ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
-    --state, changed = ImGui.Combo('##BoundingBoxMode', BoundingBoxMode.values[userState.boundingBoxMode] - 1, viewData.boundingBoxModeOptions, #viewData.boundingBoxModeOptions)
-    --if changed then
-    --    userState.boundingBoxMode = BoundingBoxMode.values[state + 1]
-    --end
-    --ImGui.EndGroup()
-    --if ImGui.IsItemHovered() then
-    --    ImGui.SetTooltip(
-    --        'The bounding box may differ from the actual shape of the area,\n' ..
-    --        'but helps to understand its general location and boundaries.')
-    --end
-    --
-    --ImGui.Spacing()
-    --
-    --state, changed = ImGui.Checkbox('Show distance to the marker', userState.showMarkerDistance)
-    --if changed then
-    --    userState.showMarkerDistance = state
-    --end
-    --
-    --state, changed = ImGui.Checkbox('Show distances to the corners of bounding box', userState.showBoundingBoxDistances)
-    --if changed then
-    --    userState.showBoundingBoxDistances = state
-    --end
-    --
-    --ImGui.Spacing()
-    --ImGui.Separator()
-    --ImGui.Spacing()
+    ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+    ImGui.SetWindowFontScale(viewStyle.groupCaptionSize)
+    ImGui.Text('HIGHLIGHTING')
+    ImGui.SetWindowFontScale(1.0)
+    ImGui.PopStyleColor()
+
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Show outline:')
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
+    state, changed = ImGui.Combo('##OutlineMode', OutlineMode.values[userState.outlineMode] - 1, viewData.outlineModeOptions, #viewData.outlineModeOptions)
+    if changed then
+       userState.outlineMode = OutlineMode.values[state + 1]
+    end
+    ImGui.EndGroup()
+
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Show origin point:')
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
+    state, changed = ImGui.Combo('##MarkerMode', MarkerMode.values[userState.markerMode] - 1, viewData.markerModeOptions, #viewData.markerModeOptions)
+    if changed then
+       userState.markerMode = MarkerMode.values[state + 1]
+    end
+    ImGui.EndGroup()
+
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Show bounding box:')
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
+    state, changed = ImGui.Combo('##BoundingBoxMode', BoundingBoxMode.values[userState.boundingBoxMode] - 1, viewData.boundingBoxModeOptions, #viewData.boundingBoxModeOptions)
+    if changed then
+        userState.boundingBoxMode = BoundingBoxMode.values[state + 1]
+    end
+    ImGui.EndGroup()
+
+    ImGui.Spacing()
+
+    state, changed = ImGui.Checkbox('Show distance to the origin point', userState.showMarkerDistance)
+    if changed then
+       userState.showMarkerDistance = state
+    end
+
+    state, changed = ImGui.Checkbox('Show distances to the corners of bounding box', userState.showBoundingBoxDistances)
+    if changed then
+       userState.showBoundingBoxDistances = state
+    end
+
+    ImGui.Spacing()
+    ImGui.Separator()
+    ImGui.Spacing()
 
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
     ImGui.SetWindowFontScale(viewStyle.groupCaptionSize)
@@ -3073,7 +3078,15 @@ local function makeCubeFromBox(box, position, orientation)
     return vertices
 end
 
-local function drawProjectedBox(screen, position, orientation, box, profile)
+local function drawProjectedBox(screen, projection)
+    if not projection.showBoundingBox then
+        return
+    end
+
+    local position = projection.target.position
+    local orientation = projection.target.orientation
+    local box = projection.target.boundingBox
+
     local vertices = makeCubeFromBox(box, position, orientation)
     local points = {}
     local outline = {
@@ -3218,12 +3231,12 @@ local function drawProjectedBox(screen, position, orientation, box, profile)
         table.insert(faces, face)
     end
 
-    local frontFaceColor = profile.fillingColor
-    local frontEdgeShadow = profile.shadingColor
-    local frontEdgeColor = profile.primaryColor
+    local frontFaceColor = projection.profile.fillingColor
+    local frontEdgeShadow = projection.profile.shadingColor
+    local frontEdgeColor = projection.profile.primaryColor
     local backEdgeColor = ImGuiEx.Fade(frontEdgeColor, 0x44)
     local edgeWidth = 2
-    local labelColor = profile.labelColor
+    local labelColor = projection.profile.labelColor
 
     for _, face in ipairs(faces) do
         if face.front then
@@ -3303,7 +3316,6 @@ local function drawProjectedBox(screen, position, orientation, box, profile)
     local farthest = 0
     local bounds = {}
     local showBounds = false
-    local showOrigin = true
 
     local origin = getProjectedPoint(screen, position, true)
     origin.distance = Vector4.Distance(screen.camera.world, position)
@@ -3357,33 +3369,35 @@ local function drawProjectedBox(screen, position, orientation, box, profile)
                 drawCircle(point, pointColor, 4)
                 drawCircle(point, labelColor, 2)
 
-                drawBadge(point, formatDistance(point.distance), true, point.front and -10 or 11, pointColor, labelColor)
+                if projection.showBoundingBoxDistances then
+                    drawBadge(point, formatDistance(point.distance), true, point.front and -10 or 11, pointColor, labelColor)
+                end
 
-                if showOrigin then
+                if projection.showOrigin then
                     if math.abs(point.x - origin.x) <= 40 and math.abs(point.y - origin.y) <= 40 then
-                        showOrigin = false
+                        projection.showOrigin = false
                     end
                 end
             end
         end
     end
-
-    if showOrigin then
-        drawCircle(origin, profile.primaryColor, 5)
-        drawCircle(origin, profile.labelColor, 3)
-
-        drawBadge(origin, formatDistance(origin.distance), true, -12, profile.primaryColor, profile.labelColor)
-    end
 end
 
-local function drawProjectedMarker(screen, position, profile)
+local function drawProjectedOrigin(screen, projection)
+    if not projection.showOrigin then
+        return
+    end
+
+    local position = projection.target.position
     local point = getProjectedPoint(screen, position, true)
 
-    drawCircle(point, profile.primaryColor, 5)
-    drawCircle(point, profile.labelColor, 3)
+    drawCircle(point, projection.profile.primaryColor, 5)
+    drawCircle(point, projection.profile.labelColor, 3)
 
-    local distance = Vector4.Distance(screen.camera.world, position)
-    drawBadge(point, formatDistance(distance), true, -12, profile.primaryColor, profile.labelColor)
+    if projection.showOriginDistance then
+        local distance = Vector4.Distance(screen.camera.world, position)
+        drawBadge(point, formatDistance(distance), true, -12, projection.profile.primaryColor, projection.profile.labelColor)
+    end
 end
 
 local function drawProjections()
@@ -3408,12 +3422,9 @@ local function drawProjections()
 
     if ImGui.Begin('##RHT:WorldTools:Projections', true, viewStyle.projectionWindowFlags) then
         for _, projection in pairs(highlight.projections) do
-            updateGeometryData(projection.target)
-            if projection.target.boundingBox then
-                drawProjectedBox(screen, projection.target.position, projection.target.orientation, projection.target.boundingBox, projection.profile)
-            else
-                drawProjectedMarker(screen, projection.target.position, projection.profile)
-            end
+            updateGeometryData(highlight.target)
+            drawProjectedBox(screen, projection)
+            drawProjectedOrigin(screen, projection)
         end
     end
 
