@@ -1431,14 +1431,21 @@ App::PhysicsTraceResultObject App::WorldInspector::GetPhysicsTraceObject(Red::Sc
         result.proxyID = trace->proxyID;
         result.actorIndex = trace->actorIndex;
         result.actorOffset = 0;
+        result.actorCount = 0;
         result.shapeIndex = trace->shapeIndex;
+        result.shapeCount = 0;
         result.distance = trace->distance;
 
         if (auto nodeInstance = Red::Cast<Red::worldCollisionNodeInstance>(result.nodeInstance.Lock()))
         {
+            auto& nodeDefinition = Raw::WorldCollisionNodeInstance::Node::Ref(nodeInstance);
+            auto& nodeActors = Raw::WorldCollisionNode::Actors::Ref(nodeDefinition);
+
+            result.actorCount = nodeDefinition->numActors;
+            result.shapeCount = nodeActors[result.actorIndex].numShapes;
+
             if (result.proxyID == Raw::WorldCollisionNodeInstance::SecondaryProxyID::Ref(nodeInstance))
             {
-                auto& nodeDefinition = Raw::WorldCollisionNodeInstance::Node::Ref(nodeInstance);
                 result.actorOffset = nodeDefinition->numActors / 2;
             }
         }
@@ -1449,7 +1456,7 @@ App::PhysicsTraceResultObject App::WorldInspector::GetPhysicsTraceObject(Red::Sc
 
 Red::Box App::WorldInspector::GetPhysicsProxyBoundingBox(uint32_t aProxyID, int32_t aActorIndex, int32_t aShapeIndex)
 {
-    Red::Box finalBox{{1,1,1,0}, {-1,-1,-1,0}};
+    Red::Box finalBox;
 
     bool allActors = aActorIndex == -1;
     bool allShapes = allActors || aShapeIndex == -1;

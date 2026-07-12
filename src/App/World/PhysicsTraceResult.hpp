@@ -11,7 +11,9 @@ struct PhysicsTraceResultObject
     uint32_t proxyID;
     uint32_t actorIndex;
     uint32_t actorOffset;
+    uint32_t actorCount;
     uint32_t shapeIndex;
+    uint32_t shapeCount;
     float distance;
     uint64_t hash;
     bool resolved;
@@ -33,7 +35,9 @@ RTTI_DEFINE_CLASS(App::PhysicsTraceResultObject, {
     RTTI_PROPERTY(proxyID);
     RTTI_PROPERTY(actorIndex);
     RTTI_PROPERTY(actorOffset);
+    RTTI_PROPERTY(actorCount);
     RTTI_PROPERTY(shapeIndex);
+    RTTI_PROPERTY(shapeCount);
     RTTI_PROPERTY(distance);
     RTTI_PROPERTY(hash);
     RTTI_PROPERTY(resolved);

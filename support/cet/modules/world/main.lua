@@ -40,6 +40,7 @@ end
 
 local MainTab = Enumeration('None', 'Inspect', 'Scan', 'Watch', 'Lookup', 'Streaming', 'Settings', 'Hotkeys')
 local TargetingMode = Enumeration('GamePhysics', 'StaticBounds')
+local CollisionGranularity = Enumeration('Actor', 'Shape')
 local OutlineMode = Enumeration('ForSupportedTargets', 'Never')
 local BoundingBoxMode = Enumeration('Always', 'ForStaticTargets', 'ForInvisibleTargets', 'Never')
 local MarkerMode = Enumeration('Always', 'ForStaticTargets', 'ForInvisibleTargets', 'Never')
@@ -62,6 +63,7 @@ local userStateSchema = {
     showMarkerDistance = { type = 'boolean', default = true },
     showBoundingBoxDistances = { type = 'boolean', default = true },
     targetingMode = { type = TargetingMode, default = TargetingMode.GamePhysics },
+    collisionGranularity = { type = CollisionGranularity, default = CollisionGranularity.Actor },
     maxTargets = { type = 'number', default = 16 },
     cycleInspectorResults = { type = 'boolean', default = false },
     highlightInspectorResult = { type = 'boolean', default = true },
@@ -803,9 +805,18 @@ local function fillTargetNodeData(target, data)
             data.physicsProxyID = target.proxyID or -1
             data.physicsActorIndex = target.actorIndex or 0
             data.physicsActorOffset = target.actorOffset or 0
-            data.physicsShapeIndex = target.shapeIndex or 0
+            data.physicsActorCount = target.actorCount or 0
+            if userState.collisionGranularity == CollisionGranularity.Shape then
+                data.physicsShapeIndex = target.shapeIndex or 0
+                data.physicsShapeCount = target.shapeCount or 0
+            else
+                data.physicsShapeIndex = -1
+                data.physicsShapeCount = 0
+            end
             data.actorIndex = data.physicsActorIndex + data.physicsActorOffset
-            data.actorCount = node.numActors
+            data.actorCount = data.physicsActorCount
+            data.shapeIndex = node.physicsShapeIndex
+            data.shapeIndex = node.physicsShapeCount
         end
 
         if RedHotTools.IsInstanceOf(node, 'worldInstancedMeshNode') then
@@ -829,7 +840,9 @@ local function fillTargetNodeData(target, data)
                 data.physicsProxyID = target.proxyID or -1
                 data.physicsActorIndex = target.actorIndex or 0
                 data.physicsActorOffset = target.actorOffset or 0
-                data.physicsShapeIndex = target.shapeIndex or 0
+                data.physicsActorCount = target.actorCount or 0
+                data.physicsShapeIndex = -1
+                data.physicsShapeCount = 0
             end
             data.actorIndex = target.actorIndex or 0
             data.actorCount = node.cookedInstanceTransforms.numElements or 0
@@ -917,8 +930,8 @@ local function fillTargetGeomertyData(target, data)
         data.physicsActorOffset = target.actorOffset or 0
         data.physicsShapeIndex = target.shapeIndex or 0
         data.actorIndex = data.physicsActorIndex + data.physicsActorOffset
-        data.actorCount = target.actorCount or data.actorCount
-        local geometry = inspectionSystem:GetPhysicsProxyGeometry(data.physicsProxyID, data.physicsActorIndex, -1)
+        data.shapeIndex = data.physicsShapeIndex
+        local geometry = inspectionSystem:GetPhysicsProxyGeometry(data.physicsProxyID, data.physicsActorIndex, data.physicsShapeIndex or -1)
         data.position = geometry.position
         data.orientation = geometry.orientation
         data.boundingBox = geometry.boundingBox
@@ -1030,14 +1043,18 @@ local function updateTargetData(target, data)
         data.physicsProxyID = target.proxyID
         data.physicsActorIndex = target.actorIndex or 0
         data.physicsActorOffset = target.actorOffset or 0
-        data.physicsShapeIndex = target.shapeIndex or 0
+        data.physicsActorCount = target.actorCount or 0
+        if data.isCollisionNode and userState.collisionGranularity == CollisionGranularity.Shape then
+            data.physicsShapeIndex = target.shapeIndex or 0
+            data.physicsShapeCount = target.shapeCount or 0
+        else
+            data.physicsShapeIndex = -1
+            data.physicsShapeCount = 0
+        end
         data.actorIndex = data.physicsActorIndex + data.physicsActorOffset
-        data.actorCount = target.actorCount or data.actorCount
-        --local geometry = inspectionSystem:GetPhysicsProxyGeometry(data.physicsProxyID, data.physicsActorIndex, -1)
-        --data.position = geometry.position
-        --data.orientation = geometry.orientation
-        --data.boundingBox = geometry.boundingBox
-
+        data.actorCount = data.physicsActorCount
+        data.shapeIndex = data.physicsShapeIndex
+        data.shapeCount = data.physicsShapeCount
     elseif target.actorCount and target.actorCount > 1 then
         data.actorIndex = target.actorIndex or 0
         data.actorCount = target.actorCount or 0
@@ -1063,7 +1080,7 @@ local function updateGeometryData(data)
         data.orientation = geometry.orientation
         data.boundingBox = geometry.boundingBox
     elseif data.physicsProxyID then
-        local geometry = inspectionSystem:GetPhysicsProxyGeometry(data.physicsProxyID, data.physicsActorIndex, -1)
+        local geometry = inspectionSystem:GetPhysicsProxyGeometry(data.physicsProxyID, data.physicsActorIndex, data.physicsShapeIndex or -1)
         data.position = geometry.position
         data.orientation = geometry.orientation
         data.boundingBox = geometry.boundingBox
@@ -1686,6 +1703,7 @@ end
 
 local function initializeViewData()
     viewData.targetingModeOptions = ImGuiEx.BuildComboOptions(TargetingMode.values, true)
+    viewData.collisionGranularityOptions = ImGuiEx.BuildComboOptions(CollisionGranularity.values, true)
     viewData.outlineModeOptions = ImGuiEx.BuildComboOptions(OutlineMode.values)
     viewData.markerModeOptions = ImGuiEx.BuildComboOptions(MarkerMode.values)
     viewData.boundingBoxModeOptions = ImGuiEx.BuildComboOptions(BoundingBoxMode.values)
@@ -1911,6 +1929,21 @@ local function formatActorLabel(data)
     return 'Node Actor:'
 end
 
+local function hasValidShapeIndex(data)
+    return type(data.shapeIndex) == 'number' and data.shapeIndex >= 0
+        and type(data.shapeCount) == 'number' and data.shapeCount > 0
+end
+
+local function formatShapeLabel(data)
+    if IsDefined(data.nodeDefinition) then
+        if data.isCollisionNode then
+            return 'Collision Shape:'
+        end
+    end
+
+    return 'Node Shape:'
+end
+
 local function hasValidCommunityEntryIndex(data)
     return type(data.communityEntryIndex) == 'number' and data.communityEntryIndex >= 0
         and type(data.communityEntryCount) == 'number' and data.communityEntryCount > 0
@@ -1977,6 +2010,8 @@ local resultSchema = {
         { name = 'occluderType', label = 'Occluder Type:' },
         { name = 'actorIndex', label = formatActorLabel, format = '%d', validate = hasValidActorIndex },
         { name = 'actorCount', label = '/', format = '%d', inline = true, validate = hasValidActorIndex },
+        { name = 'shapeIndex', label = formatShapeLabel, format = '%d', validate = hasValidShapeIndex },
+        { name = 'shapeCount', label = '/', format = '%d', inline = true, validate = hasValidShapeIndex },
         { name = 'triggerNotifiers', label = 'Trigger Notifiers:', format = formatArrayField, validate = isValidArrayField },
         { name = 'lootTables', label = 'Loot Tables:', format = formatArrayField, validate = isValidArrayField },
     },
@@ -2294,6 +2329,9 @@ local function drawInspectorContent(isModal)
         if selected.interior ~= nil then
             table.insert(extra, selected.interior and 'Interior' or 'Exterior')
         end
+        if selected.isCollisionNode then
+            table.insert(extra, viewData.collisionGranularityOptions[CollisionGranularity.values[userState.collisionGranularity]])
+        end
         if #extra > 0 then
             ImGui.SameLine()
             ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
@@ -2330,7 +2368,7 @@ local function drawInspectorContent(isModal)
         ImGui.Spacing()
         ImGui.Separator()
         ImGui.Spacing()
-        drawFieldset(inspector.results[inspector.active], true, not isModal, true)
+        drawFieldset(selected, true, not isModal, true)
     else
         ImGui.SameLine()
         ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
@@ -2759,6 +2797,17 @@ local function drawSettingsContent()
             'ignores transparency and generally less accurate but can target non-collision meshes and decals.')
         ImGui.EndTooltip()
     end
+
+    ImGui.BeginGroup()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text('Collision granularity:')
+    ImGui.SameLine()
+    ImGui.SetNextItemWidth(viewStyle.settingsMiddleComboRowWidth - ImGui.GetCursorPosX())
+    state, changed = ImGui.Combo('##CollisionGranularity', CollisionGranularity.values[userState.collisionGranularity] - 1, viewData.collisionGranularityOptions, #viewData.collisionGranularityOptions)
+    if changed then
+        userState.collisionGranularity = CollisionGranularity.values[state + 1]
+    end
+    ImGui.EndGroup()
 
     ImGui.BeginGroup()
     ImGui.AlignTextToFramePadding()
@@ -3605,6 +3654,17 @@ local function onCycleTargetingModeHotkey()
     end
 end
 
+local function onCycleCollisionGranularityHotkey()
+    if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
+        local nextModeIndex = CollisionGranularity.values[userState.collisionGranularity] + 1
+        if nextModeIndex > #CollisionGranularity.values then
+            nextModeIndex = 1
+        end
+        userState.collisionGranularity = CollisionGranularity.values[nextModeIndex]
+        saveUserState()
+    end
+end
+
 local function onToggleObserverOverride()
     if userState.syncObserverPositionWithPlayer then
         inspectionSystem:SetStreamingOverridePosition(GetPlayer():GetWorldPosition())
@@ -3684,6 +3744,7 @@ return {
     hotkeys = {
         { id = 'ToggleWorldInspector', group = 'World Inspector', label = 'Toggle overlay', callback = onToggleInspectorHotkey },
         { id = 'CycleTargetingMode', group = 'World Inspector', label = 'Cycle targeting modes', callback = onCycleTargetingModeHotkey },
+        { id = 'CycleCollisionGranularity', group = 'World Inspector', label = 'Cycle collision granularities', callback = onCycleCollisionGranularityHotkey },
         { id = 'ToggleTargetState', group = 'World Inspector', label = 'Toggle target visibility', callback = onToggleTargetStateHotkey },
         { id = 'ToggleObserverOverride', group = 'World Inspector', label = 'Toggle observer override', callback = onToggleObserverOverride },
         { id = 'UpdateObserverPosition', group = 'World Inspector', label = 'Set observer position to player', callback = onUpdateObserverPosition },

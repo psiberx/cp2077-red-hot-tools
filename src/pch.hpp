@@ -100,6 +100,7 @@
 #include <RED4ext/Scripting/Natives/Generated/physics/CustomFilterData.hpp>
 #include <RED4ext/Scripting/Natives/Generated/physics/FilterData.hpp>
 #include <RED4ext/Scripting/Natives/Generated/physics/FilterDataSource.hpp>
+#include <RED4ext/Scripting/Natives/Generated/physics/GeometryKey.hpp>
 #include <RED4ext/Scripting/Natives/Generated/physics/ICollider.hpp>
 #include <RED4ext/Scripting/Natives/Generated/physics/PhysicalJointPin.hpp>
 #include <RED4ext/Scripting/Natives/Generated/physics/PhysicalSystemOwner.hpp>

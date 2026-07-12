@@ -148,6 +148,28 @@ struct FoliageBufferAccessor
     uint32_t bucketCount;
     Span<FoliageBucket> bucketData;
 };
+
+struct CollisionActor
+{
+    WorldTransform transform;   // 00
+    uint16_t shapeStartIndex;   // 20
+    uint16_t numShapes;         // 22
+    int16_t scaleIndex;         // 24
+    uint8_t unk26[0x30 - 0x26]; // 26
+};
+RED4EXT_ASSERT_SIZE(CollisionActor, 0x30);
+
+struct CollisionShape
+{
+    physicsGeometryKey geometryKey; // 00
+    uint16_t unk10;                 // 10
+    uint16_t unk12;                 // 12
+    int16_t positionIndex;          // 14
+    int16_t rotationIndex;          // 16
+    uint8_t presetIndex;            // 18
+    uint8_t unk19[0x20 - 0x19];     // 19
+};
+RED4EXT_ASSERT_SIZE(CollisionShape, 0x20);
 }
 
 namespace Raw::WorldNode
@@ -159,6 +181,12 @@ constexpr auto GetBoundingBox = Core::RawVFunc<
 constexpr auto GetDynamicBoundingBox = Core::RawVFunc<
     /* addr = */ 0x110,
     /* type = */ void (Red::worldNode::*)(Red::Box& aBox)>();
+}
+
+namespace Raw::WorldCollisionNode
+{
+using Actors = Core::OffsetPtr<0x38, Red::Span<Red::CollisionActor>>;
+using Shapes = Core::OffsetPtr<0x48, Red::Span<Red::CollisionShape>>;
 }
 
 namespace Raw::WorldInstancedMeshNode
