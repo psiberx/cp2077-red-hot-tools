@@ -41,6 +41,10 @@ using PhysicsTraceResultArray = StaticArray<physics::TraceResult, 32>;
 
 namespace Raw::PhysicsProxy
 {
+constexpr auto GetNumActors = Core::RawFunc<
+    /* addr = */ Red::AddressLib::PhysicsProxy_GetNumActors,
+    /* type = */ uint32_t (*)(uint32_t aProxyID)>();
+
 constexpr auto GetActorPhysxPtr = Core::RawFunc<
     /* addr = */ Red::AddressLib::PhysicsProxy_GetActorPhysxPtr,
     /* type = */ void* (*)(uint32_t aProxyID, uint32_t aActorIndex)>();
