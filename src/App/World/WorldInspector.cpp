@@ -1441,6 +1441,7 @@ App::PhysicsTraceResultObject App::WorldInspector::GetPhysicsTraceObject(Red::Sc
             auto& nodeDefinition = Raw::WorldCollisionNodeInstance::Node::Ref(nodeInstance);
             auto& nodeActors = Raw::WorldCollisionNode::Actors::Ref(nodeDefinition);
 
+            result.actorCount = nodeDefinition->numActors;
             result.shapeCount = nodeActors[result.actorIndex].numShapes;
 
             if (result.proxyID == Raw::WorldCollisionNodeInstance::SecondaryProxyID::Ref(nodeInstance))
