@@ -3,14 +3,13 @@
 
 namespace
 {
-constexpr auto MaxNumObjects = 0x350000;
-
 Red::ClassLocator<Red::IScriptable> s_IScriptableType;
 }
 
 void App::ObjectRegistry::OnBootstrap()
 {
-    s_objects.reserve(MaxNumObjects);
+    s_registry.reserve(StartCapacity);
+    LogInfo("[ObjectRegistry] Storage initialized for {} handles.", s_registry.capacity());
 
     Hook<Raw::ISerializable::CreateHandle>(&OnCreateHandle);
 }
@@ -24,12 +23,30 @@ void* App::ObjectRegistry::OnCreateHandle(Red::Handle<Red::ISerializable>& aHand
     if (isNewHandle)
     {
         std::unique_lock lock(s_registryLock);
-        s_objects.emplace_back(aHandle);
 
-        if (s_objects.size() >= MaxNumObjects - 1)
+        if (s_registry.size() == s_registry.capacity())
         {
-            Shrink();
+            auto [b, e] = std::ranges::remove_if(s_registry, [](auto& x) { return x.Expired(); });
+
+            if (b != e)
+            {
+                s_registry.erase(b, e);
+            }
+            else
+            {
+                if (s_registry.capacity() == MaxCapacity)
+                {
+                    LogWarning("[ObjectRegistry] Storage reached max capacity of {} handles.", s_registry.capacity());
+                    return &aHandle;
+                }
+
+                s_registry.reserve(s_registry.capacity() + s_registry.capacity() / 4);
+
+                LogInfo("[ObjectRegistry] Storage capacity increased to {} handles.", s_registry.capacity());
+            }
         }
+
+        s_registry.emplace_back(aHandle);
     }
 
     return &aHandle;
@@ -39,7 +56,7 @@ void App::ObjectRegistry::CollectSerializables(Red::DynArray<Red::WeakHandle<Red
 {
     std::shared_lock lock(s_registryLock);
 
-    for (const auto& weak : s_objects)
+    for (const auto& weak : s_registry)
     {
         if (!weak.Expired())
         {
@@ -52,7 +69,7 @@ void App::ObjectRegistry::CollectScriptables(Red::DynArray<Red::WeakHandle<Red::
 {
     std::shared_lock lock(s_registryLock);
 
-    for (const auto& weak : s_objects)
+    for (const auto& weak : s_registry)
     {
         if (!weak.Expired() && weak.instance->GetType()->IsA(s_IScriptableType))
         {
@@ -68,7 +85,7 @@ void App::ObjectRegistry::CreateSnapshot()
 
     s_snapshot.clear();
 
-    for (const auto& weak : s_objects)
+    for (const auto& weak : s_registry)
     {
         if (weak.Expired())
             continue;
@@ -103,10 +120,10 @@ void App::ObjectRegistry::CreateSnapshot()
 
 void App::ObjectRegistry::RestoreSnapshot()
 {
-    std::unique_lock lock1(s_registryLock);
+    std::shared_lock lock1(s_registryLock);
     std::unique_lock lock2(s_snapshotLock);
 
-    for (auto& weak : s_objects)
+    for (const auto& weak : s_registry)
     {
         if (weak.Expired())
             continue;
@@ -144,12 +161,4 @@ void App::ObjectRegistry::RestoreSnapshot()
     }
 
     s_snapshot.clear();
-
-    Shrink();
-}
-
-void App::ObjectRegistry::Shrink()
-{
-    auto [b, e] = std::ranges::remove_if(s_objects, [](auto& x) { return x.Expired(); });
-    s_objects.erase(b, e);
 }

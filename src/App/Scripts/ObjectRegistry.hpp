@@ -18,10 +18,12 @@ public:
     void RestoreSnapshot();
 
 protected:
+    static inline constexpr size_t MaxCapacity = 0xFFFFFF;
+    static inline constexpr size_t StartCapacity = 0x350000;
+
     void OnBootstrap() override;
 
     static void* OnCreateHandle(Red::Handle<Red::ISerializable>& aHandle, Red::ISerializable* aObject);
-    static void Shrink();
 
     template<typename T>
     inline static T* GetValuePtr(T* aPtr, uint32_t aOffset)
@@ -42,7 +44,7 @@ protected:
     };
 
     inline static std::shared_mutex s_registryLock;
-    inline static Core::Vector<Red::WeakHandle<Red::ISerializable>> s_objects;
+    inline static Core::Vector<Red::WeakHandle<Red::ISerializable>> s_registry;
 
     inline static std::shared_mutex s_snapshotLock;
     inline static Core::Map<Red::CName, ClassDesc> s_snapshot;
