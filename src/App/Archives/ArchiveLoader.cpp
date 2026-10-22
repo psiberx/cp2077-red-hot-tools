@@ -264,6 +264,16 @@ void App::ArchiveLoader::LoadModArchives(const Red::DynArray<Red::ArchiveGroup*>
 Red::Archive* App::ArchiveLoader::FindArchivePosition(Red::DynArray<Red::Archive>& aArchives,
                                                       const Red::CString& aArchivePath)
 {
+    // The game does not keep the mod archives in strcmp order (it sorts names case-insensitively),
+    // so the binary search below can miss an archive that is mounted, e.g. "EDGEmat.archive" among
+    // "basegame_*.archive" and "clothing_*.archive". Its handle is then never reopened, and the
+    // game's archive load fails with "error 1" and quits. Look for the exact path first.
+    for (auto& archive : aArchives)
+    {
+        if (archive.path == aArchivePath)
+            return &archive;
+    }
+
     return std::lower_bound(aArchives.Begin(), aArchives.End(), aArchivePath,
                             [](const Red::Archive& aArchive, const Red::CString& aPath) {
                                 return strcmp(aArchive.path.c_str(), aPath.c_str()) < 0;
