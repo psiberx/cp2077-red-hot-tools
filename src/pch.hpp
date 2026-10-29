@@ -122,6 +122,11 @@
 #include <RED4ext/Scripting/Natives/Generated/world/CollisionNodeInstance.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/CommunityRegistryNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/CompiledCommunityAreaNode.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/CookedAcousticSectorNode.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/CookedBendedMeshNode.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/CookedCollisionNode.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/CookedStaticDecalNode.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/CookedStaticMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/DistantLightsNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/EntityNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/EntityNodeInstance.hpp>
@@ -151,7 +156,6 @@
 #include <RED4ext/Scripting/Natives/Generated/world/RoadProxyMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/RuntimeSystemNodeStreaming.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/RuntimeSystemPhysics.hpp>
-#include <RED4ext/Scripting/Natives/Generated/world/SharedDataBuffer.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/SocketNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/StaticDecalNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/StaticDecalNodeInstance.hpp>

@@ -102,6 +102,13 @@ function Cron.NextTick(callback, data)
     return addTimer(0, false, callback, data)
 end
 
+---@param callback function
+---@param data
+---@return any
+function Cron.EveryTick(callback, data)
+    return addTimer(0, true, callback, data)
+end
+
 ---@param timerId any
 ---@return void
 function Cron.Halt(timerId)

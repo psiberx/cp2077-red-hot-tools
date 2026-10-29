@@ -232,7 +232,7 @@ void App::ArchiveLoader::LoadModArchives(const Red::DynArray<Red::ArchiveGroup*>
     }
 
     Red::ArchiveGroup hotGroup;
-    Raw::ResourceDepot::LoadArchives(nullptr, hotGroup, aArchivePaths, aLoadedResources, false);
+    Raw::ResourceDepot::LoadArchives(nullptr, hotGroup, aArchivePaths, aLoadedResources, 0, 2);
 
     for (const auto& archive : hotGroup.archives)
     {

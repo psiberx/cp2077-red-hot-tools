@@ -12,12 +12,12 @@ void App::WorldNodeRegistry::OnBootstrap()
 void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aSector, uint64_t)
 {
     std::scoped_lock _(s_nodeStaticDataLock, s_nodeInstanceDataLock);
-    auto& buffer = Raw::StreamingSector::NodeBuffer::Ref(aSector);
-    auto instanceCount = static_cast<uint32_t>(buffer.nodeSetups.end() - buffer.nodeSetups.begin());
-    auto nodeCount = buffer.nodes.Size();
+
+    auto instanceCount = aSector->compiled.buffer.nodeSetups.Size();
+    auto nodeCount = aSector->compiled.nodes.Size();
     auto sectorHash = aSector->path.hash;
 
-    for (auto& nodeRef : buffer.nodeRefs)
+    for (auto& nodeRef : aSector->compiled.nodeRefs)
     {
         auto& nodeRefData = s_nodeRefToStaticDataMap[nodeRef];
         if (!nodeRefData.sectorHash)
@@ -26,15 +26,18 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
         }
     }
 
-    for (auto& nodeSetup : buffer.nodeSetups)
+    for (auto instanceIndex = 0; instanceIndex < aSector->compiled.buffer.nodeSetups.Size(); ++instanceIndex)
     {
-        auto* nodeDefinition = buffer.nodes[nodeSetup.nodeIndex].instance;
+        auto& nodeSetup = aSector->compiled.buffer.nodeSetups[instanceIndex];
+        auto nodeIndex = aSector->compiled.buffer.version >= 68 ? nodeSetup.nodeIndex : nodeSetup.v62.nodeIndex;
+
+        auto* nodeDefinition = aSector->compiled.nodes[nodeIndex].instance;
 
         auto& nodeData = s_nodeSetupToStaticDataMap[&nodeSetup];
         nodeData.sectorHash = sectorHash;
-        nodeData.instanceIndex = static_cast<int32_t>(&nodeSetup - buffer.nodeSetups.begin());
+        nodeData.instanceIndex = instanceIndex;
         nodeData.instanceCount = instanceCount;
-        nodeData.nodeIndex = nodeSetup.nodeIndex;
+        nodeData.nodeIndex = nodeIndex;
         nodeData.nodeCount = nodeCount;
         nodeData.nodeType = nodeDefinition->GetType()->GetName();
         nodeData.nodeID = nodeSetup.globalNodeID;
@@ -85,7 +88,7 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
         }
         else if (auto instancedMeshNode = Red::Cast<Red::worldInstancedMeshNode>(nodeDefinition))
         {
-            s_knownWorldResources.insert(instancedMeshNode->mesh.path);
+            s_knownWorldResources.insert(instancedMeshNode->cookedInstances[nodeSetup.instanceIndex].mesh.path);
         }
         else if (auto occluderNode = Red::Cast<Red::worldStaticOccluderMeshNode>(nodeDefinition))
         {
@@ -104,10 +107,10 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
             s_knownWorldResources.insert(terrainNode->meshRef.path);
         }
 
-        s_nodeSetupToRuntimeDataMap[&nodeSetup] = {&nodeSetup, {}, buffer.nodes[nodeSetup.nodeIndex]};
+        s_nodeSetupToRuntimeDataMap[&nodeSetup] = {&nodeSetup, {}, aSector->compiled.nodes[nodeSetup.nodeIndex]};
     }
 
-    for (auto& node : buffer.nodes)
+    for (auto& node : aSector->compiled.nodes)
     {
         node->ref.instance = node.instance;
         node->ref.refCount = node.refCount;
@@ -119,10 +122,9 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
 void App::WorldNodeRegistry::OnStreamingSectorDestruct(Red::worldStreamingSector* aSector)
 {
     std::scoped_lock _(s_nodeStaticDataLock, s_nodeInstanceDataLock);
-    auto& buffer = Raw::StreamingSector::NodeBuffer::Ref(aSector);
 
     size_t erased = 0;
-    for (auto& nodeSetup : buffer.nodeSetups)
+    for (auto& nodeSetup : aSector->compiled.buffer.nodeSetups)
     {
         if (auto nodeInstance = s_nodeSetupToRuntimeDataMap[&nodeSetup].nodeInstance.instance)
         {
@@ -138,12 +140,12 @@ void App::WorldNodeRegistry::OnStreamingSectorDestruct(Red::worldStreamingSector
     }
 
 #ifndef NDEBUG
-    LogInfo("WorldNodeRegistry: Cleaned up {} tracked nodes.", erased);
+    LogDebug("WorldNodeRegistry: Cleaned up {} tracked nodes.", erased);
 #endif
 }
 
 void App::WorldNodeRegistry::OnNodeInstanceInitialize(Red::worldINodeInstance* aNodeInstance,
-                                                     Red::CompiledNodeInstanceSetupInfo* aNodeSetup, void*)
+                                                      Red::worldCompiledNodeInstanceSetupInfo* aNodeSetup, void*)
 {
     std::unique_lock _(s_nodeInstanceDataLock);
     s_nodeSetupToRuntimeDataMap[aNodeSetup].nodeInstance = Red::AsWeakHandle(aNodeInstance);
@@ -178,7 +180,7 @@ void App::WorldNodeRegistry::OnNodeInstanceDetach(Red::worldINodeInstance* aNode
     }
 }
 
-App::WorldNodeInstanceStaticData App::WorldNodeRegistry::GetNodeStaticData(Red::CompiledNodeInstanceSetupInfo* aNodeSetup)
+App::WorldNodeInstanceStaticData App::WorldNodeRegistry::GetNodeStaticData(Red::worldCompiledNodeInstanceSetupInfo* aNodeSetup)
 {
     if (!aNodeSetup)
         return {};
@@ -220,7 +222,7 @@ App::WorldNodeInstanceStaticData App::WorldNodeRegistry::GetNodeStaticData(const
     return GetNodeStaticData(it.value());
 }
 
-App::WorldNodeInstanceRuntimeData App::WorldNodeRegistry::GetNodeRuntimeData(Red::CompiledNodeInstanceSetupInfo* aNodeSetup)
+App::WorldNodeInstanceRuntimeData App::WorldNodeRegistry::GetNodeRuntimeData(Red::worldCompiledNodeInstanceSetupInfo* aNodeSetup)
 {
     if (!aNodeSetup)
         return {};
@@ -249,7 +251,7 @@ App::WorldNodeInstanceRuntimeData App::WorldNodeRegistry::GetNodeRuntimeData(
     return GetNodeRuntimeData(it.value());
 }
 
-Red::CompiledNodeInstanceSetupInfo* App::WorldNodeRegistry::GetNodeSetupInfo(Red::worldINodeInstance* aNodeInstance)
+Red::worldCompiledNodeInstanceSetupInfo* App::WorldNodeRegistry::GetNodeSetupInfo(Red::worldINodeInstance* aNodeInstance)
 {
     std::shared_lock _(s_nodeInstanceDataLock);
     const auto& it = s_nodeInstanceToNodeSetupMap.find(aNodeInstance);
@@ -296,7 +298,7 @@ void App::WorldNodeRegistry::ClearRuntimeData()
     {
         std::unique_lock _(s_nodeStaticDataLock);
 #ifndef NDEBUG
-        LogInfo("WorldNodeRegistry: Cleaned up {} tracked nodes.", s_nodeSetupToStaticDataMap.size());
+        LogDebug("WorldNodeRegistry: Cleaned up {} tracked nodes.", s_nodeSetupToStaticDataMap.size());
 #endif
         s_nodeSetupToStaticDataMap.clear();
         s_communityStaticDataMap.clear();

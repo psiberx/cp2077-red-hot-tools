@@ -8,7 +8,8 @@ constexpr auto LoadArchives = Core::RawFunc<
                           Red::ArchiveGroup& aGroup,
                           const Red::DynArray<Red::CString>& aArchivePaths,
                           Red::DynArray<Red::ResourcePath>& aLoadedResourcePaths,
-                          bool aMemoryResident)>{};
+                          int32_t aMode,
+                          uint8_t aFailSeverity)>{};
 
 constexpr auto DestructArchive = Core::RawFunc<
     /* addr = */ Red::AddressLib::ResourceDepot_DestructArchive,

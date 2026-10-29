@@ -11,9 +11,9 @@ struct WorldNodeStreamingRequest
 {
     bool streaming;
     uint64_t hash;
+    Red::worldCompiledNodeInstanceSetupInfo* nodeSetup;
     Red::WeakHandle<Red::worldINodeInstance> nodeInstance;
     Red::WeakHandle<Red::worldNode> nodeDefinition;
-    Red::CompiledNodeInstanceSetupInfo* nodeSetup;
 };
 
 struct WorldNodeStaticActorData
@@ -147,7 +147,7 @@ private:
     void OnNodeStreamedIn(uint64_t aNodeHash,
                           Red::worldNode* aNodeDefinition,
                           Red::worldINodeInstance* aNodeInstance,
-                          Red::CompiledNodeInstanceSetupInfo* aNodeSetup) override;
+                          Red::worldCompiledNodeInstanceSetupInfo* aNodeSetup) override;
     void OnNodeStreamedOut(uint64_t aNodeHash) override;
 
     void UpdateStreamedNodes();

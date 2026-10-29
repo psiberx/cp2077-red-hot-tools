@@ -130,7 +130,7 @@ local function getCameraData(distance)
         return nil
 	end
 
-    local position, forward = targetingSystem:GetCrosshairData(player)
+    local position, forward = targetingSystem:GetDefaultCrosshairData(player)
     local destination = position
 
     if distance ~= nil then
@@ -750,12 +750,19 @@ local function fillTargetNodeData(target, data)
         data.nodeType = RedHotTools.GetTypeName(node).value
 
         if RedHotTools.IsInstanceOf(node, 'worldMeshNode')
-        or RedHotTools.IsInstanceOf(node, 'worldInstancedMeshNode')
         or RedHotTools.IsInstanceOf(node, 'worldBendedMeshNode')
         or RedHotTools.IsInstanceOf(node, 'worldFoliageNode')
         or RedHotTools.IsInstanceOf(node, 'worldPhysicalDestructionNode') then
             data.meshPath = RedHotTools.GetResourcePath(node.mesh.hash)
             data.meshAppearance = node.meshAppearance.value
+        end
+
+        if RedHotTools.IsInstanceOf(node, 'worldCookedStaticMeshNode') then
+            -- fixme
+        end
+
+        if RedHotTools.IsInstanceOf(node, 'worldCookedGenericProxyMeshNode') then
+            -- fixme
         end
 
         if RedHotTools.IsInstanceOf(node, 'worldTerrainMeshNode') then
@@ -764,6 +771,10 @@ local function fillTargetNodeData(target, data)
 
         if RedHotTools.IsInstanceOf(node, 'worldStaticDecalNode') then
             data.materialPath = RedHotTools.GetResourcePath(node.material.hash)
+        end
+
+        if RedHotTools.IsInstanceOf(node, 'worldCookedStaticDecalNode') then
+            -- fixme
         end
 
         if RedHotTools.IsInstanceOf(node, 'worldEffectNode') then
@@ -801,7 +812,8 @@ local function fillTargetNodeData(target, data)
             data.workspotPath = RedHotTools.GetResourcePath(node.spot.resource.hash)
         end
 
-        if RedHotTools.IsInstanceOf(node, 'worldCollisionNode') then
+        if RedHotTools.IsInstanceOf(node, 'worldCollisionNode')
+        or RedHotTools.IsInstanceOf(node, 'worldCookedCollisionNode') then
             data.physicsProxyID = target.proxyID or -1
             data.physicsActorIndex = target.actorIndex or 0
             data.physicsActorOffset = target.actorOffset or 0
@@ -820,8 +832,12 @@ local function fillTargetNodeData(target, data)
         end
 
         if RedHotTools.IsInstanceOf(node, 'worldInstancedMeshNode') then
+            -- fixme
+            -- data.meshPath = RedHotTools.GetResourcePath(node.mesh.hash)
+            -- data.meshAppearance = node.meshAppearance.value
+
             data.actorIndex = target.actorIndex or 0
-            data.actorCount = node.worldTransformsBuffer.numElements
+            data.actorCount = #node.cookedInstances or 0
         end
 
         if RedHotTools.IsInstanceOf(node, 'worldFoliageNode') then
@@ -845,7 +861,7 @@ local function fillTargetNodeData(target, data)
                 data.physicsShapeCount = 0
             end
             data.actorIndex = target.actorIndex or 0
-            data.actorCount = node.cookedInstanceTransforms.numElements or 0
+            data.actorCount = #node.instanceTransforms or 0
         end
 
         if RedHotTools.IsInstanceOf(node, 'worldStaticParticleNode') then
@@ -874,10 +890,13 @@ local function fillTargetNodeData(target, data)
     data.nodeInstance = target.nodeInstance
 
     data.isNode = IsDefined(data.nodeInstance) or IsDefined(data.nodeDefinition) or isNotEmpty(data.nodeID)
+    data.isCookedNode =  data.isNode and RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldCookedNode')
     data.isMeshNode = data.isNode and (RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldMeshNode') or
+        RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldCookedMeshNode') or
         RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldInstancedMeshNode'))
     data.isFoliageNode = data.isNode and RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldFoliageNode')
-    data.isCollisionNode = data.isNode and RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldCollisionNode')
+    data.isCollisionNode = data.isNode and (RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldCollisionNode') or
+        RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldCookedCollisionNode'))
     data.isOccluderNode = data.isNode and (RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldStaticOccluderMeshNode') or
         RedHotTools.IsInstanceOf(data.nodeDefinition, 'worldInstancedOccluderNode'))
     data.isVisibleNode = data.isNode and (isNotEmpty(data.meshPath) or isNotEmpty(data.materialPath)
@@ -932,6 +951,7 @@ local function fillTargetGeomertyData(target, data)
         data.actorIndex = data.physicsActorIndex + data.physicsActorOffset
         data.shapeIndex = data.physicsShapeIndex
         local geometry = inspectionSystem:GetPhysicsProxyGeometry(data.physicsProxyID, data.physicsActorIndex, data.physicsShapeIndex or -1)
+
         data.position = geometry.position
         data.orientation = geometry.orientation
         data.boundingBox = geometry.boundingBox
@@ -1177,7 +1197,8 @@ local function inspectTargets(targets)
             elseif
                 RedHotTools.IsInstanceOf(targets[i].nodeDefinition, 'worldTerrainMeshNode') or
                 RedHotTools.IsInstanceOf(targets[i].nodeDefinition, 'worldTerrainCollisionNode') or
-                RedHotTools.IsInstanceOf(targets[i].nodeDefinition, 'worldTerrainProxyMeshNode')
+                RedHotTools.IsInstanceOf(targets[i].nodeDefinition, 'worldTerrainProxyMeshNode') or
+                RedHotTools.IsInstanceOf(targets[i].nodeDefinition, 'worldCookedTerrainProxyMeshNode')
             then
                 table.remove(targets, i)
             end
@@ -1677,7 +1698,7 @@ local viewStyle = {
     hintTextColor = 0x66FFFFFF,
     dangerTextColor = 0xFF6666FF,
     disabledButtonColor = 0xFF4F4F4F,
-    groupCaptionSize = 0.75,
+    groupCaptionSize = 0.8,
 }
 
 local function buildMappingOptions(mapping, first)

@@ -24,8 +24,12 @@ App::Application::Application(HMODULE aHandle, const RED4ext::v1::Sdk* aSdk)
     Register<Core::RuntimeProvider>(aHandle)->SetBaseImagePathDepth(2);
 
     Register<Support::MinHookProvider>();
-    Register<Support::SpdlogProvider>()->AppendTimestampToLogName()->CreateRecentLogSymlink();
-    Register<Support::RED4extProvider>(aHandle, aSdk)->EnableAddressLibrary();
+    Register<Support::SpdlogProvider>()
+        ->AppendTimestampToLogName()
+        ->CreateRecentLogSymlink()
+        ->ToggleDebugOutput(true);
+    Register<Support::RED4extProvider>(aHandle, aSdk)
+        ->EnableAddressLibrary();
     Register<Support::RedLibProvider>();
 
     Register<App::ArchiveLoader>();
@@ -35,7 +39,7 @@ App::Application::Application(HMODULE aHandle, const RED4ext::v1::Sdk* aSdk)
     Register<App::ScriptLoader>(Env::ScriptSourceDir(), Env::ScriptBlobPath());
     Register<App::ScriptWatcher>(Env::ScriptHotFile());
     Register<App::ScriptLogger>();
-    Register<App::ScriptReporter>(Env::IsPrePatch212a());
+    Register<App::ScriptReporter>();
     Register<App::ObjectRegistry>();
 
     Register<App::TweakLoader>(Env::TweakSourceDir());
@@ -43,5 +47,5 @@ App::Application::Application(HMODULE aHandle, const RED4ext::v1::Sdk* aSdk)
 
     Register<App::ResourcePathRegistry>(Env::KnownHashesPath());
     Register<App::WorldNodeRegistry>();
-    Register<App::InkWidgetCollector>(Env::IsPrePatch212a());
+    Register<App::InkWidgetCollector>();
 }

@@ -17,6 +17,13 @@ constexpr uint32_t Camera_ProjectPoint = 1517361120;
 constexpr uint32_t CBaseEngine_LoadScripts = 3570081113; // CBaseEngine::LoadScripts
 constexpr uint32_t CBaseEngine_MainLoopTick = 1875906465;
 
+constexpr uint32_t CBaseFunction_InitializeLocalStack = 314117590;
+
+constexpr uint32_t CMesh_PostLoad = 2272530537;
+
+constexpr uint32_t EngineConfig_GetInstance = 3182170505;
+constexpr uint32_t EngineConfigStore_GetVar = 3758823966;
+
 constexpr uint32_t EntityID_ToStringDEBUG = 3457552837;
 
 constexpr uint32_t FileSystem_Instance = 3788966949;
@@ -35,7 +42,7 @@ constexpr uint32_t inkPointerHandler_Create = 630009171;
 constexpr uint32_t inkPointerHandler_Reset = 3695579637;
 constexpr uint32_t inkPointerHandler_Override = 4279316794;
 
-constexpr uint32_t InkSpawner_FinishAsyncSpawn = 2698985195;
+constexpr uint32_t InkSpawner_FinishAsyncSpawn = 4097515464;
 
 constexpr uint32_t InkSystem_Instance = 2635337807;
 
@@ -46,8 +53,8 @@ constexpr uint32_t InkWidget_SpawnFromLibrary = 111687851;
 constexpr uint32_t InkWidgetContext_Clone = 3823045541;
 constexpr uint32_t InkWidgetContext_AddWidget = 2526158623;
 
-constexpr uint32_t InkWidgetLibrary_AsyncSpawnFromExternal = 1396063719;
-constexpr uint32_t InkWidgetLibrary_AsyncSpawnFromLocal = 118698863;
+constexpr uint32_t InkWidgetLibrary_AsyncSpawnFromExternal = 225197914;
+constexpr uint32_t InkWidgetLibrary_AsyncSpawnFromLocal = 2342073570;
 constexpr uint32_t InkWidgetLibrary_SpawnFromExternal = 506278179;
 constexpr uint32_t InkWidgetLibrary_SpawnFromLocal = 1158555307;
 constexpr uint32_t InkWidgetLibrary_SpawnRoot = 3160221133;
@@ -86,7 +93,7 @@ constexpr uint32_t RenderProxy_UpdateVisibility = 2124419179;
 
 constexpr uint32_t ResourceBank_ForgetResource = 2288918343;
 
-constexpr uint32_t ResourceDepot_LoadArchives = 2517385486;
+constexpr uint32_t ResourceDepot_LoadArchives = 3573367139;
 constexpr uint32_t ResourceDepot_DestructArchive = 1988169744;
 constexpr uint32_t ResourceDepot_DestructArchives = 3517657864;
 constexpr uint32_t ResourceDepot_RequestResource = 2450934495;

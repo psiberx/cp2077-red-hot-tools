@@ -143,7 +143,7 @@ local viewState = {
 local viewStyle = {
     mutedTextColor = 0xFFA5A19B,
     menuSectionLabelColor = 0xFFA5A19B,
-    menuSectionLabelSize = 0.75,
+    menuSectionLabelSize = 0.8,
 }
 
 local function initializeViewStyle()

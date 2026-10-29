@@ -76,11 +76,11 @@ void App::WorldInspector::OnRegisterUpdates(Red::UpdateRegistrar* aRegistrar)
 void App::WorldInspector::OnNodeStreamedIn(uint64_t aNodeHash,
                                              Red::worldNode* aNodeDefinition,
                                              Red::worldINodeInstance* aNodeInstance,
-                                             Red::CompiledNodeInstanceSetupInfo* aNodeSetup)
+                                             Red::worldCompiledNodeInstanceSetupInfo* aNodeSetup)
 {
     std::unique_lock _(m_pendingRequestsLock);
-    m_pendingRequests[aNodeHash] = {true, aNodeHash, Red::AsWeakHandle(aNodeInstance),
-                                    Red::AsWeakHandle(aNodeDefinition), aNodeSetup};
+    m_pendingRequests[aNodeHash] = {true, aNodeHash, aNodeSetup, Red::AsWeakHandle(aNodeInstance),
+                                    Red::AsWeakHandle(aNodeDefinition)};
 }
 
 void App::WorldInspector::OnNodeStreamedOut(uint64_t aNodeHash)
@@ -116,6 +116,7 @@ void App::WorldInspector::UpdateStreamedNodes()
 
         auto nodeInstance = request.nodeInstance.Lock();
         auto nodeDefinition = request.nodeDefinition.Lock();
+        auto nodeSetup = request.nodeSetup;
 
         if (!nodeInstance || !nodeDefinition)
         {
@@ -149,22 +150,22 @@ void App::WorldInspector::UpdateStreamedNodes()
 
             if (meshResource)
             {
-                auto& meshNode = Red::Cast<Red::worldInstancedMeshNode>(nodeDefinition);
-                auto& meshBuffer = meshNode->worldTransformsBuffer;
-                auto* meshInstances = std::bit_cast<Red::RenderProxyTransformData*>(&meshBuffer.sharedDataBuffer->buffer);
+                auto meshNode = Red::Cast<Red::worldInstancedMeshNode>(nodeDefinition);
+                auto startIndex = meshNode->transformRanges[nodeSetup->instanceIndex].transformStartIndex;
+                auto numTransforms = meshNode->transformRanges[nodeSetup->instanceIndex].numTransforms;
 
-                streamedNode.actors.reserve(meshBuffer.numElements);
+                streamedNode.actors.reserve(numTransforms);
 
-                for (auto i = 0; i < meshBuffer.numElements; ++i)
+                for (auto i = 0; i < numTransforms; ++i)
                 {
-                    auto* meshInstance = meshInstances->Get(meshBuffer.startIndex + i);
+                    auto& instanceTransform = meshNode->cookedWorldTransformsBuffer[startIndex + i];
                     auto& nodeActor = streamedNode.actors.emplace_back();
 
-                    nodeActor.position = meshInstance->transform.Position.AsVector4();
-                    nodeActor.orientation = meshInstance->transform.Orientation;
+                    nodeActor.position = instanceTransform.transform.Position.AsVector4();
+                    nodeActor.orientation = instanceTransform.transform.Orientation;
                     nodeActor.boundingBox = meshResource->boundingBox;
 
-                    nodeActor.boundingBox *= meshInstance->scale;
+                    nodeActor.boundingBox *= instanceTransform.scale;
 
                     nodeActor.testBox = nodeActor.boundingBox;
                     nodeActor.testBox *= nodeActor.orientation;
@@ -271,18 +272,15 @@ void App::WorldInspector::UpdateStreamedNodes()
 
                 if (meshResource)
                 {
-                    auto& meshBuffer = meshNode->cookedInstanceTransforms;
-                    auto* meshInstances = std::bit_cast<Red::TransformData*>(&meshBuffer.sharedDataBuffer->buffer);
+                    streamedNode.actors.reserve(meshNode->instanceTransforms.Size());
 
-                    streamedNode.actors.reserve(meshBuffer.numElements);
-
-                    for (auto i = 0; i < meshBuffer.numElements; ++i)
+                    for (auto i = 0; i < meshNode->instanceTransforms.Size(); ++i)
                     {
-                        auto* meshInstance = meshInstances->Get(meshBuffer.startIndex + i);
+                        auto& instanceTransform = meshNode->instanceTransforms[i];
                         auto& nodeActor = streamedNode.actors.emplace_back();
 
-                        nodeActor.position = meshInstance->position + nodeTransform.position;
-                        nodeActor.orientation = meshInstance->orientation * nodeTransform.orientation;
+                        nodeActor.position = instanceTransform.position + nodeTransform.position;
+                        nodeActor.orientation = instanceTransform.orientation * nodeTransform.orientation;
                         nodeActor.boundingBox = meshResource->boundingBox * nodeScale;
 
                         nodeActor.testBox = nodeActor.boundingBox;
@@ -303,7 +301,8 @@ void App::WorldInspector::UpdateStreamedNodes()
         {
             // Treat as dynamic
         }
-        else if (Red::IsInstanceOf<Red::worldMeshNode>(nodeDefinition))
+        else if (Red::IsInstanceOf<Red::worldMeshNode>(nodeDefinition) ||
+                 Red::IsInstanceOf<Red::worldCookedMeshNode>(nodeDefinition))
         {
             auto& meshResource = Raw::WorldMeshNodeInstance::Mesh::Ref(nodeInstance);
 
@@ -329,15 +328,22 @@ void App::WorldInspector::UpdateStreamedNodes()
                 continue;
             }
         }
-        else if (Red::IsInstanceOf<Red::worldBendedMeshNode>(nodeDefinition))
+        else if (Red::IsInstanceOf<Red::worldBendedMeshNode>(nodeDefinition) ||
+                 Red::IsInstanceOf<Red::worldCookedBendedMeshNode>(nodeDefinition))
         {
-            auto& bendedNode = Red::Cast<Red::worldBendedMeshNode>(nodeDefinition);
-
             auto& actor = streamedNode.actors.emplace_back();
 
             actor.position = nodeTransform.position;
             actor.orientation = nodeTransform.orientation;
-            actor.boundingBox = bendedNode->deformedBox;
+
+            if (auto cookedBendedNode = Red::Cast<Red::worldCookedBendedMeshNode>(nodeDefinition))
+            {
+                actor.boundingBox = cookedBendedNode->deformedBoxes[nodeSetup->instanceIndex];
+            }
+            else if (auto bendedNode = Red::Cast<Red::worldBendedMeshNode>(nodeDefinition))
+            {
+                actor.boundingBox = bendedNode->deformedBox;
+            }
 
             actor.boundingBox *= nodeScale;
 
@@ -399,9 +405,11 @@ void App::WorldInspector::UpdateStreamedNodes()
         //         continue;
         //     }
         // }
-        else if (Red::IsInstanceOf<Red::worldStaticDecalNode>(nodeDefinition) ||
+        else if (Red::IsInstanceOf<Red::worldCookedStaticDecalNode>(nodeDefinition) ||
+                 Red::IsInstanceOf<Red::worldStaticDecalNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldStaticOccluderMeshNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldReflectionProbeNode>(nodeDefinition) ||
+                 Red::IsInstanceOf<Red::worldCookedAcousticSectorNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition))
         {
@@ -422,7 +430,9 @@ void App::WorldInspector::UpdateStreamedNodes()
                 actor.testBox *= nodeTransform.orientation;
                 actor.testBox += nodeTransform.position;
 
-                streamedNode.isTargetable = !Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition) &&
+                streamedNode.isTargetable = !Red::IsInstanceOf<Red::worldCookedAcousticSectorNode>(nodeDefinition) &&
+                                            !Red::IsInstanceOf<Red::worldReflectionProbeNode>(nodeDefinition) &&
+                                            !Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition) &&
                                             !Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition) &&
                                             !Red::IsInstanceOf<Red::worldWaterPatchNode>(nodeDefinition);
             }
@@ -481,7 +491,8 @@ void App::WorldInspector::UpdateStreamedNodes()
 
             streamedNode.isTargetable = true;
         }
-        else if (Red::IsInstanceOf<Red::worldCollisionNode>(nodeDefinition))
+        else if (Red::IsInstanceOf<Red::worldCollisionNode>(nodeDefinition) ||
+                 Red::IsInstanceOf<Red::worldCookedCollisionNode>(nodeDefinition))
         {
             // TODO: Add actors for static scanning
         }
@@ -1436,17 +1447,27 @@ App::PhysicsTraceResultObject App::WorldInspector::GetPhysicsTraceObject(Red::Sc
         result.shapeCount = 0;
         result.distance = trace->distance;
 
-        if (auto nodeInstance = Red::Cast<Red::worldCollisionNodeInstance>(result.nodeInstance.Lock()))
+        if (auto collisionNodeInstance = Red::Cast<Red::worldCollisionNodeInstance>(result.nodeInstance.Lock()))
         {
-            auto& nodeDefinition = Raw::WorldCollisionNodeInstance::Node::Ref(nodeInstance);
-            auto& nodeActors = Raw::WorldCollisionNode::Actors::Ref(nodeDefinition);
+            auto& nodeDefinition = Raw::WorldCollisionNodeInstance::Node::Ref(collisionNodeInstance);
 
-            result.actorCount = nodeDefinition->numActors;
-            result.shapeCount = nodeActors[result.actorIndex].numShapes;
-
-            if (result.proxyID == Raw::WorldCollisionNodeInstance::SecondaryProxyID::Ref(nodeInstance))
+            if (auto cookedDefinition = Red::Cast<Red::worldCookedCollisionNode>(nodeDefinition))
             {
-                result.actorOffset = nodeDefinition->numActors / 2;
+                auto nodeSetup = *Raw::WorldNodeInstance::Setup::Ref(collisionNodeInstance);
+                auto instanceIndex = nodeSetup->instanceIndex;
+
+                result.actorCount = cookedDefinition->GetInnerNodes().At(instanceIndex).numActors;
+                result.shapeCount = cookedDefinition->GetCollisionDataView(instanceIndex).actors[result.actorIndex].numShapes;
+            }
+            else if (auto simpleDefinition = Red::Cast<Red::worldCollisionNode>(nodeDefinition))
+            {
+                result.actorCount = simpleDefinition->numActors;
+                result.shapeCount = simpleDefinition->GetCollisionDataView().actors[result.actorIndex].numShapes;
+            }
+
+            if (result.proxyID == Raw::WorldCollisionNodeInstance::SecondaryProxyID::Ref(collisionNodeInstance))
+            {
+                result.actorOffset = result.actorCount / 2;
             }
         }
     }

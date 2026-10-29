@@ -204,9 +204,9 @@ namespace Raw::WorldNodeInstance
 using Transform = Core::OffsetPtr<0x30, Red::Transform>;
 using Scale = Core::OffsetPtr<0x50, Red::Vector3>;
 using Node = Core::OffsetPtr<0x60, Red::Handle<Red::worldNode>>;
-using SetupInfo = Core::OffsetPtr<0x70, Red::CompiledNodeInstanceSetupInfo**>;
+using Setup = Core::OffsetPtr<0x70, Red::worldCompiledNodeInstanceSetupInfo**>;
 using NodeID = Core::OffsetPtr<0x80, uint64_t>;
-using State = Core::OffsetPtr<0x88, Red::WorldNodeInstanceNodeState>;
+using State = Core::OffsetPtr<0x8C, Red::WorldNodeInstanceNodeState>;
 
 inline bool IsAttached(Red::worldINodeInstance* aNodeInstance)
 {
@@ -220,7 +220,7 @@ inline bool IsVisible(Red::worldINodeInstance* aNodeInstance)
 
 constexpr auto Initialize = Core::RawFunc<
     /* addr = */ Red::AddressLib::WorldNodeInstance_Initialize,
-    /* type = */ bool (*)(Red::worldINodeInstance*, Red::CompiledNodeInstanceSetupInfo*, void*)>();
+    /* type = */ bool (*)(Red::worldINodeInstance*, Red::worldCompiledNodeInstanceSetupInfo*, void*)>();
 
 constexpr auto Attach = Core::RawFunc<
     /* addr = */ Red::AddressLib::WorldNodeInstance_Attach,
