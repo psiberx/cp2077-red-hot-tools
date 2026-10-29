@@ -48,9 +48,4 @@ inline std::filesystem::path KnownHashesPath()
 {
     return Core::Runtime::GetModuleDir() / L"Resources.txt";
 }
-
-inline bool IsPrePatch212a()
-{
-    return false;
-}
 }
