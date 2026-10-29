@@ -2,8 +2,7 @@
 #include "Red/EngineConfig.hpp"
 #include "Red/GameEngine.hpp"
 
-App::ScriptReporter::ScriptReporter(bool aCompatMode)
-    : m_compatMode(aCompatMode)
+App::ScriptReporter::ScriptReporter()
 {
 }
 

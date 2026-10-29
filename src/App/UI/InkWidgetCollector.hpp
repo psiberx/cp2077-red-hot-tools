@@ -71,7 +71,7 @@ class InkWidgetCollector
     , public Core::HookingAgent
 {
 public:
-    InkWidgetCollector(bool aCompatMode);
+    InkWidgetCollector();
 
     Red::DynArray<InkLayerExtendedData> CollectLayers();
     InkWidgetCollectionData CollectHoveredWidgets();
@@ -134,7 +134,6 @@ protected:
     static inline Core::Map<Red::inkWindow*, Red::SharedPtr<Red::inkPointerHandler>> s_pointerHandlersByWindow;
     static inline Core::Map<Red::inkPointerHandler*, Red::SharedPtr<Red::inkPointerHandler>> s_pointerHandlersByHandler;
     static inline std::shared_mutex s_pointerHandlerLock;
-    static inline bool s_compatMode;
 };
 }
 
