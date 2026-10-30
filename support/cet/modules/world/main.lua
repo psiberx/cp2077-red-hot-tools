@@ -769,12 +769,12 @@ local function fillTargetNodeData(target, data)
         end
 
         if RedHotTools.IsInstanceOf(node, 'worldInstancedMeshNode') then
-            if data.innerCount then
+            if data.innerIndex and data.innerIndex < data.innerCount then
                 local innerNode = node.cookedInstances[data.innerIndex + 1]
                 data.meshPath = RedHotTools.GetResourcePath(innerNode.mesh.hash)
                 data.meshAppearance = innerNode.meshAppearance.value
                 data.actorIndex = target.actorIndex or 0
-                data.actorCount = node.transformRanges[data.innerIndex].numTransforms or 0
+                data.actorCount = node.transformRanges[data.innerIndex + 1].numTransforms or 0
             end
         end
 
