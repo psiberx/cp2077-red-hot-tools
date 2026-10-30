@@ -21,7 +21,7 @@ inline std::filesystem::path ArchiveHotDir()
 
 inline std::filesystem::path ScriptBlobPath()
 {
-    return Core::Runtime::GetRootDir() / L"r6" / L"cache" / L"final.redscripts";
+    return Core::Runtime::GetRootDir() / L"r6" / L"cache" / L"final.redscripts.modded";
 }
 
 inline std::filesystem::path ScriptSourceDir()

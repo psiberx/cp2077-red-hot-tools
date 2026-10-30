@@ -1,18 +1,18 @@
 #include "ScriptLoader.hpp"
 #include "App/Environment.hpp"
-#include "App/Scripts/ScriptReporter.hpp"
 #include "App/Scripts/ObjectRegistry.hpp"
+#include "App/Scripts/ScriptReporter.hpp"
 #include "Core/Facades/Container.hpp"
+#include "Red/EngineConfig.hpp"
 #include "Red/GameEngine.hpp"
 #include "Red/RawDynArray.hpp"
-#include "Red/ScriptCompiler.hpp"
 #include "Red/ScriptBinder.hpp"
 #include "Red/ScriptBundle.hpp"
+#include "Red/ScriptCompiler.hpp"
 #include "Red/ScriptReport.hpp"
 #include "Red/ScriptValidator.hpp"
 
-App::ScriptLoader::ScriptLoader(std::filesystem::path aSourceDir,
-                                std::filesystem::path aCachePath)
+App::ScriptLoader::ScriptLoader(std::filesystem::path aSourceDir, std::filesystem::path aCachePath)
     : m_scriptSourceDir(std::move(aSourceDir))
     , m_scriptBlobPath(std::move(aCachePath))
 {
@@ -22,46 +22,49 @@ bool App::ScriptLoader::CanReloadScripts()
 {
     auto engine = Red::CGameEngine::Get();
 
-    return engine && engine->engineState == Red::EEngineState::Running;
+    if (!engine || engine->engineState != Red::EEngineState::Running)
+        return false;
+
+    return Red::EngineConfig::Get()->GetValue<bool>("Scripts", "EnableCompilation");
 }
 
 void App::ScriptLoader::ReloadScripts()
 {
-    if (CanReloadScripts())
-    {
-        LogInfo("[ScriptLoader] Scripts reload requested.");
+    if (!CanReloadScripts())
+        return;
 
-        HookOnceAfter<Raw::CBaseEngine::MainLoopTick>([this]() {
-            Red::ScriptBundle bundle;
-            Red::ScriptReport report;
+    LogInfo("[ScriptLoader] Scripts reload requested.");
 
-            if (!CompileScripts(bundle, true))
-                return;
+    HookOnceAfter<Raw::CBaseEngine::MainLoopTick>([this]() {
+        Red::ScriptBundle bundle;
+        Red::ScriptReport report;
 
-            if (!ValidateScripts(bundle, report))
-            {
-                ShowErrorBox("Validation error", report.ToString());
-                return;
-            }
+        if (!CompileScripts(bundle, true))
+            return;
 
-            CaptureScriptableData();
+        if (!ValidateScripts(bundle, report))
+        {
+            ShowErrorBox("Validation error", report.ToString());
+            return;
+        }
 
-            if (!BindScripts(bundle, report))
-            {
-                ShowErrorBox("Binding error", report.ToString());
-                return;
-            }
+        CaptureScriptableData();
 
-            RestoreScriptableData();
+        if (!BindScripts(bundle, report))
+        {
+            ShowErrorBox("Binding error", report.ToString());
+            return;
+        }
 
-            if (report.HasErrors())
-            {
-                LogWarning("[ScriptLoader] {}", report.ToString().c_str());
-            }
+        RestoreScriptableData();
 
-            LogInfo("[ScriptLoader] Scripts reload completed.");
-        });
-    }
+        if (report.HasErrors())
+        {
+            LogWarning("[ScriptLoader] {}", report.ToString().c_str());
+        }
+
+        LogInfo("[ScriptLoader] Scripts reload completed.");
+    });
 }
 
 bool App::ScriptLoader::CompileScripts(Red::ScriptBundle& aBundle, bool aInjectCustomCacheArg)
@@ -102,7 +105,6 @@ bool App::ScriptLoader::CompileScripts(Red::ScriptBundle& aBundle, bool aInjectC
     return true;
 }
 
-
 bool App::ScriptLoader::ValidateScripts(Red::ScriptBundle& aBundle, Red::ScriptReport& aReport)
 {
     LogInfo("[ScriptLoader] Validating scripts...");
@@ -135,7 +137,14 @@ bool App::ScriptLoader::BindScripts(Red::ScriptBundle& aBundle, Red::ScriptRepor
     for (auto& scriptClass : aBundle.classes)
     {
         if (scriptClass->flags.isNative)
+        {
+            if (!scriptClass->rttiClass)
+            {
+                scriptClass->rttiClass = rtti->GetClass(scriptClass->name);
+            }
+
             continue;
+        }
 
         scriptClass->rttiClass = rtti->GetClass(scriptClass->name);
 
@@ -148,7 +157,14 @@ bool App::ScriptLoader::BindScripts(Red::ScriptBundle& aBundle, Red::ScriptRepor
     for (auto& scriptEnum : aBundle.enums)
     {
         if (scriptEnum->isNative)
+        {
+            if (!scriptEnum->rttiEnum)
+            {
+                scriptEnum->rttiEnum = rtti->GetEnumByScriptName(scriptEnum->name);
+            }
+
             continue;
+        }
 
         scriptEnum->rttiEnum = rtti->GetEnumByScriptName(scriptEnum->name);
 
@@ -346,7 +362,10 @@ void App::ScriptLoader::ClearScriptedProperties(Red::CClass* aClass)
     memberFuncs->size = 0;
     staticFuncs->size = 0;
 
+    const auto unkE0 =  aClass->unkE0;
+    aClass->unkE0 = 0;
     aClass->ClearScriptedData();
+    aClass->unkE0 = unkE0;
 
     memberFuncs->size = numMemberFuncs;
     staticFuncs->size = numStaticFuncs;
