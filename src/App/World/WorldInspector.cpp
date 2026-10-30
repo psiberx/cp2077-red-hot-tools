@@ -260,43 +260,8 @@ void App::WorldInspector::UpdateStreamedNodes()
                 continue;
             }
         }
-        else if (Red::IsInstanceOf<Red::worldInstancedDestructibleMeshNode>(nodeDefinition))
-        {
-            auto& meshNode = Red::Cast<Red::worldInstancedDestructibleMeshNode>(nodeDefinition);
-
-            // If destructible node uses "mesh" instead of "staticMesh", it acts as static mesh node
-            if (meshNode->mesh.path)
-            {
-                auto& meshResource = Raw::WorldMeshNodeInstance::Mesh::Ref(nodeInstance);
-
-                if (meshResource)
-                {
-                    streamedNode.actors.reserve(meshNode->instanceTransforms.Size());
-
-                    for (auto i = 0; i < meshNode->instanceTransforms.Size(); ++i)
-                    {
-                        auto& instanceTransform = meshNode->instanceTransforms[i];
-                        auto& nodeActor = streamedNode.actors.emplace_back();
-
-                        nodeActor.position = instanceTransform.position + nodeTransform.position;
-                        nodeActor.orientation = instanceTransform.orientation * nodeTransform.orientation;
-                        nodeActor.boundingBox = meshResource->boundingBox * nodeScale;
-
-                        nodeActor.testBox = nodeActor.boundingBox;
-                        nodeActor.testBox *= nodeActor.orientation;
-                        nodeActor.testBox += nodeActor.position;
-                    }
-
-                    streamedNode.isTargetable = true;
-                }
-                else
-                {
-                    postponedRequests[hash] = request;
-                    continue;
-                }
-            }
-        }
-        else if (Red::IsInstanceOf<Red::worldBakedDestructionNode>(nodeDefinition))
+        else if (Red::IsInstanceOf<Red::worldInstancedDestructibleMeshNode>(nodeDefinition) ||
+                 Red::IsInstanceOf<Red::worldBakedDestructionNode>(nodeDefinition))
         {
             // Treat as dynamic
         }

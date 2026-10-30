@@ -264,6 +264,17 @@ void App::ArchiveLoader::LoadModArchives(const Red::DynArray<Red::ArchiveGroup*>
 Red::Archive* App::ArchiveLoader::FindArchivePosition(Red::DynArray<Red::Archive>& aArchives,
                                                       const Red::CString& aArchivePath)
 {
+    // Look for exact match in case of custom load order
+    auto archive = std::find_if(aArchives.Begin(), aArchives.End(),
+                                [aArchivePath](const Red::Archive& aArchive) {
+                                   return aArchive.path == aArchivePath;
+                                });
+
+    if (archive != aArchives.End())
+    {
+        return archive.Base();
+    }
+
     return std::lower_bound(aArchives.Begin(), aArchives.End(), aArchivePath,
                             [](const Red::Archive& aArchive, const Red::CString& aPath) {
                                 return strcmp(aArchive.path.c_str(), aPath.c_str()) < 0;
