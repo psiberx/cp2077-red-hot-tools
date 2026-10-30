@@ -1925,6 +1925,11 @@ local function isValidNodeIndex(data)
         and type(data.instanceCount) == 'number' and data.instanceCount > 0
 end
 
+local function isValidInnerIndex(data)
+    return type(data.innerIndex) == 'number' and data.innerIndex >= 0
+        and type(data.innerCount) == 'number' and data.innerCount > 0
+end
+
 local function hasValidCommunityIndex(data)
     return type(data.communityIndex) == 'number' and data.communityIndex >= 0
         and type(data.communityCount) == 'number' and data.communityCount > 0
@@ -2005,6 +2010,8 @@ local resultSchema = {
         { name = 'nodeCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
         { name = 'instanceIndex', label = 'Node Instance:', format = '%d', validate = isValidNodeIndex },
         { name = 'instanceCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
+        { name = 'innerIndex', label = 'Cooked Instance:', format = '%d', validate = isValidInnerIndex },
+        { name = 'innerCount', label = '/', format = '%d', inline = true, validate = isValidInnerIndex },
         { name = 'debugName', label = 'Debug Name:' },
         { name = 'sourcePrefabHash', label = 'Source Prefab Hash:', format = '%u' },
     },
