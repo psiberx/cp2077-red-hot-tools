@@ -20,12 +20,14 @@ App::ScriptLoader::ScriptLoader(std::filesystem::path aSourceDir, std::filesyste
 
 bool App::ScriptLoader::CanReloadScripts()
 {
-    auto engine = Red::CGameEngine::Get();
+    return false;
 
-    if (!engine || engine->engineState != Red::EEngineState::Running)
-        return false;
-
-    return Red::EngineConfig::Get()->GetValue<bool>("Scripts", "EnableCompilation");
+    // auto engine = Red::CGameEngine::Get();
+    //
+    // if (!engine || engine->engineState != Red::EEngineState::Running)
+    //     return false;
+    //
+    // return Red::EngineConfig::Get()->GetValue<bool>("Scripts", "EnableCompilation");
 }
 
 void App::ScriptLoader::ReloadScripts()
