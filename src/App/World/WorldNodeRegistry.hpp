@@ -15,6 +15,8 @@ struct WorldNodeInstanceStaticData
     uint32_t instanceCount{0};
     int32_t nodeIndex{-1};
     uint32_t nodeCount{0};
+    uint32_t innerIndex{0xFFFF};
+    uint32_t innerCount{0};
     uint64_t nodeID{0};
     uint64_t proxyID{0};
     uint64_t parentID{0};

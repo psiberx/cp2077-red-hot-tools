@@ -1,5 +1,10 @@
 #pragma once
 
+#include "App/World/CookedAcousticSectorNodeEx.hpp"
+#include "App/World/CookedBendedMeshNodeEx.hpp"
+#include "App/World/CookedGenericProxyMeshNodeEx.hpp"
+#include "App/World/CookedMeshNodeEx.hpp"
+#include "App/World/CookedStaticDecalNodeEx.hpp"
 #include "App/World/PhysicsTraceResult.hpp"
 #include "App/World/WorldNodeRegistry.hpp"
 #include "Core/Hooking/HookingAgent.hpp"
@@ -97,7 +102,8 @@ public:
     void SetDiscoverMode(bool aEnabled);
 
     WorldNodeInstanceStaticData ResolveSectorDataFromNodeID(uint64_t aNodeID);
-    WorldNodeInstanceStaticData ResolveSectorDataFromNodeInstance(const Red::WeakHandle<Red::worldINodeInstance>& aNodeInstance);
+    WorldNodeInstanceStaticData ResolveSectorDataFromNodeInstance(
+        const Red::WeakHandle<Red::worldINodeInstance>& aNodeInstance);
 
     Red::CString ResolveNodeRefFromNodeHash(uint64_t aNodeID);
     uint64_t ComputeNodeRefHash(const Red::CString& aNodeRef);
@@ -142,9 +148,7 @@ public:
 private:
     static void OnCollectNodeParallel(uint64_t a1, uint64_t a2, Red::Vector3* aPosition, uint64_t a4, uint32_t a5);
 
-    void OnNodeStreamedIn(uint64_t aNodeHash,
-                          Red::worldNode* aNodeDefinition,
-                          Red::worldINodeInstance* aNodeInstance,
+    void OnNodeStreamedIn(uint64_t aNodeHash, Red::worldNode* aNodeDefinition, Red::worldINodeInstance* aNodeInstance,
                           Red::worldCompiledNodeInstanceSetupInfo* aNodeSetup) override;
     void OnNodeStreamedOut(uint64_t aNodeHash) override;
 
@@ -153,7 +157,8 @@ private:
 
     bool UpdateNodeVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aToggle, bool aVisible);
     template<typename TRenderProxy>
-    bool SetRenderProxyVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aToggle, bool aVisible);
+    bool SetRenderProxyVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance, bool aToggle,
+                                  bool aVisible);
     bool GetRenderProxyVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance) const;
     template<typename TRenderProxy>
     bool GetRenderProxyVisibility(const Red::Handle<Red::worldINodeInstance>& aNodeInstance) const;
@@ -198,6 +203,8 @@ RTTI_DEFINE_CLASS(App::WorldNodeInstanceStaticData, {
     RTTI_PROPERTY(instanceCount);
     RTTI_PROPERTY(nodeIndex);
     RTTI_PROPERTY(nodeCount);
+    RTTI_PROPERTY(innerIndex);
+    RTTI_PROPERTY(innerCount);
     RTTI_PROPERTY(nodeType);
     RTTI_PROPERTY(nodeID);
     RTTI_PROPERTY(proxyID);

@@ -125,6 +125,8 @@
 #include <RED4ext/Scripting/Natives/Generated/world/CookedAcousticSectorNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/CookedBendedMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/CookedCollisionNode.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/CookedGenericProxyMeshNode.hpp>
+#include <RED4ext/Scripting/Natives/Generated/world/CookedPrefabProxyMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/CookedStaticDecalNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/CookedStaticMeshNode.hpp>
 #include <RED4ext/Scripting/Natives/Generated/world/DistantLightsNode.hpp>

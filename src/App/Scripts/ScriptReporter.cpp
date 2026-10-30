@@ -55,8 +55,7 @@ bool App::ScriptReporter::OnLoadScripts(Red::CBaseEngine& aEngine, Red::CString&
     if (!aTimestamp)
         return false;
 
-    const auto compilationEnabled = Red::EngineConfig::Get()->GetValue<bool>("Scripts", "EnableCompilation");
-    if (aEngine.scriptsCompilationErrors.Length() > 0 || (compilationEnabled && aEngine.scriptsBlobPath.Length() == 0))
+    if (aEngine.scriptsCompilationErrors.Length() > 0)
     {
         ExitProcess(0xDEAD);
         return false;
@@ -69,7 +68,6 @@ bool App::ScriptReporter::OnLoadScripts(Red::CBaseEngine& aEngine, Red::CString&
 
     if (!success && !aEngine.scriptsValidationErrors.IsEmpty())
     {
-        ShowErrorBox("Validation error", aEngine.scriptsValidationErrors);
         ExitProcess(0xDEAD);
         return false;
     }

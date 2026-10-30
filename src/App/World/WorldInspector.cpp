@@ -150,8 +150,8 @@ void App::WorldInspector::UpdateStreamedNodes()
             if (meshResource)
             {
                 auto meshNode = Red::Cast<Red::worldInstancedMeshNode>(nodeDefinition);
-                auto startIndex = meshNode->transformRanges[nodeSetup->instanceIndex].transformStartIndex;
-                auto numTransforms = meshNode->transformRanges[nodeSetup->instanceIndex].numTransforms;
+                auto startIndex = meshNode->transformRanges[nodeSetup->innerNodeIndex].transformStartIndex;
+                auto numTransforms = meshNode->transformRanges[nodeSetup->innerNodeIndex].numTransforms;
 
                 streamedNode.actors.reserve(numTransforms);
 
@@ -337,7 +337,7 @@ void App::WorldInspector::UpdateStreamedNodes()
 
             if (auto cookedBendedNode = Red::Cast<Red::worldCookedBendedMeshNode>(nodeDefinition))
             {
-                actor.boundingBox = cookedBendedNode->deformedBoxes[nodeSetup->instanceIndex];
+                actor.boundingBox = cookedBendedNode->deformedBoxes[nodeSetup->innerNodeIndex];
             }
             else if (auto bendedNode = Red::Cast<Red::worldBendedMeshNode>(nodeDefinition))
             {
@@ -378,32 +378,6 @@ void App::WorldInspector::UpdateStreamedNodes()
                 continue;
             }
         }
-        // else if (Red::IsInstanceOf<Red::worldStaticParticleNode>(nodeDefinition))
-        // {
-        //     auto& particleResource = Raw::WorldStaticParticleNodeInstance::ParticleSystem::Ref(nodeInstance);
-        //
-        //     if (particleResource)
-        //     {
-        //         auto& actor = streamedNode.actors.emplace_back();
-        //
-        //         actor.position = nodeTransform.position;
-        //         actor.orientation = nodeTransform.orientation;
-        //         actor.boundingBox = particleResource->boundingBox;
-        //
-        //         Red::ScaleBox(actor.boundingBox, nodeScale);
-        //
-        //         actor.testBox = actor.boundingBox;
-        //
-        //         Red::TransformBox(actor.testBox, nodeTransform);
-        //
-        //         streamedNode.isTargetable = true;
-        //     }
-        //     else
-        //     {
-        //         postponedRequests[hash] = request;
-        //         continue;
-        //     }
-        // }
         else if (Red::IsInstanceOf<Red::worldCookedStaticDecalNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldStaticDecalNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldStaticOccluderMeshNode>(nodeDefinition) ||
@@ -1452,7 +1426,7 @@ App::PhysicsTraceResultObject App::WorldInspector::GetPhysicsTraceObject(Red::Sc
             if (auto cookedDefinition = Red::Cast<Red::worldCookedCollisionNode>(nodeDefinition))
             {
                 auto nodeSetup = *Raw::WorldNodeInstance::Setup::Ref(collisionNodeInstance);
-                auto instanceIndex = nodeSetup->instanceIndex;
+                auto instanceIndex = nodeSetup->innerNodeIndex;
 
                 result.actorCount = cookedDefinition->GetInnerNodes().At(instanceIndex).numActors;
                 result.shapeCount = cookedDefinition->GetCollisionDataView(instanceIndex).actors[result.actorIndex].numShapes;

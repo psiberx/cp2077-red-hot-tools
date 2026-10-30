@@ -42,7 +42,7 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
         nodeData.nodeType = nodeDefinition->GetType()->GetName();
         nodeData.nodeID = nodeSetup.globalNodeID;
         nodeData.proxyID = nodeSetup.proxyNodeID;
-        nodeData.interior = nodeSetup.HasFlag(aSector->compiled.buffer.version, Red:: worldNodeFlag::IsInterior);
+        nodeData.interior = nodeSetup.HasFlag(aSector->compiled.buffer.version, Red:: worldNodeFlag::Interior);
 
         if (nodeDefinition->unk18.refCount)
         {
@@ -63,6 +63,7 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
         if (auto communityNode = Red::Cast<Red::worldCompiledCommunityAreaNode>(nodeDefinition))
         {
             nodeData.nodeID = communityNode->sourceObjectId.hash;
+
             s_nodeRefToStaticDataMap[nodeData.nodeID] = nodeData;
         }
         else if (auto communityRegistryNode = Red::Cast<Red::worldCommunityRegistryNode>(nodeDefinition))
@@ -88,9 +89,71 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
         }
         else if (auto instancedMeshNode = Red::Cast<Red::worldInstancedMeshNode>(nodeDefinition))
         {
-            if (nodeSetup.instanceIndex < instancedMeshNode->cookedInstances.Size())
+            auto innerNodeIndex = nodeSetup.GetInnerNodeIndex(aSector->compiled.buffer.version);
+
+            if (innerNodeIndex < instancedMeshNode->cookedInstances.Size())
             {
-                s_knownWorldResources.insert(instancedMeshNode->cookedInstances[nodeSetup.instanceIndex].mesh.path);
+                nodeData.innerIndex = innerNodeIndex;
+                nodeData.innerCount = instancedMeshNode->cookedInstances.Size();
+
+                s_knownWorldResources.insert(instancedMeshNode->cookedInstances[innerNodeIndex].mesh.path);
+            }
+        }
+        else if (auto cookedMeshNode = Red::Cast<Red::worldCookedMeshNode>(nodeDefinition))
+        {
+            auto innerNodeIndex = nodeSetup.GetInnerNodeIndex(aSector->compiled.buffer.version);
+            auto innerNodes = cookedMeshNode->GetInnerNodes();
+
+            if (innerNodeIndex < innerNodes.Size())
+            {
+                nodeData.innerIndex = innerNodeIndex;
+                nodeData.innerCount = innerNodes.Size();
+
+                s_knownWorldResources.insert(innerNodes[innerNodeIndex].mesh.path);
+            }
+        }
+        else if (auto cookedDecalNode = Red::Cast<Red::worldCookedStaticDecalNode>(nodeDefinition))
+        {
+            auto innerNodeIndex = nodeSetup.GetInnerNodeIndex(aSector->compiled.buffer.version);
+            auto innerNodes = cookedDecalNode->GetInnerNodes();
+
+            if (innerNodeIndex < innerNodes.Size())
+            {
+                nodeData.innerIndex = innerNodeIndex;
+                nodeData.innerCount = innerNodes.Size();
+            }
+        }
+        else if (auto cookedBendedNode = Red::Cast<Red::worldCookedBendedMeshNode>(nodeDefinition))
+        {
+            auto innerNodeIndex = nodeSetup.GetInnerNodeIndex(aSector->compiled.buffer.version);
+            auto innerNodes = cookedBendedNode->GetInnerNodes();
+
+            if (innerNodeIndex < innerNodes.Size())
+            {
+                nodeData.innerIndex = innerNodeIndex;
+                nodeData.innerCount = innerNodes.Size();
+            }
+        }
+        else if (auto cookedAcousticNode = Red::Cast<Red::worldCookedAcousticSectorNode>(nodeDefinition))
+        {
+            auto innerNodeIndex = nodeSetup.GetInnerNodeIndex(aSector->compiled.buffer.version);
+            auto innerNodes = cookedAcousticNode->GetInnerNodes();
+
+            if (innerNodeIndex < innerNodes.Size())
+            {
+                nodeData.innerIndex = innerNodeIndex;
+                nodeData.innerCount = innerNodes.Size();
+            }
+        }
+        else if (auto cookedCollisionNode = Red::Cast<Red::worldCookedCollisionNode>(nodeDefinition))
+        {
+            auto innerNodeIndex = nodeSetup.GetInnerNodeIndex(aSector->compiled.buffer.version);
+            auto innerNodes = cookedCollisionNode->GetInnerNodes();
+
+            if (innerNodeIndex < innerNodes.Size())
+            {
+                nodeData.innerIndex = innerNodeIndex;
+                nodeData.innerCount = innerNodes.Size();
             }
         }
         else if (auto occluderNode = Red::Cast<Red::worldStaticOccluderMeshNode>(nodeDefinition))

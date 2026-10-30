@@ -736,6 +736,8 @@ local function fillTargetNodeData(target, data)
         data.instanceCount = sectorData.instanceCount
         data.nodeIndex = sectorData.nodeIndex
         data.nodeCount = sectorData.nodeCount
+        data.innerIndex = sectorData.innerIndex
+        data.innerCount = sectorData.innerCount
         data.nodeType = sectorData.nodeType.value
         data.nodeID = sectorData.nodeID
         data.nodeProxyID = sectorData.proxyID
@@ -757,12 +759,23 @@ local function fillTargetNodeData(target, data)
             data.meshAppearance = node.meshAppearance.value
         end
 
-        if RedHotTools.IsInstanceOf(node, 'worldCookedStaticMeshNode') then
-            -- fixme
+        if RedHotTools.IsInstanceOf(node, 'worldCookedMeshNode')
+        or RedHotTools.IsInstanceOf(node, 'worldCookedBendedMeshNode') then
+            if data.innerCount then
+                local innerNode = node:GetInnerNode(data.innerIndex)
+                data.meshPath = RedHotTools.GetResourcePath(innerNode.mesh.hash)
+                data.meshAppearance = innerNode.meshAppearance.value
+            end
         end
 
-        if RedHotTools.IsInstanceOf(node, 'worldCookedGenericProxyMeshNode') then
-            -- fixme
+        if RedHotTools.IsInstanceOf(node, 'worldInstancedMeshNode') then
+            if data.innerCount then
+                local innerNode = node.cookedInstances[data.innerIndex]
+                data.meshPath = RedHotTools.GetResourcePath(innerNode.mesh.hash)
+                data.meshAppearance = innerNode.meshAppearance.value
+                data.actorIndex = target.actorIndex or 0
+                data.actorCount = node.transformRanges[data.innerIndex].numTransforms or 0
+            end
         end
 
         if RedHotTools.IsInstanceOf(node, 'worldTerrainMeshNode') then
@@ -774,7 +787,10 @@ local function fillTargetNodeData(target, data)
         end
 
         if RedHotTools.IsInstanceOf(node, 'worldCookedStaticDecalNode') then
-            -- fixme
+            if data.innerCount then
+                local innerNode = node:GetInnerNode(data.innerIndex)
+                data.materialPath = RedHotTools.GetResourcePath(innerNode.material.hash)
+            end
         end
 
         if RedHotTools.IsInstanceOf(node, 'worldEffectNode') then
@@ -829,15 +845,6 @@ local function fillTargetNodeData(target, data)
             data.actorCount = data.physicsActorCount
             data.shapeIndex = node.physicsShapeIndex
             data.shapeIndex = node.physicsShapeCount
-        end
-
-        if RedHotTools.IsInstanceOf(node, 'worldInstancedMeshNode') then
-            -- fixme
-            -- data.meshPath = RedHotTools.GetResourcePath(node.mesh.hash)
-            -- data.meshAppearance = node.meshAppearance.value
-
-            data.actorIndex = target.actorIndex or 0
-            data.actorCount = #node.cookedInstances or 0
         end
 
         if RedHotTools.IsInstanceOf(node, 'worldFoliageNode') then
