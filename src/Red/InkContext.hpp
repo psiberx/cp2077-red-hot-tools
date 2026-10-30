@@ -25,9 +25,11 @@ struct inkWidgetContext
 
     uint64_t unk00;                    // 00
     inkPointerHandler* pointerHandler; // 08
-    uint8_t unk10[0x70];               // 10
+    uint8_t unk10[0x74 - 0x10];        // 10
+    int32_t hitTesterIndex;            // 74
+    uint8_t unk78[0x88 - 0x78];        // 78
 };
-RED4EXT_ASSERT_SIZE(inkWidgetContext, 0x80);
+RED4EXT_ASSERT_SIZE(inkWidgetContext, 0x88);
 RED4EXT_ASSERT_OFFSET(inkWidgetContext, pointerHandler, 0x08);
 }
 

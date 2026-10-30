@@ -4,14 +4,14 @@
 
 namespace Raw::inkWindow
 {
-using PointerHandler = Core::OffsetPtr<0x258, Red::SharedPtr<Red::inkPointerHandler>>;
+using PointerHandler = Core::OffsetPtr<0x268, Red::SharedPtr<Red::inkPointerHandler>>;
 
 constexpr auto Construct = Core::RawFunc<
     /* addr = */ Red::AddressLib::InkWindow_ctor,
     /* type = */ void (*)(Red::inkWindow* aWindow)>();
 
 constexpr auto Destruct = Core::RawFunc<
-    /* addr = */ Red::AddressLib::InkWindow_ctor,
+    /* addr = */ Red::AddressLib::InkWindow_dtor,
     /* type = */ void (*)(Red::inkWindow* aWindow)>();
 
 constexpr auto TogglePointerInput = Core::RawFunc<
