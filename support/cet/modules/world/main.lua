@@ -2347,8 +2347,8 @@ local function drawInspectorContent(isModal)
         if selected.collision then
             table.insert(extra, selected.collision.name.value)
         end
-        if selected.interior ~= nil then
-            table.insert(extra, selected.interior and 'Interior' or 'Exterior')
+        if selected.interior then
+           table.insert(extra, 'Interior')
         end
         if selected.isCollisionNode then
             table.insert(extra, viewData.collisionGranularityOptions[CollisionGranularity.values[userState.collisionGranularity]])

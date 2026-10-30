@@ -31,7 +31,6 @@ struct WorldNodeStaticSceneData
     Red::Vector4 position;
     Red::Quaternion orientation;
     Red::Vector3 scale;
-    bool interior;
     Core::Vector<WorldNodeStaticActorData> actors;
     Red::Box testBox;
     bool isTargetable{false};
@@ -49,7 +48,6 @@ struct WorldNodeRuntimeSceneData
     int32_t actorIndex;
     uint32_t actorCount;
     float distance;
-    bool interior;
     bool enabled;
     uint64_t hash;
     bool resolved;
@@ -220,7 +218,6 @@ RTTI_DEFINE_CLASS(App::WorldNodeRuntimeSceneData, {
     RTTI_PROPERTY(actorIndex);
     RTTI_PROPERTY(actorCount);
     RTTI_PROPERTY(distance);
-    RTTI_PROPERTY(interior);
     RTTI_PROPERTY(enabled);
     RTTI_PROPERTY(hash);
     RTTI_PROPERTY(resolved);

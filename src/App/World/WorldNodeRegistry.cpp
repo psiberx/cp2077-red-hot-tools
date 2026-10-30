@@ -29,7 +29,7 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
     for (auto instanceIndex = 0; instanceIndex < aSector->compiled.buffer.nodeSetups.Size(); ++instanceIndex)
     {
         auto& nodeSetup = aSector->compiled.buffer.nodeSetups[instanceIndex];
-        auto nodeIndex = aSector->compiled.buffer.version >= 68 ? nodeSetup.nodeIndex : nodeSetup.v62.nodeIndex;
+        auto nodeIndex = nodeSetup.GetNodeIndex(aSector->compiled.buffer.version);
 
         auto* nodeDefinition = aSector->compiled.nodes[nodeIndex].instance;
 
@@ -37,12 +37,12 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
         nodeData.sectorHash = sectorHash;
         nodeData.instanceIndex = instanceIndex;
         nodeData.instanceCount = instanceCount;
-        nodeData.nodeIndex = nodeIndex;
+        nodeData.nodeIndex = static_cast<int32_t>(nodeIndex);
         nodeData.nodeCount = nodeCount;
         nodeData.nodeType = nodeDefinition->GetType()->GetName();
         nodeData.nodeID = nodeSetup.globalNodeID;
         nodeData.proxyID = nodeSetup.proxyNodeID;
-        nodeData.interior = (nodeSetup.unk7A & 0x40) == 0x40;
+        nodeData.interior = nodeSetup.HasFlag(aSector->compiled.buffer.version, Red:: worldNodeFlag::IsInterior);
 
         if (nodeDefinition->unk18.refCount)
         {
@@ -88,7 +88,10 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
         }
         else if (auto instancedMeshNode = Red::Cast<Red::worldInstancedMeshNode>(nodeDefinition))
         {
-            s_knownWorldResources.insert(instancedMeshNode->cookedInstances[nodeSetup.instanceIndex].mesh.path);
+            if (nodeSetup.instanceIndex < instancedMeshNode->cookedInstances.Size())
+            {
+                s_knownWorldResources.insert(instancedMeshNode->cookedInstances[nodeSetup.instanceIndex].mesh.path);
+            }
         }
         else if (auto occluderNode = Red::Cast<Red::worldStaticOccluderMeshNode>(nodeDefinition))
         {

@@ -135,11 +135,10 @@ void App::WorldInspector::UpdateStreamedNodes()
             continue;
         }
 
-        WorldNodeStaticSceneData streamedNode{request.nodeInstance, request.nodeDefinition,
-                                              request.nodeSetup->transform.position,
-                                              request.nodeSetup->transform.orientation,
-                                              request.nodeSetup->scale,
-                                              (request.nodeSetup->unk7A & 0x40) == 0x40};
+        WorldNodeStaticSceneData streamedNode{nodeInstance, nodeDefinition,
+                                              nodeSetup->transform.position,
+                                              nodeSetup->transform.orientation,
+                                              nodeSetup->scale};
 
         auto& nodeTransform = Raw::WorldNodeInstance::Transform::Ref(nodeInstance);
         auto& nodeScale = Raw::WorldNodeInstance::Scale::Ref(nodeInstance);
@@ -737,7 +736,6 @@ void App::WorldInspector::UpdateFrustumNodes()
                                     nearestActorIndex,
                                     static_cast<uint32_t>(streamedNode.actors.size()),
                                     nearestDistance,
-                                    streamedNode.interior,
                                     nodeEnabled,
                                     nodeHash,
                                     true});
