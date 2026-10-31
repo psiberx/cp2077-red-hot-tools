@@ -29,6 +29,8 @@ protected:
 
     static bool HasScriptedProperties(Red::CClass* aClass);
     static void ClearScriptedProperties(Red::CClass* aClass);
+    static void ResolveFunction(Red::ScriptFunction* aScriptFunc, Red::CRTTISystem* aRtti,
+                                Red::CClass* aRttiClass = nullptr);
     static void ShowErrorBox(const char* aCaption, const Red::CString& aMessage);
 
     std::filesystem::path m_scriptSourceDir;

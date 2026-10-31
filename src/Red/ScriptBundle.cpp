@@ -32,61 +32,11 @@ bool Red::ScriptBundle::Read(const CString& aPath)
 
 Red::DynArray<Red::ScriptDefinition*> Red::ScriptBundle::Collect(bool aDeep) const
 {
+    using func_t = bool (*)(const ScriptBundle*, DynArray<ScriptDefinition*>&, bool);
+    static UniversalRelocFunc<func_t> func(AddressLib::ScriptBundle_Collect);
+
     DynArray<ScriptDefinition*> definitions;
-
-    for (auto* func : globals)
-    {
-        definitions.PushBack(func);
-
-        if (aDeep)
-        {
-            for (auto* param : func->params)
-                definitions.PushBack(param);
-
-            for (auto* local : func->localVars)
-                definitions.PushBack(local);
-        }
-    }
-
-    for (auto* type : enums)
-    {
-        definitions.PushBack(type);
-    }
-
-    for (auto* type : bitfields)
-    {
-        definitions.PushBack(type);
-    }
-
-    for (auto* type : classes)
-    {
-        definitions.PushBack(type);
-
-        if (aDeep)
-        {
-            for (auto* prop : type->properties)
-                definitions.PushBack(prop);
-
-            for (auto* prop : type->overrides)
-                definitions.PushBack(prop);
-
-            for (auto* func : type->functions)
-            {
-                definitions.PushBack(func);
-
-                for (auto* param : func->params)
-                    definitions.PushBack(param);
-
-                for (auto* local : func->localVars)
-                    definitions.PushBack(local);
-            }
-        }
-    }
-
-    for (auto* type : types)
-    {
-        definitions.PushBack(type);
-    }
+    func(this, definitions, aDeep);
 
     return definitions;
 }

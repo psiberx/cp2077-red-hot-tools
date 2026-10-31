@@ -20,14 +20,12 @@ App::ScriptLoader::ScriptLoader(std::filesystem::path aSourceDir, std::filesyste
 
 bool App::ScriptLoader::CanReloadScripts()
 {
-    return false;
+    auto engine = Red::CGameEngine::Get();
 
-    // auto engine = Red::CGameEngine::Get();
-    //
-    // if (!engine || engine->engineState != Red::EEngineState::Running)
-    //     return false;
-    //
-    // return Red::EngineConfig::Get()->GetValue<bool>("Scripts", "EnableCompilation");
+    if (!engine || engine->engineState != Red::EEngineState::Running)
+        return false;
+
+    return Red::EngineConfig::Get()->GetValue<bool>("Scripts", "EnableCompilation");
 }
 
 void App::ScriptLoader::ReloadScripts()
@@ -138,13 +136,8 @@ bool App::ScriptLoader::BindScripts(Red::ScriptBundle& aBundle, Red::ScriptRepor
 
     for (auto& scriptClass : aBundle.classes)
     {
-        if (scriptClass->flags.isNative)
+        if (scriptClass->rttiClass)
         {
-            if (!scriptClass->rttiClass)
-            {
-                scriptClass->rttiClass = rtti->GetClass(scriptClass->name);
-            }
-
             continue;
         }
 
@@ -152,19 +145,17 @@ bool App::ScriptLoader::BindScripts(Red::ScriptBundle& aBundle, Red::ScriptRepor
 
         if (!scriptClass->rttiClass)
         {
-            binder.CreateClass(scriptClass, aReport);
+            if (!scriptClass->flags.isNative)
+            {
+                binder.CreateClass(scriptClass, aReport);
+            }
         }
     }
 
     for (auto& scriptEnum : aBundle.enums)
     {
-        if (scriptEnum->isNative)
+        if (scriptEnum->rttiEnum)
         {
-            if (!scriptEnum->rttiEnum)
-            {
-                scriptEnum->rttiEnum = rtti->GetEnumByScriptName(scriptEnum->name);
-            }
-
             continue;
         }
 
@@ -172,28 +163,9 @@ bool App::ScriptLoader::BindScripts(Red::ScriptBundle& aBundle, Red::ScriptRepor
 
         if (!scriptEnum->rttiEnum)
         {
-            binder.CreateEnum(scriptEnum, aReport);
-        }
-        else
-        {
-            for (auto* scriptConstant : scriptEnum->constants)
+            if (!scriptEnum->isNative)
             {
-                bool resolved = false;
-
-                for (uint32_t i = 0; i < scriptEnum->rttiEnum->hashList.Size(); ++i)
-                {
-                    if (scriptConstant->name == scriptEnum->rttiEnum->hashList[i])
-                    {
-                        resolved = true;
-                        break;
-                    }
-                }
-
-                if (!resolved)
-                {
-                    // scriptEnum->rttiEnum->hashList.PushBack(scriptConstant->name);
-                    // scriptEnum->rttiEnum->valueList.PushBack(scriptConstant->value);
-                }
+                binder.CreateEnum(scriptEnum, aReport);
             }
         }
     }
@@ -203,21 +175,15 @@ bool App::ScriptLoader::BindScripts(Red::ScriptBundle& aBundle, Red::ScriptRepor
         if (scriptBitfield->isNative)
             continue;
 
-        scriptBitfield->rttiBitfield = rtti->GetBitfield(scriptBitfield->name);
+        auto* rttiBitfield = rtti->GetBitfield(scriptBitfield->name);
 
-        if (!scriptBitfield->rttiBitfield)
+        if (!rttiBitfield)
         {
             binder.CreateBitfield(scriptBitfield, aReport);
         }
     }
 
     binder.ResolveTypes(definitions);
-
-    for (auto* scriptClass : aBundle.classes)
-    {
-        ClearScriptedProperties(scriptClass->rttiClass);
-        binder.CreateProperties(scriptClass, aReport);
-    }
 
     Red::DynArray<Red::ScriptDefinition*> scriptFuncs;
     Core::Set<Red::CBaseFunction*> resolvedFuncs;
@@ -231,58 +197,7 @@ bool App::ScriptLoader::BindScripts(Red::ScriptBundle& aBundle, Red::ScriptRepor
 
         if (!scriptFunc->rttiFunc)
         {
-            if (!scriptFunc->parent)
-            {
-                scriptFunc->rttiFunc = rtti->GetFunction(scriptFunc->name);
-            }
-            else
-            {
-                auto scriptClass = scriptFunc->parent;
-
-                if (!scriptFunc->flags.isStatic)
-                {
-                    // for (auto rttiFunc : scriptClass->rttiClass->funcs)
-                    // {
-                    //     if (rttiFunc->fullName == scriptFunc->name)
-                    //     {
-                    //         scriptFunc->rttiFunc = rttiFunc;
-                    //         break;
-                    //     }
-                    // }
-                    //
-                    // if (!scriptFunc->rttiFunc)
-                    // {
-                    //     for (auto rttiFunc : scriptClass->rttiClass->funcs)
-                    //     {
-                    //         if (rttiFunc->shortName == scriptFunc->shortName)
-                    //         {
-                    //             scriptFunc->rttiFunc = rttiFunc;
-                    //             break;
-                    //         }
-                    //     }
-                    // }
-                }
-                else if (scriptFunc->flags.isNative)
-                {
-                    for (auto rttiFunc : scriptClass->rttiClass->staticFuncs)
-                    {
-                        if (rttiFunc->shortName == scriptFunc->shortName)
-                        {
-                            scriptFunc->rttiFunc = rttiFunc;
-                            break;
-                        }
-                    }
-                }
-                else
-                {
-                    std::string fullName;
-                    fullName.append(scriptClass->rttiClass->name.ToString());
-                    fullName.append("::");
-                    fullName.append(scriptFunc->name.ToString());
-
-                    scriptFunc->rttiFunc = rtti->GetFunction(fullName.c_str());
-                }
-            }
+            ResolveFunction(scriptFunc, rtti);
         }
 
         binder.CreateFunction(scriptFunc, aReport);
@@ -307,12 +222,15 @@ bool App::ScriptLoader::BindScripts(Red::ScriptBundle& aBundle, Red::ScriptRepor
                     continue;
                 }
 
-                // TODO: Find a way to properly destroy the buffer.
-                auto& codeBuffer = rttiFunc->bytecode.bytecode.buffer;
-                codeBuffer.data = nullptr;
-                codeBuffer.size = 0;
+                rttiFunc->bytecode.bytecode.buffer.Clear();
             }
         }
+    }
+
+    for (auto* scriptClass : aBundle.classes)
+    {
+        ClearScriptedProperties(scriptClass->rttiClass);
+        binder.CreateProperties(scriptClass, aReport);
     }
 
     rtti->SetStringTable(aBundle.strings);
@@ -364,13 +282,72 @@ void App::ScriptLoader::ClearScriptedProperties(Red::CClass* aClass)
     memberFuncs->size = 0;
     staticFuncs->size = 0;
 
-    const auto unkE0 =  aClass->unkE0;
+    const auto unkE0 = aClass->unkE0;
     aClass->unkE0 = 0;
     aClass->ClearScriptedData();
     aClass->unkE0 = unkE0;
 
     memberFuncs->size = numMemberFuncs;
     staticFuncs->size = numStaticFuncs;
+}
+
+void App::ScriptLoader::ResolveFunction(Red::ScriptFunction* aScriptFunc, Red::CRTTISystem* aRtti,
+                                        Red::CClass* aRttiClass)
+{
+    if (!aScriptFunc->parent)
+    {
+        aScriptFunc->rttiFunc = aRtti->GetFunction(aScriptFunc->name);
+        return;
+    }
+
+    if (!aRttiClass)
+    {
+        aRttiClass = aScriptFunc->parent->rttiClass;
+    }
+
+    for (auto rttiFunc : aRttiClass->funcs)
+    {
+        // if (rttiFunc->flags.isNative != aScriptFunc->flags.isNative)
+        //     continue;
+
+        if (rttiFunc->fullName == aScriptFunc->name)
+        {
+            aScriptFunc->rttiFunc = rttiFunc;
+            return;
+        }
+    }
+
+    for (auto rttiFunc : aRttiClass->staticFuncs)
+    {
+        // if (rttiFunc->flags.isNative != aScriptFunc->flags.isNative)
+        //     continue;
+
+        if (rttiFunc->fullName == aScriptFunc->name)
+        {
+            aScriptFunc->rttiFunc = rttiFunc;
+            return;
+        }
+    }
+
+    if (aScriptFunc->flags.isStatic)
+    {
+        std::string fullName;
+        fullName.append(aRttiClass->name.ToString());
+        fullName.append("::");
+        fullName.append(aScriptFunc->name.ToString());
+
+        aScriptFunc->rttiFunc = aRtti->GetFunction(fullName.c_str());
+
+        if (aScriptFunc->rttiFunc)
+        {
+            return;
+        }
+    }
+
+    if (aRttiClass->parent)
+    {
+        ResolveFunction(aScriptFunc, aRtti, aRttiClass->parent);
+    }
 }
 
 void App::ScriptLoader::CaptureScriptableData()

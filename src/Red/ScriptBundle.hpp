@@ -161,13 +161,15 @@ struct ScriptFunction : ScriptDefinition
     ScriptType* returnType;              // A8
     uint16_t unkB0;                      // B0
     ScriptFunction* overridden;          // B8
-    Flags flags;                         // C0
+    uint32_t unkC0;                      // C0
     CName operatorName;                  // C8
     uint8_t castValue;                   // D0
     EScriptVisibility visibility;        // D1
     DynArray<uint8_t> code;              // D8
     ScriptFileInfo* sourceFile;          // E8
     uint32_t sourceLine;                 // F0
+    uint32_t unk;                        // F4
+    Flags flags;                         // F8
 };
 
 struct ScriptClass : ScriptDefinition

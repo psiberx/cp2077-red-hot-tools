@@ -1420,20 +1420,16 @@ Red::Box App::WorldInspector::GetPhysicsProxyBoundingBox(uint32_t aProxyID, int3
     bool allShapes = allActors || aShapeIndex == -1;
 
     int32_t actorIndex = allActors ? 0 : aActorIndex;
-    uint32_t actorLimit = allActors ? Raw::PhysicsProxy::GetNumActors(aProxyID) : actorIndex + 1;
-
-    for (; actorIndex < actorLimit; ++actorIndex)
+    while (true)
     {
         Red::Transform actorTransform;
         Raw::PhysicsProxy::GetActorWorldTransform(actorTransform, aProxyID, actorIndex);
 
         if (actorTransform.position.X == 0 && actorTransform.position.Y == 0 && actorTransform.position.Z == 0)
-            continue;
+            break;
 
         int32_t shapeIndex = allShapes ? 0 : aShapeIndex;
-        uint32_t shapeLimit = allShapes ? Raw::PhysicsProxy::GetNumShapes(aProxyID, actorIndex) : aShapeIndex + 1;
-
-        for (; shapeIndex < shapeLimit; ++shapeIndex)
+        while (true)
         {
             Red::PhysicsGeometryProxy shapeGeometry;
             Raw::PhysicsProxy::GetShapeGeometry(shapeGeometry, aProxyID, actorIndex, shapeIndex);
@@ -1441,7 +1437,7 @@ Red::Box App::WorldInspector::GetPhysicsProxyBoundingBox(uint32_t aProxyID, int3
             if (shapeGeometry.type == Red::PhysicsGeometryType::Invalid)
             {
                 Raw::PhysicsGeometry::Destruct(shapeGeometry);
-                continue;
+                break;
             }
 
             Red::Transform shapeTransform;
@@ -1463,7 +1459,17 @@ Red::Box App::WorldInspector::GetPhysicsProxyBoundingBox(uint32_t aProxyID, int3
                     finalBox |= shapeBox;
                 }
             }
+
+            if (!allShapes)
+                break;
+
+            ++shapeIndex;
         }
+
+        if (!allActors)
+            break;
+
+        ++actorIndex;
     }
 
     return finalBox;

@@ -116,6 +116,7 @@ constexpr uint32_t ScriptBundle_ctor = 3991604425;
 constexpr uint32_t ScriptBundle_dtor = 3993832650;
 constexpr uint32_t ScriptBundle_Read = 3761639893;
 constexpr uint32_t ScriptBundle_Validate = 3482458695;
+constexpr uint32_t ScriptBundle_Collect = 1354309996;
 
 constexpr uint32_t ScriptValidator_Validate = 898639042;
 
