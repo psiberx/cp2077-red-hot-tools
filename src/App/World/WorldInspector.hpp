@@ -5,6 +5,7 @@
 #include "App/World/CookedGenericProxyMeshNodeEx.hpp"
 #include "App/World/CookedMeshNodeEx.hpp"
 #include "App/World/CookedStaticDecalNodeEx.hpp"
+#include "App/World/InstancedMeshNodeEx.hpp"
 #include "App/World/PhysicsTraceResult.hpp"
 #include "App/World/WorldNodeRegistry.hpp"
 #include "Core/Hooking/HookingAgent.hpp"
