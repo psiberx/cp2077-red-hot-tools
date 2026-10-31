@@ -53,6 +53,10 @@ constexpr auto GetActorWorldTransform = Core::RawFunc<
     /* addr = */ Red::AddressLib::PhysicsProxy_GetActorWorldTransform,
     /* type = */ void (*)(Red::Transform& aOut, uint32_t aProxyID, uint32_t aActorIndex)>();
 
+constexpr auto GetNumShapes = Core::RawFunc<
+    /* addr = */ Red::AddressLib::PhysicsProxy_GetNumShapes,
+    /* type = */ uint32_t (*)(uint32_t aProxyID, uint32_t aActorIndex)>();
+
 constexpr auto GetShapeGeometry = Core::RawFunc<
     /* addr = */ Red::AddressLib::PhysicsProxy_GetShapeGeometry,
     /* type = */ void (*)(Red::PhysicsGeometryProxy& aOut, uint32_t aProxyID, uint32_t aActorIndex, uint32_t aShapeIndex)>();

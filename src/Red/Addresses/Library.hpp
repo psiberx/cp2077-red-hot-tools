@@ -78,6 +78,7 @@ constexpr uint32_t PhysicsProxy_GetHitObject = 2394822845;
 constexpr uint32_t PhysicsProxy_GetNumActors = 1627852665;
 constexpr uint32_t PhysicsProxy_GetActorPhysxPtr = 814094301;
 constexpr uint32_t PhysicsProxy_GetActorWorldTransform = 391385890;
+constexpr uint32_t PhysicsProxy_GetNumShapes = 472845746;
 constexpr uint32_t PhysicsProxy_GetShapeLocalTransform = 2380600610;
 constexpr uint32_t PhysicsProxy_GetShapeGeometry = 578361242;
 

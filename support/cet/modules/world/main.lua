@@ -921,6 +921,24 @@ local function fillTargetNodeData(target, data)
     end
 end
 
+local function fillRuntimeGeometryData(data)
+    if IsDefined(data.entity) then
+        local geometry = (data.entity:IsA('gameObject') and (data.entity:IsNPC() or data.entity:IsContainer())) and inspectionSystem:GetPhysicsObjectGeometry(data.entity) or inspectionSystem:GetVisualObjectGeometry(data.entity)
+        data.position = geometry.position
+        data.orientation = geometry.orientation
+        data.boundingBox = geometry.boundingBox
+    elseif data.physicsProxyID then
+        local geometry = inspectionSystem:GetPhysicsProxyGeometry(data.physicsProxyID, data.physicsActorIndex, data.physicsShapeIndex or -1)
+        data.position = geometry.position
+        data.orientation = geometry.orientation
+        data.boundingBox = geometry.boundingBox
+        if IsDefined(data.nodeInstance) then
+            data.nodePosition = data.position
+            data.nodeOrientation = data.orientation
+        end
+    end
+end
+
 local function fillTargetGeomertyData(target, data)
     data.collision = target.collision
     data.distance = target.distance
@@ -943,26 +961,22 @@ local function fillTargetGeomertyData(target, data)
     if IsDefined(data.entity) then
         data.entityPosition = data.entity:GetWorldPosition()
         data.entityOrientation = data.entity:GetWorldOrientation()
-    end
-
-    if IsDefined(target.entity) then
-        local geometry = inspectionSystem:GetPhysicsObjectGeometry(target.entity)
-        data.position = geometry.position
-        data.orientation = geometry.orientation
-        data.boundingBox = geometry.boundingBox
     elseif target.proxyID then
         data.physicsProxyID = target.proxyID
         data.physicsActorIndex = target.actorIndex or 0
         data.physicsActorOffset = target.actorOffset or 0
-        data.physicsShapeIndex = target.shapeIndex or 0
+        if data.isCollisionNode and userState.collisionGranularity == CollisionGranularity.Shape then
+            data.physicsShapeIndex = target.shapeIndex or 0
+            data.physicsShapeCount = target.shapeCount or 0
+        else
+            data.physicsShapeIndex = -1
+            data.physicsShapeCount = 0
+        end
         data.actorIndex = data.physicsActorIndex + data.physicsActorOffset
         data.shapeIndex = data.physicsShapeIndex
-        local geometry = inspectionSystem:GetPhysicsProxyGeometry(data.physicsProxyID, data.physicsActorIndex, data.physicsShapeIndex or -1)
-
-        data.position = geometry.position
-        data.orientation = geometry.orientation
-        data.boundingBox = geometry.boundingBox
     end
+
+    fillRuntimeGeometryData(data)
 
     if data.boundingBox and data.boundingBox:GetRange() <= 0 then
         data.boundingBox = nil
@@ -1062,10 +1076,6 @@ local function updateTargetData(target, data)
     if IsDefined(target.entity) then
         data.entityPosition = data.entity:GetWorldPosition()
         data.entityOrientation = data.entity:GetWorldOrientation()
-        --local geometry = inspectionSystem:GetPhysicsObjectGeometry(target.entity, -1, -1)
-        --data.position = geometry.position
-        --data.orientation = geometry.orientation
-        --data.boundingBox = geometry.boundingBox
     elseif target.proxyID then
         data.physicsProxyID = target.proxyID
         data.physicsActorIndex = target.actorIndex or 0
@@ -1090,10 +1100,6 @@ local function updateTargetData(target, data)
         data.boundingBox = target.boundingBox
     end
 
-    --if IsDefined(target.nodeInstance) then
-    --    data.nodeEnabled = inspectionSystem:GetNodeVisibility(target.nodeInstance)
-    --end
-
     if IsDefined(target.component) then
         data.componentName = target.component.name.value
         data.componentType = target.component:GetClassName().value
@@ -1101,21 +1107,7 @@ local function updateTargetData(target, data)
 end
 
 local function updateGeometryData(data)
-    if IsDefined(data.entity) then
-        local geometry = (data.entity:IsA('gameObject') and (data.entity:IsNPC() or data.entity:IsContainer())) and inspectionSystem:GetPhysicsObjectGeometry(data.entity) or inspectionSystem:GetVisualObjectGeometry(data.entity)
-        data.position = geometry.position
-        data.orientation = geometry.orientation
-        data.boundingBox = geometry.boundingBox
-    elseif data.physicsProxyID then
-        local geometry = inspectionSystem:GetPhysicsProxyGeometry(data.physicsProxyID, data.physicsActorIndex, data.physicsShapeIndex or -1)
-        data.position = geometry.position
-        data.orientation = geometry.orientation
-        data.boundingBox = geometry.boundingBox
-        if IsDefined(data.nodeInstance) then
-            data.nodePosition = data.position
-            data.nodeOrientation = data.orientation
-        end
-    end
+    fillRuntimeGeometryData(data)
 end
 
 -- Nodes --
