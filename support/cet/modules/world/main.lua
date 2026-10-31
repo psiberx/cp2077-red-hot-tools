@@ -773,8 +773,6 @@ local function fillTargetNodeData(target, data)
                 local innerNode = node.cookedInstances[data.innerIndex + 1]
                 data.meshPath = RedHotTools.GetResourcePath(innerNode.mesh.hash)
                 data.meshAppearance = innerNode.meshAppearance.value
-                data.actorIndex = target.actorIndex or 0
-                data.actorCount = node.transformRanges[data.innerIndex + 1].numTransforms or 0
             end
         end
 
@@ -828,47 +826,8 @@ local function fillTargetNodeData(target, data)
             data.workspotPath = RedHotTools.GetResourcePath(node.spot.resource.hash)
         end
 
-        if RedHotTools.IsInstanceOf(node, 'worldCollisionNode')
-        or RedHotTools.IsInstanceOf(node, 'worldCookedCollisionNode') then
-            data.physicsProxyID = target.proxyID or -1
-            data.physicsActorIndex = target.actorIndex or 0
-            data.physicsActorOffset = target.actorOffset or 0
-            data.physicsActorCount = target.actorCount or 0
-            if userState.collisionGranularity == CollisionGranularity.Shape then
-                data.physicsShapeIndex = target.shapeIndex or 0
-                data.physicsShapeCount = target.shapeCount or 0
-            else
-                data.physicsShapeIndex = -1
-                data.physicsShapeCount = 0
-            end
-            data.actorIndex = data.physicsActorIndex + data.physicsActorOffset
-            data.actorCount = data.physicsActorCount
-            data.shapeIndex = node.physicsShapeIndex
-            data.shapeIndex = node.physicsShapeCount
-        end
-
         if RedHotTools.IsInstanceOf(node, 'worldFoliageNode') then
             data.foliagePath = RedHotTools.GetResourcePath(node.foliageResource.hash)
-            data.actorIndex = target.actorIndex or 0
-            data.actorCount = node.populationSpanInfo.stancesCount
-        end
-
-        if RedHotTools.IsInstanceOf(node, 'worldInstancedOccluderNode') then
-            data.actorIndex = target.actorIndex or 0
-            data.actorCount = target.actorCount or 1
-        end
-
-        if RedHotTools.IsInstanceOf(node, 'worldInstancedDestructibleMeshNode') then
-            if node.staticMesh.hash ~= 0 then
-                data.physicsProxyID = target.proxyID or -1
-                data.physicsActorIndex = target.actorIndex or 0
-                data.physicsActorOffset = target.actorOffset or 0
-                data.physicsActorCount = target.actorCount or 0
-                data.physicsShapeIndex = -1
-                data.physicsShapeCount = 0
-            end
-            data.actorIndex = target.actorIndex or 0
-            data.actorCount = #node.instanceTransforms or 0
         end
 
         if RedHotTools.IsInstanceOf(node, 'worldStaticParticleNode') then
