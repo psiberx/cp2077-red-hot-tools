@@ -173,7 +173,7 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
             s_knownWorldResources.insert(terrainNode->meshRef.path);
         }
 
-        s_nodeSetupToRuntimeDataMap[&nodeSetup] = {&nodeSetup, {}, aSector->compiled.nodes[nodeSetup.nodeIndex]};
+        s_nodeSetupToRuntimeDataMap[&nodeSetup] = {&nodeSetup, {}, aSector->compiled.nodes[nodeIndex]};
     }
 
     for (auto& node : aSector->compiled.nodes)
