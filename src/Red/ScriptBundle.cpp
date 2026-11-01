@@ -32,7 +32,7 @@ bool Red::ScriptBundle::Read(const CString& aPath)
 
 Red::DynArray<Red::ScriptDefinition*> Red::ScriptBundle::Collect(bool aDeep) const
 {
-    using func_t = bool (*)(const ScriptBundle*, DynArray<ScriptDefinition*>&, bool);
+    using func_t = void (*)(const ScriptBundle*, DynArray<ScriptDefinition*>&, bool);
     static UniversalRelocFunc<func_t> func(AddressLib::ScriptBundle_Collect);
 
     DynArray<ScriptDefinition*> definitions;
