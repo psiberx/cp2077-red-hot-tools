@@ -13,6 +13,7 @@ PointerAlignment: Left
 SpaceAfterTemplateKeyword: false
 IndentCaseLabels: false
 BreakBeforeBraces: Custom
+FixNamespaceComments: false
 BraceWrapping:
     AfterCaseLabel: true
     AfterClass: true

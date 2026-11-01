@@ -2,15 +2,17 @@
 
 #include "Core/Foundation/Feature.hpp"
 #include "Core/Hooking/HookingAgent.hpp"
+#include "Core/Logging/LoggingAgent.hpp"
 
 namespace App
 {
 class ScriptReporter
     : public Core::Feature
     , public Core::HookingAgent
+    , public Core::LoggingAgent
 {
 public:
-    ScriptReporter();
+    ScriptReporter() = default;
 
     void ShowErrorBox(const char* aCaption, const char* aMessage);
     void ShowErrorBox(const char* aCaption, const std::string& aMessage);
@@ -19,6 +21,8 @@ public:
 
 protected:
     void OnBootstrap() override;
-    bool OnLoadScripts(Red::CBaseEngine& aEngine, Red::CString& aPath, uint64_t a3, uint64_t a4);
+    static bool OnLoadScripts(Red::CBaseEngine& aEngine, Red::CString& aPath, uint64_t a3, uint64_t a4);
+    static void OnInvokeSCC(bool& aSuccess, Red::CString& aSourceDir, Red::CString& aBlobPath, uint8_t aProfile,
+                            int64_t a4, int32_t a5, int32_t a6, Red::CString* aOutput);
 };
 }

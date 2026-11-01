@@ -1,10 +1,5 @@
 #include "ScriptReporter.hpp"
-#include "Red/EngineConfig.hpp"
 #include "Red/GameEngine.hpp"
-
-App::ScriptReporter::ScriptReporter()
-{
-}
 
 void App::ScriptReporter::ShowErrorBox(const char* aCaption, const char* aMessage)
 {
@@ -45,11 +40,32 @@ void App::ScriptReporter::ShowErrorBox(const char* aCaption, const Red::DynArray
 
 void App::ScriptReporter::OnBootstrap()
 {
-    Hook<Raw::CBaseEngine::LoadScripts>(&ScriptReporter::OnLoadScripts);
+    HookAfter<Raw::CBaseEngine::InvokeSCC>(&OnInvokeSCC);
+    // Hook<Raw::CBaseEngine::LoadScripts>(&OnLoadScripts);
 }
 
-bool App::ScriptReporter::OnLoadScripts(Red::CBaseEngine& aEngine, Red::CString& aPath,
-                                        uint64_t aTimestamp, uint64_t a4)
+void App::ScriptReporter::OnInvokeSCC(bool& aSuccess, Red::CString& aSourceDir, Red::CString& aBlobPath,
+                                      uint8_t aProfile, int64_t a4, int32_t a5, int32_t a6, Red::CString* aOutput)
+{
+    if (!aSuccess)
+    {
+        if (!aOutput)
+        {
+            if (auto engine = Red::CGameEngine::Get())
+            {
+                aOutput = &engine->scriptsCompilationErrors;
+            }
+        }
+
+        if (aOutput && aOutput->Length() == 0)
+        {
+            *aOutput = "Scripts compilation failed";
+        }
+    }
+}
+
+bool App::ScriptReporter::OnLoadScripts(Red::CBaseEngine& aEngine, Red::CString& aPath, uint64_t aTimestamp,
+                                        uint64_t a4)
 {
     // This is a fallback mode which never works for the release game
     if (!aTimestamp)

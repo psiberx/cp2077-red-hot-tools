@@ -16,6 +16,7 @@ constexpr uint32_t Camera_ProjectPoint = 1517361120;
 
 constexpr uint32_t CBaseEngine_LoadScripts = 3570081113; // CBaseEngine::LoadScripts
 constexpr uint32_t CBaseEngine_MainLoopTick = 1875906465;
+constexpr uint32_t CBaseEngine_InvokeSCC = 2746819158;
 
 constexpr uint32_t CBaseFunction_InitializeLocalStack = 314117590;
 
