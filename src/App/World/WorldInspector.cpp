@@ -924,12 +924,15 @@ App::WorldNodeRuntimeSceneData App::WorldInspector::FindStreamedNode(uint64_t aN
     if (!nodeInstance)
         return {};
 
-    const auto& [setup, nodeInstanceWeak, nodeDefinitionWeak] = m_nodeRegistry->GetNodeRuntimeData(nodeInstance);
+    const auto runtimeData = m_nodeRegistry->GetNodeRuntimeData(nodeInstance);
 
-    if (!nodeInstanceWeak)
+    if (!runtimeData.setup)
         return {};
 
-    return {nodeInstanceWeak, nodeDefinitionWeak, setup->transform.position, setup->transform.orientation};
+    return {runtimeData.nodeInstance,
+            runtimeData.nodeDefinition,
+            runtimeData.setup->transform.position,
+            runtimeData.setup->transform.orientation};
 }
 
 Red::DynArray<App::WorldNodeRuntimeSceneData> App::WorldInspector::GetStreamedNodesInFrustum()

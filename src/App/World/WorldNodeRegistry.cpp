@@ -206,7 +206,10 @@ void App::WorldNodeRegistry::OnStreamingSectorDestruct(Red::worldStreamingSector
     }
 
 #ifndef NDEBUG
-    LogDebug("WorldNodeRegistry: Cleaned up {} tracked nodes.", erased);
+    if (erased)
+    {
+        LogDebug("WorldNodeRegistry: Cleaned up {} tracked nodes.", erased);
+    }
 #endif
 }
 
@@ -364,7 +367,10 @@ void App::WorldNodeRegistry::ClearRuntimeData()
     {
         std::unique_lock _(s_nodeStaticDataLock);
 #ifndef NDEBUG
-        LogDebug("WorldNodeRegistry: Cleaned up {} tracked nodes.", s_nodeSetupToStaticDataMap.size());
+        if (!s_nodeSetupToStaticDataMap.empty())
+        {
+            LogDebug("WorldNodeRegistry: Cleaned up {} tracked nodes.", s_nodeSetupToStaticDataMap.size());
+        }
 #endif
         s_nodeSetupToStaticDataMap.clear();
         s_communityStaticDataMap.clear();
