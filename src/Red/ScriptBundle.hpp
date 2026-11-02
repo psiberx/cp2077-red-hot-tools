@@ -390,4 +390,4 @@ RED4EXT_ASSERT_OFFSET(ScriptBundle, dependencies, 0x188);
 RED4EXT_ASSERT_OFFSET(ScriptBundle, extraTypes, 0x198);
 RED4EXT_ASSERT_OFFSET(ScriptBundle, extraProperties, 0x1D0);
 RED4EXT_ASSERT_OFFSET(ScriptBundle, isScriptMod, 0x1F0);
-} // namespace Red
+}

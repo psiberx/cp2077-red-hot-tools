@@ -343,9 +343,7 @@ void App::WorldInspector::UpdateStreamedNodes()
                 continue;
             }
         }
-        else if (Red::IsInstanceOf<Red::worldCookedStaticDecalNode>(nodeDefinition) ||
-                 Red::IsInstanceOf<Red::worldStaticDecalNode>(nodeDefinition) ||
-                 Red::IsInstanceOf<Red::worldStaticOccluderMeshNode>(nodeDefinition) ||
+        else if (Red::IsInstanceOf<Red::worldStaticOccluderMeshNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldReflectionProbeNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldCookedAcousticSectorNode>(nodeDefinition) ||
                  Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition) ||
@@ -368,17 +366,30 @@ void App::WorldInspector::UpdateStreamedNodes()
                 actor.testBox *= nodeTransform.orientation;
                 actor.testBox += nodeTransform.position;
 
-                streamedNode.isTargetable = !Red::IsInstanceOf<Red::worldCookedAcousticSectorNode>(nodeDefinition) &&
-                                            !Red::IsInstanceOf<Red::worldReflectionProbeNode>(nodeDefinition) &&
-                                            !Red::IsInstanceOf<Red::worldGeometryShapeNode>(nodeDefinition) &&
-                                            !Red::IsInstanceOf<Red::worldAreaShapeNode>(nodeDefinition) &&
-                                            !Red::IsInstanceOf<Red::worldWaterPatchNode>(nodeDefinition);
+                streamedNode.isTargetable = Red::IsInstanceOf<Red::worldStaticOccluderMeshNode>(nodeDefinition);
             }
             else
             {
                 postponedRequests[hash] = request;
                 continue;
             }
+        }
+        else if (Red::IsInstanceOf<Red::worldCookedStaticDecalNode>(nodeDefinition) ||
+                 Red::IsInstanceOf<Red::worldStaticDecalNode>(nodeDefinition))
+        {
+            auto& actor = streamedNode.actors.emplace_back();
+
+            actor.position = nodeTransform.position;
+            actor.orientation = nodeTransform.orientation;
+            actor.boundingBox = {{-0.5, -0.5, -0.5, 1.0}, {0.5, 0.5, 0.5, 1.0}};
+
+            actor.boundingBox *= nodeScale;
+
+            actor.testBox = actor.boundingBox;
+            actor.testBox *= nodeTransform.orientation;
+            actor.testBox += nodeTransform.position;
+
+            streamedNode.isTargetable = true;
         }
         else if (Red::IsInstanceOf<Red::worldStaticLightNode>(nodeDefinition))
         {
