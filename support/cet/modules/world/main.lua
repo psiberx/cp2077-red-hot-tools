@@ -933,6 +933,9 @@ local function fillTargetGeomertyData(target, data)
         end
         data.actorIndex = data.physicsActorIndex + data.physicsActorOffset
         data.shapeIndex = data.physicsShapeIndex
+    elseif target.actorCount and target.actorCount > 1 then
+        data.actorIndex = target.actorIndex or 0
+        data.actorCount = target.actorCount or 0
     end
 
     fillRuntimeGeometryData(data)
