@@ -14,4 +14,7 @@
 /support/vscode/node_modules
 /support/vscode/*.log
 /support/vscode/*.vsix
+~$*
+*.local.md
+*.log
 CMakeLists.txt
