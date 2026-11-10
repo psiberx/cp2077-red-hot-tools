@@ -1,75 +1,22 @@
 #include "ObjectRegistry.hpp"
-#include "Red/ISerializable.hpp"
+#include "Red/SerializableMap.hpp"
 
 namespace
 {
 Red::ClassLocator<Red::IScriptable> s_IScriptableType;
 }
 
-void App::ObjectRegistry::OnBootstrap()
-{
-    s_registry.reserve(StartCapacity);
-    LogInfo("[ObjectRegistry] Storage initialized for {} handles.", s_registry.capacity());
-
-    Hook<Raw::ISerializable::CreateHandle>(&OnCreateHandle);
-}
-
-void* App::ObjectRegistry::OnCreateHandle(Red::Handle<Red::ISerializable>& aHandle, Red::ISerializable* aObject)
-{
-    auto isNewHandle = aObject && !aObject->ref.refCount;
-
-    Raw::ISerializable::CreateHandle(aHandle, aObject);
-
-    if (isNewHandle)
-    {
-        std::unique_lock lock(s_registryLock);
-
-        if (s_registry.size() == s_registry.capacity())
-        {
-            auto [b, e] = std::ranges::remove_if(s_registry, [](auto& x) { return x.Expired(); });
-
-            if (b != e)
-            {
-                s_registry.erase(b, e);
-            }
-            else
-            {
-                if (s_registry.capacity() == MaxCapacity)
-                {
-                    LogWarning("[ObjectRegistry] Storage reached max capacity of {} handles.", s_registry.capacity());
-                    return &aHandle;
-                }
-
-                s_registry.reserve(s_registry.capacity() + s_registry.capacity() / 4);
-
-                LogInfo("[ObjectRegistry] Storage capacity increased to {} handles.", s_registry.capacity());
-            }
-        }
-
-        s_registry.emplace_back(aHandle);
-    }
-
-    return &aHandle;
-}
-
 void App::ObjectRegistry::CollectSerializables(Red::DynArray<Red::WeakHandle<Red::ISerializable>>& aOut)
 {
-    std::shared_lock lock(s_registryLock);
-
-    for (const auto& weak : s_registry)
-    {
-        if (!weak.Expired())
-        {
-            aOut.EmplaceBack(weak);
-        }
-    }
+    Red::SerializableMap::Get()->CollectSerializables(aOut);
 }
 
 void App::ObjectRegistry::CollectScriptables(Red::DynArray<Red::WeakHandle<Red::IScriptable>>& aOut)
 {
-    std::shared_lock lock(s_registryLock);
+    Red::DynArray<Red::WeakHandle<Red::ISerializable>> serializables;
+    Red::SerializableMap::Get()->CollectSerializables(serializables);
 
-    for (const auto& weak : s_registry)
+    for (const auto& weak : serializables)
     {
         if (!weak.Expired() && weak.instance->GetType()->IsA(s_IScriptableType))
         {
@@ -80,12 +27,14 @@ void App::ObjectRegistry::CollectScriptables(Red::DynArray<Red::WeakHandle<Red::
 
 void App::ObjectRegistry::CreateSnapshot()
 {
-    std::shared_lock lock1(s_registryLock);
-    std::unique_lock lock2(s_snapshotLock);
+    std::unique_lock lock(s_snapshotLock);
 
     s_snapshot.clear();
 
-    for (const auto& weak : s_registry)
+    Red::DynArray<Red::WeakHandle<Red::ISerializable>> serializables;
+    Red::SerializableMap::Get()->CollectSerializables(serializables);
+
+    for (const auto& weak : serializables)
     {
         if (weak.Expired())
             continue;
@@ -120,10 +69,12 @@ void App::ObjectRegistry::CreateSnapshot()
 
 void App::ObjectRegistry::RestoreSnapshot()
 {
-    std::shared_lock lock1(s_registryLock);
     std::unique_lock lock2(s_snapshotLock);
 
-    for (const auto& weak : s_registry)
+    Red::DynArray<Red::WeakHandle<Red::ISerializable>> serializables;
+    Red::SerializableMap::Get()->CollectSerializables(serializables);
+
+    for (const auto& weak : serializables)
     {
         if (weak.Expired())
             continue;
