@@ -1776,6 +1776,9 @@ local function getTargetActions(target, isInputMode)
                     if action.type == nil then
                         action.type = 'button'
                     end
+                    if action.inline == nil then
+                        action.inline = true
+                    end
                     if isInputMode or action.type ~= 'button' then
                         table.insert(actions, action)
                     end
