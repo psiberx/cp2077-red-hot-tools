@@ -179,18 +179,16 @@
 #include <RED4ext/Scripting/Natives/ScriptGameInstance.hpp>
 #include <RED4ext/StringView.hpp>
 
+#include <FileWatch.hpp>
 #include <nameof.hpp>
 #include <semver.hpp>
-
-#include <FileWatch.hpp>
 
 #include "Core/Raw.hpp"
 #include "Core/Stl.hpp"
 
 #include "Red/Alias.hpp"
 #include "Red/Engine.hpp"
+#include "Red/Shared/AddressLib.hpp"
 #include "Red/Specializations.hpp"
 #include "Red/TypeInfo.hpp"
 #include "Red/Utils.hpp"
-
-#include "Red/Addresses/Library.hpp"

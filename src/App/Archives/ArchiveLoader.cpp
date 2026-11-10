@@ -325,7 +325,7 @@ bool App::ArchiveLoader::InvalidateResources(const Red::DynArray<Red::ResourcePa
             }
             {
                 Red::Handle<Red::CResource> resource;
-                Raw::ResourceBank::ForgetResource(loader->unk48, resource, path);
+                Raw::ResourceBank::ForgetResource(loader->bank, resource, path);
             }
         }
     }
