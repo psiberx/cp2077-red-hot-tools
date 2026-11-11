@@ -29,6 +29,11 @@ inline std::filesystem::path ScriptSourceDir()
     return Core::Runtime::GetRootDir() / L"r6" / L"scripts";
 }
 
+inline std::filesystem::path ScriptCompilationLogFile()
+{
+    return Core::Runtime::GetRootDir() / L"r6" / L"logs" / L"redscript_rCURRENT.log";
+}
+
 inline std::filesystem::path ScriptHotFile()
 {
     return Core::Runtime::GetModuleDir() / L".hot-scripts";

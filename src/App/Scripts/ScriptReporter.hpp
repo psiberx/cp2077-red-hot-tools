@@ -22,7 +22,10 @@ public:
 protected:
     void OnBootstrap() override;
     static bool OnLoadScripts(Red::CBaseEngine& aEngine, Red::CString& aPath, uint64_t a3, uint64_t a4);
-    static void OnInvokeSCC(bool& aSuccess, Red::CString& aSourceDir, Red::CString& aBlobPath, uint8_t aProfile,
-                            int64_t a4, int32_t a5, int32_t a6, Red::CString* aOutput);
+    static bool OnInvokeSCC(Red::CString& aSourceDir, Red::CString& aBlobPath, uint8_t aProfile, int64_t a4, int32_t a5,
+                            int32_t a6, Red::CString* aOutput);
+
+    static bool IsFreshLog(const std::filesystem::path& aPath, auto aCompilationTime);
+    static bool ScanForErrorLog(const std::filesystem::path& aPath, std::string& aMessage);
 };
 }
