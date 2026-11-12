@@ -1995,6 +1995,8 @@ local resultSchema = {
         { name = 'deviceClass', label = 'Device Class:' },
         { name = 'entityPosition', label = 'Entity Position:', format = formatPosition },
         { name = 'entityOrientation', label = 'Entity Orientation:', format = formatOrientation },
+        { name = 'componentType', label = 'Hit Component:', wrap = true, validate = hasValidComponentInfo },
+        { name = 'componentName', label = '·', inline = true, validate = hasValidComponentInfo },
         { name = 'meshPath', label = 'Mesh Resource:', wrap = true },
         { name = 'meshAppearance', label = 'Mesh Appearance:', wrap = true },
         { name = 'materialPath', label = 'Material Resource:', wrap = true },
@@ -2009,10 +2011,6 @@ local resultSchema = {
         { name = 'shapeCount', label = '/', format = '%d', inline = true, validate = hasValidShapeIndex },
         { name = 'triggerNotifiers', label = 'Trigger Notifiers:', format = formatArrayField, validate = isValidArrayField },
         { name = 'lootTables', label = 'Loot Tables:', format = formatArrayField, validate = isValidArrayField },
-    },
-    {
-        { name = 'componentType', label = 'Component Type', validate = hasValidComponentInfo },
-        { name = 'componentName', label = 'Component Name', wrap = true, validate = hasValidComponentInfo },
     },
     {
         { name = 'resolvedPath', label = 'Resource:', wrap = true },
