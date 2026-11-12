@@ -924,6 +924,7 @@ local function fillTargetGeomertyData(target, data)
         data.physicsProxyID = target.proxyID
         data.physicsActorIndex = target.actorIndex or 0
         data.physicsActorOffset = target.actorOffset or 0
+        data.physicsActorCount = target.actorCount or 0
         if data.isCollisionNode and userState.collisionGranularity == CollisionGranularity.Shape then
             data.physicsShapeIndex = target.shapeIndex or 0
             data.physicsShapeCount = target.shapeCount or 0
@@ -932,7 +933,9 @@ local function fillTargetGeomertyData(target, data)
             data.physicsShapeCount = 0
         end
         data.actorIndex = data.physicsActorIndex + data.physicsActorOffset
+        data.actorCount = data.physicsActorCount
         data.shapeIndex = data.physicsShapeIndex
+        data.shapeCount = data.physicsShapeCount
     elseif target.actorCount and target.actorCount > 1 then
         data.actorIndex = target.actorIndex or 0
         data.actorCount = target.actorCount or 0
