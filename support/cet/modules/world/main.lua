@@ -2268,18 +2268,39 @@ local function drawFieldset(targetData, withSeparators, withExtras, withExtrasFr
         if withSeparators then
             ImGui.Spacing()
             ImGui.Separator()
+            ImGui.Spacing()
+        else
+            ImGui.Spacing()
         end
-        ImGui.Spacing()
-        for _, action in ipairs(actions) do
+
+        local fullWidth = ImGui.GetContentRegionMax()
+        local frameHeight = ImGui.GetFrameHeight()
+        local itemSpacing = ImGui.GetFrameHeightWithSpacing() - frameHeight
+
+        for index, action in ipairs(actions) do
+            local inline = action.inline and index > 1
+
+            if inline then
+                local actionWidth = ImGui.CalcTextSize(action.label) + itemSpacing * 3
+                if action.type == 'checkbox' then
+                    actionWidth = actionWidth + frameHeight + itemSpacing
+                end
+
+                local leftWidth = fullWidth - ImGui.GetCursorPosX()
+                if actionWidth > leftWidth then
+                    inline = false
+                end
+            end
+
             if action.type == 'button' then
-                if action.inline then
+                if inline then
                     ImGui.SameLine()
                 end
                 if ImGui.Button(action.label) then
                     action.callback(targetData)
                 end
             elseif action.type == 'checkbox' then
-                if action.inline then
+                if inline then
                     ImGui.SameLine()
                 end
                 local _, pressed = ImGui.Checkbox(action.label, action.state)
