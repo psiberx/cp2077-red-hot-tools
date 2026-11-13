@@ -7,6 +7,26 @@ local PersistentState = require('libs/PersistentState')
 local Enumeration = require('libs/Enumeration')
 local ImGuiEx = require('libs/ImGuiEx')
 
+-- Utils --
+
+local function isEmpty(value)
+    return value == nil or value == 0 or value == '' or value == 'None'
+end
+
+local function isNotEmpty(value)
+    return value ~= nil and value ~= 0 and value ~= '' and value ~= 'None'
+end
+
+local function firstNotEmpty(...)
+    for i = 1, select('#', ...) do
+        local v = select(i, ...)
+        if isNotEmpty(v) then
+            return v
+        end
+    end
+    return nil
+end
+
 -- Game Systems --
 
 local inspectionSystem
@@ -24,14 +44,11 @@ local LayerFilter = Enumeration('AllLayers', 'ActiveLayers')
 local userState = {}
 local userStateSchema = {
     isModuleActive = { type = 'boolean', default = true },
-    --isOnScreenDisplayActive = { type = 'boolean', default = false },
     selectedTab = { type = MainTab, default = MainTab.Inspect },
     layerFilter = { type = LayerFilter, default = LayerFilter.AllLayers },
     windowSnapping = { type = WindowSnapping, default = WindowSnapping.Disabled },
     inspectorTreeID = { type = 'number', default = 1 },
     inspectorTreeRows = { type = 'number', default = 12 },
-    inspectorPropRows = { type = 'number', default = 9 },
-    pickerResultListRows = { type = 'number', default = 10 },
     autoSnapOnScreenDisplay = { type = 'boolean', default = true },
     disablePickerOnConsoleOpen = { type = 'boolean', default = true },
     enforcePointerOnActivation = { type = 'boolean', default = true },
@@ -39,10 +56,16 @@ local userStateSchema = {
     highlightHoveredInPicker = { type = 'boolean', default = true },
     highlightBorderColor = { default = { 0.0, 1.0, 0.0, 1.0 } },
     highlightFillColor = { default = { 0.0, 1.0, 0.0, 0.05 }},
+    windowWidth = { type = 'number', default = 0 },
+    windowHeight = { type = 'number', default = 0 },
 }
 
 local function initializeUserState()
     PersistentState.Initialize(userState, modulePath .. '/.state', userStateSchema)
+end
+
+local function syncWindowMetrics()
+    userState.windowWidth, userState.windowHeight = ImGui.GetWindowSize()
 end
 
 local function saveUserState()
@@ -454,22 +477,18 @@ local function initializeViewStyle()
         viewStyle.fontSize = ImGui.GetFontSize()
         viewStyle.viewScale = viewStyle.fontSize / 13
 
-        local screenX, screenY = GetDisplayResolution()
-
         viewStyle.windowPaddingX = 8 * viewStyle.viewScale
         viewStyle.windowPaddingY = viewStyle.windowPaddingX
-        viewStyle.windowWidth = 400 * viewStyle.viewScale
-        viewStyle.windowFullWidth = viewStyle.windowWidth + viewStyle.windowPaddingX * 2 - 1
-        viewStyle.windowFrameWidth = viewStyle.windowFullWidth - ImGui.GetStyle().ScrollbarSize
-        viewStyle.windowHeight = 0
-        viewStyle.windowTopY = 4
-        viewStyle.windowLeftX = 4
-        viewStyle.windowRightX = screenX - viewStyle.windowFullWidth - 4
-        viewStyle.windowDefaultX = (screenX - viewStyle.windowFullWidth - 4) / 2
-        viewStyle.windowDefaultY = (screenY - 100) / 2
+        viewStyle.windowMinWidth = 400 * viewStyle.viewScale + viewStyle.windowPaddingX * 2 - 1
+        viewStyle.windowMinHeight = 400 * viewStyle.viewScale
+        viewStyle.windowMaxWidth = 2147483647
+        viewStyle.windowMaxHeight = 2147483647
+        viewStyle.windowMarginX = 4 * viewStyle.viewScale
+        viewStyle.windowMarginY = 4 * viewStyle.viewScale
+        viewStyle.pickerWindowWidth = viewStyle.windowMinWidth
 
-        viewStyle.mainWindowFlags = ImGuiWindowFlags.NoResize
-            + ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
+        viewStyle.mainWindowFlags = ImGuiWindowFlags.NoScrollbar
+            + ImGuiWindowFlags.NoScrollWithMouse
         viewStyle.pickerWindowFlags = ImGuiWindowFlags.NoResize
             + ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
             + ImGuiWindowFlags.NoTitleBar + ImGuiWindowFlags.NoCollapse
@@ -481,6 +500,8 @@ local function initializeViewStyle()
             + ImGuiWindowFlags.NoFocusOnAppearing + ImGuiWindowFlags.NoBringToFrontOnFocus
 
         viewStyle.inspectorFilterWidth = 85 * viewStyle.viewScale
+
+        viewStyle.listFixedHeight = 200 * viewStyle.viewScale
 
         viewStyle.editorLabelSmallWidth = 70 * viewStyle.viewScale
         viewStyle.editorLabelMiddleWidth = 110 * viewStyle.viewScale
@@ -502,11 +523,6 @@ end
 -- GUI :: Editor --
 
 local function drawEditorGroupCaption(caption, labelWidth)
-    --local x, y = ImGui.GetCursorScreenPos()
-    --local w = viewStyle.windowFullWidth
-    --local h = ImGui.GetTextLineHeight()
-    --ImGui.ImDrawListAddRectFilled(ImGui.GetWindowDrawList(), x, y, x + w, y + h - 1, ImGui.GetColorU32(ImGuiCol.MenuBarBg, 1))
-
     if viewStyle.showEditorCaptions then
         ImGui.Spacing()
         ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
@@ -1632,18 +1648,19 @@ local function drawContextInfo(context)
     end
 end
 
+local function isEditorOpen()
+    return viewState.openSelectedWidgetInEditor
+        and inspector.target ~= nil
+        and inspector.target.scope ~= 'layer'
+        and IsDefined(inspector.target.widget)
+end
+
 local function drawEditorContent()
-    if not viewState.openSelectedWidgetInEditor then
+    if not isEditorOpen() then
         return
     end
 
-    if not inspector.target or inspector.target.scope == 'layer' then
-        return
-    end
-
-    if not IsDefined(inspector.target.widget) then
-        return
-    end
+    ImGui.BeginChild('##RHT:InkTools:Editor', 0, ImGuiEx.GetContentRegionAvailHeight())
 
     ImGui.Separator()
     ImGui.Spacing()
@@ -1655,14 +1672,25 @@ local function drawEditorContent()
         ImGui.SetClipboardText(targetType)
     end
 
+    local paddingX = ImGui.GetStyle().FramePadding.x * 2
+    local regionW = ImGui.GetContentRegionMax()
+
+    ImGui.SameLine()
+    local closeLabel = ' X '
+    local closeLabelW = ImGui.CalcTextSize(closeLabel) + paddingX
+    ImGui.SetCursorPosX(regionW - closeLabelW)
+    if ImGui.Button(closeLabel) then
+        viewState.openSelectedWidgetInEditor = false
+        inspector.target = nil
+        return
+    end
+
     if userState.selectedTab == MainTab.Pick then
         ImGui.SameLine()
-        local label = 'Open in tree'
-        local labelW = ImGui.CalcTextSize(label)
-        local paddingX = ImGui.GetStyle().FramePadding.x * 2
-        local regionW = ImGui.GetContentRegionMax()
-        ImGui.SetCursorPosX(regionW - labelW - paddingX)
-        if ImGui.Button(label) then
+        local openLabel = 'Open in tree'
+        local openLabelW = ImGui.CalcTextSize(openLabel) + paddingX
+        ImGui.SetCursorPosX(regionW - openLabelW - closeLabelW - viewStyle.windowMarginX)
+        if ImGui.Button(openLabel) then
             userState.selectedTab = MainTab.Inspect
             viewState.isFirstOpen = true
         end
@@ -1687,7 +1715,7 @@ local function drawEditorContent()
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
         ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
 
-        ImGui.BeginChildFrame(3, viewStyle.windowFrameWidth, userState.inspectorPropRows * viewStyle.editorInputHeight)
+        ImGui.BeginChildFrame(3, ImGuiEx.GetContentRegionAvailWidth(), ImGuiEx.GetContentRegionAvailHeight())
         ImGui.Spacing()
 
         ImGui.PopStyleColor()
@@ -1780,6 +1808,8 @@ local function drawEditorContent()
     end
 
     ImGui.EndTabBar()
+
+    ImGui.EndChild()
 
     viewState.preserveCurrentEditorTab = false
 end
@@ -2050,7 +2080,8 @@ local function drawInspectorContent()
     ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0)
     ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
     ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
-    ImGui.BeginChildFrame(1, viewStyle.windowFrameWidth, userState.inspectorTreeRows * ImGui.GetFrameHeightWithSpacing(), ImGuiWindowFlags.HorizontalScrollbar)
+    local listHeight = isEditorOpen() and viewStyle.listFixedHeight or ImGuiEx.GetContentRegionAvailHeight()
+    ImGui.BeginChildFrame(1, ImGuiEx.GetContentRegionAvailWidth(), listHeight, ImGuiWindowFlags.HorizontalScrollbar)
     ImGui.PushID(userState.inspectorTreeID)
     for _, layer in ipairs(inspector.layers) do
         if layer.isActive or userState.layerFilter == LayerFilter.AllLayers then
@@ -2062,8 +2093,8 @@ local function drawInspectorContent()
     ImGui.PopStyleColor()
     ImGui.PopStyleVar(2)
 
-    viewState.openSelectedWidgetInTree = false
     viewState.openSelectedWidgetInEditor = true
+    viewState.openSelectedWidgetInTree = false
 end
 
 -- GUI :: Picker --
@@ -2121,7 +2152,8 @@ local function drawPickerContent(isModal)
         ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0)
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
         ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
-        ImGui.BeginChildFrame(2, viewStyle.windowFrameWidth, math.min(#picker.results, userState.pickerResultListRows) * ImGui.GetFrameHeightWithSpacing())
+        local listHeight = isEditorOpen() and (viewStyle.listFixedHeight + 4 * viewStyle.viewScale) or ImGuiEx.GetContentRegionAvailHeight()
+        ImGui.BeginChildFrame(2, ImGuiEx.GetContentRegionAvailWidth(), listHeight)
     end
 
     local isSelectedWidgetFound = false
@@ -2166,12 +2198,16 @@ local function drawPickerContent(isModal)
 
     if not isModal and isSelectedWidgetFound then
         viewState.openSelectedWidgetInEditor = true
+    else
+        viewState.openSelectedWidgetInEditor = false
     end
 end
 
 -- GUI :: Settings --
 
 local function drawSettingsContent()
+    ImGui.BeginChild('##RHT:InkTools:Settings', 0, ImGuiEx.GetContentRegionAvailHeight())
+
     local state, changed
 
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
@@ -2274,13 +2310,19 @@ local function drawSettingsContent()
         userState.highlightHoveredInPicker = state
     end
 
+    ImGui.EndChild()
+
     viewState.openSelectedWidgetInEditor = false
 end
 
 -- GUI :: Hotkeys --
 
 local function drawHotkeysContent()
+    ImGui.BeginChild('##RHT:InkTools:Hotkeys', 0, ImGuiEx.GetContentRegionAvailHeight())
+
     app.drawHotkeys(moduleID)
+
+    ImGui.EndChild()
 
     viewState.openSelectedWidgetInEditor = false
 end
@@ -2288,31 +2330,49 @@ end
 -- GUI :: Windows --
 
 local function pushWindowStyle(isModal)
-    local windowX, windowY, condition
+    if isModal then
+        ImGui.SetNextWindowSize(viewStyle.pickerWindowWidth, 0)
+    else
+        ImGui.SetNextWindowSizeConstraints(viewStyle.windowMinWidth, viewStyle.windowMinHeight, viewStyle.windowMaxWidth, viewStyle.windowMaxHeight)
+        ImGui.SetNextWindowSize(firstNotEmpty(userState.windowWidth, viewStyle.windowMinWidth), firstNotEmpty(userState.windowHeight, viewStyle.windowMinHeight), ImGuiCond.Always)
+    end
+
+    ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, viewStyle.windowPaddingX, viewStyle.windowPaddingY)
+end
+
+local function popWindowStyle()
+    ImGui.PopStyleVar()
+end
+
+local function snapWindow(isModal)
+    if ImGui.IsAnyMouseDown() then
+        return
+    end
+
+    local screenWidth, _ = GetDisplayResolution()
+    local windowWidth, _ = ImGui.GetWindowSize()
     local windowSnapping = userState.windowSnapping
 
     if isModal and userState.autoSnapOnScreenDisplay then
         if viewState.autoWindowSnapping then
             windowSnapping = viewState.autoWindowSnapping
-        else
-            if windowSnapping ~= WindowSnapping.TopLeft then
-                windowSnapping = WindowSnapping.TopRight
-            end
+        elseif windowSnapping ~= WindowSnapping.TopLeft then
+            windowSnapping = WindowSnapping.TopRight
         end
 
         local cursorPos = inspectionSystem:GetPointerScreenPosition()
         local dataRows = 3 + (picker.results and #picker.results or 0)
-        local bottomY = viewStyle.windowTopY + viewStyle.windowPaddingY * 2
+        local bottomY = viewStyle.windowMarginY + viewStyle.windowPaddingY * 2
             + (dataRows * ImGui.GetTextLineHeightWithSpacing())
         local margin = 10 * viewStyle.viewScale
 
         if cursorPos.Y <= (bottomY + margin) then
             if windowSnapping == WindowSnapping.TopRight then
-                if cursorPos.X >= (viewStyle.windowRightX - margin) then
+                if cursorPos.X >= (screenWidth - windowWidth - viewStyle.windowMarginX - margin) then
                     windowSnapping = WindowSnapping.TopLeft
                 end
             else
-                if cursorPos.X <= (viewStyle.windowLeftX + viewStyle.windowFullWidth + margin) then
+                if cursorPos.X <= (viewStyle.windowMarginX + windowWidth + margin) then
                     windowSnapping = WindowSnapping.TopRight
                 end
             end
@@ -2321,32 +2381,27 @@ local function pushWindowStyle(isModal)
         viewState.autoWindowSnapping = windowSnapping
     end
 
-    if windowSnapping == WindowSnapping.Disabled then
-        condition = ImGuiCond.FirstUseEver
-        windowX = viewStyle.windowDefaultX
-        windowY = viewStyle.windowDefaultY
-    elseif windowSnapping == WindowSnapping.TopLeft then
-        condition = ImGuiCond.Always
-        windowX = viewStyle.windowLeftX
-        windowY = viewStyle.windowTopY
+    local windowX, windowY
+
+    if windowSnapping == WindowSnapping.TopLeft then
+        windowX = viewStyle.windowMarginX
+        windowY = viewStyle.windowMarginY
     elseif windowSnapping == WindowSnapping.TopRight then
-        condition = ImGuiCond.Always
-        windowX = viewStyle.windowRightX
-        windowY = viewStyle.windowTopY
+        windowX = screenWidth - windowWidth - viewStyle.windowMarginX
+        windowY = viewStyle.windowMarginY
+    else
+        return
     end
 
-    ImGui.SetNextWindowPos(windowX, windowY, condition)
-    ImGui.SetNextWindowSize(viewStyle.windowFullWidth, viewStyle.windowHeight)
-    ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, viewStyle.windowPaddingX, viewStyle.windowPaddingY)
-end
-
-local function popWindowStyle()
-    ImGui.PopStyleVar()
+    ImGui.SetWindowPos(windowX, windowY, ImGuiCond.Always)
 end
 
 local function drawPickerWindow()
     pushWindowStyle(true)
+
     ImGui.Begin('Ink Inspector##RHT:InkTools:Overlay', viewStyle.pickerWindowFlags)
+
+    snapWindow(true)
 
     ImGui.SetCursorPosY(ImGui.GetCursorPosY() - 2)
     drawPickerContent(true)
@@ -2362,6 +2417,9 @@ local function drawMainWindow()
     viewState.isWindowExpanded = not ImGui.IsWindowCollapsed()
 
     if viewState.isWindowOpen and viewState.isWindowExpanded then
+        syncWindowMetrics()
+        snapWindow()
+
         app.drawSharedMenu(moduleID)
 
         ImGui.BeginTabBar('##RHT:InkTools:MainTabBar')
