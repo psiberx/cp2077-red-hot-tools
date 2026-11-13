@@ -53,6 +53,16 @@ local function beginWindow(title, closable, flags)
     end
 end
 
+local function getContentRegionAvailHeight()
+    local _, height = ImGui.GetContentRegionAvail()
+    return height
+end
+
+local function getContentRegionAvailWidth()
+    local width = ImGui.GetContentRegionAvail()
+    return width
+end
+
 return {
     Begin = beginWindow,
     BuildComboOptions = buildComboOptions,
@@ -61,4 +71,6 @@ return {
     Opacity = opacity,
     Fade = fade,
     FadeFactor = fadeFactor,
+    GetContentRegionAvailWidth = getContentRegionAvailWidth,
+    GetContentRegionAvailHeight = getContentRegionAvailHeight,
 }

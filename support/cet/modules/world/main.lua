@@ -20,6 +20,16 @@ local function isNotEmpty(value)
     return value ~= nil and value ~= 0 and value ~= '' and value ~= 'None'
 end
 
+local function firstNotEmpty(...)
+    for i = 1, select('#', ...) do
+        local v = select(i, ...)
+        if isNotEmpty(v) then
+            return v
+        end
+    end
+    return nil
+end
+
 -- Game Systems --
 
 local cameraSystem
@@ -71,6 +81,8 @@ local userStateSchema = {
     highlightLookupResult = { type = 'boolean', default = false },
     keepLastHoveredResultHighlighted = { type = 'boolean', default = true },
     syncObserverPositionWithPlayer = { type = 'boolean', default = true },
+    windowWidth = { type = 'number', default = 0 },
+    windowHeight = { type = 'number', default = 0 },
 }
 
 local function syncInspectionSystemState()
@@ -80,6 +92,10 @@ local function syncInspectionSystemState()
     userState.frustumDistance = inspectionSystem:GetFrustumDistance()
     userState.targetingDistance = inspectionSystem:GetTargetingDistance()
     userState.scannerDistance = MathEx.Clamp(userState.scannerDistance, 0.5, userState.frustumDistance)
+end
+
+local function syncWindowMetrics()
+    userState.windowWidth, userState.windowHeight = ImGui.GetWindowSize()
 end
 
 local function initializeUserState()
@@ -1705,21 +1721,17 @@ local function initializeViewStyle()
         viewStyle.fontSize = ImGui.GetFontSize()
         viewStyle.viewScale = viewStyle.fontSize / 13
 
-        local screenX, screenY = GetDisplayResolution()
-
         viewStyle.windowPaddingX = 8 * viewStyle.viewScale
         viewStyle.windowPaddingY = viewStyle.windowPaddingX
-        viewStyle.windowWidth = 400 * viewStyle.viewScale
-        viewStyle.windowFullWidth = viewStyle.windowWidth + viewStyle.windowPaddingX * 2 - 1
-        viewStyle.windowHeight = 0
-        viewStyle.windowTopY = 4
-        viewStyle.windowLeftX = 4
-        viewStyle.windowRightX = screenX - viewStyle.windowFullWidth - 4
-        viewStyle.windowDefaultX = (screenX - viewStyle.windowFullWidth - 4) / 2
-        viewStyle.windowDefaultY = (screenY - 100) / 2
+        viewStyle.windowMinWidth = 400 * viewStyle.viewScale + viewStyle.windowPaddingX * 2 - 1
+        viewStyle.windowMinHeight = 445 * viewStyle.viewScale
+        viewStyle.windowMaxWidth = 2147483647
+        viewStyle.windowMaxHeight = 2147483647
+        viewStyle.windowMarginX = 4 * viewStyle.viewScale
+        viewStyle.windowMarginY = 4 * viewStyle.viewScale
 
-        viewStyle.mainWindowFlags = ImGuiWindowFlags.NoResize
-            + ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
+        viewStyle.mainWindowFlags = ImGuiWindowFlags.NoScrollbar
+            + ImGuiWindowFlags.NoScrollWithMouse
         viewStyle.inspectorWindowFlags = ImGuiWindowFlags.NoResize
             + ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
             + ImGuiWindowFlags.NoTitleBar + ImGuiWindowFlags.NoCollapse
@@ -2382,7 +2394,15 @@ local function drawInspectorContent(isModal)
         ImGui.Spacing()
         ImGui.Separator()
         ImGui.Spacing()
-        drawFieldset(selected, true, not isModal, true)
+        if not isModal then
+            ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, 0, 0)
+            ImGui.BeginChild('##RHT:WorldTools:Inspect:Result', 0, ImGuiEx.GetContentRegionAvailHeight())
+        end
+        drawFieldset(selected, true, not isModal, false)
+        if not isModal then
+            ImGui.EndChild()
+            ImGui.PopStyleVar()
+        end
     else
         ImGui.SameLine()
         ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
@@ -2415,7 +2435,7 @@ local function drawScannerContent(isModal)
     ImGui.TextWrapped('Search for non-collision, hidden and unreachable world nodes.')
     ImGui.Spacing()
 
-    if ImGui.Button('Scan world nodes', viewStyle.windowWidth, viewStyle.buttonHeight) then
+    if ImGui.Button('Scan world nodes', ImGuiEx.GetContentRegionAvailWidth(), viewStyle.buttonHeight) then
         requestScan()
     end
 
@@ -2468,7 +2488,7 @@ local function drawScannerContent(isModal)
             ImGui.AlignTextToFramePadding()
             ImGui.Text('Distance:')
             ImGui.SameLine()
-            ImGui.SetNextItemWidth(viewStyle.windowWidth + viewStyle.windowPaddingX - ImGui.GetCursorPosX())
+            ImGui.SetNextItemWidth(-1)
             local distance, distanceChanged = ImGui.InputFloat('##ScannerDistance', userState.scannerDistance, 1.0, 10.0, '%.1fm', ImGuiInputTextFlags.None)
             if distanceChanged then
                 userState.scannerDistance = MathEx.Clamp(distance, 0.5, userState.frustumDistance)
@@ -2510,8 +2530,7 @@ local function drawScannerContent(isModal)
                 ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
                 ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
 
-                local visibleRows = MathEx.Clamp(#scanner.filtered, 14, 18)
-                ImGui.BeginChildFrame(1, 0, visibleRows * ImGui.GetFrameHeightWithSpacing())
+                ImGui.BeginChildFrame(1, 0, ImGuiEx.GetContentRegionAvailHeight())
 
                 for _, result in ipairs(scanner.filtered) do
                     ImGui.BeginGroup()
@@ -2562,7 +2581,7 @@ end
 local function drawLookupContent()
     ImGui.TextWrapped('Search world nodes and spawned entities by their identities.')
     ImGui.Spacing()
-    ImGui.SetNextItemWidth(viewStyle.windowWidth)
+    ImGui.SetNextItemWidth(ImGuiEx.GetContentRegionAvailWidth())
     ImGui.PushStyleColor(ImGuiCol.TextDisabled, viewStyle.hintTextColor)
     local query, queryChanged = ImGui.InputTextWithHint('##LookupQuery', 'Enter node reference or entity id or hash', viewState.lookupQuery, viewData.maxInputLen)
     if queryChanged then
@@ -2575,7 +2594,11 @@ local function drawLookupContent()
             ImGui.Spacing()
             ImGui.Separator()
             ImGui.Spacing()
-            drawFieldset(lookup.result, true, true, true)
+            ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, 0, 0)
+            ImGui.BeginChild('##RHT:WorldTools:Lookup:Result', 0, ImGuiEx.GetContentRegionAvailHeight())
+            drawFieldset(lookup.result, true, true, false)
+            ImGui.EndChild()
+            ImGui.PopStyleVar()
         else
             ImGui.Spacing()
             ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
@@ -2599,8 +2622,7 @@ local function drawWatcherContent()
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
         ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
 
-        local visibleRows = MathEx.Clamp(watcher.numTargets, 14, 18)
-        ImGui.BeginChildFrame(1, 0, visibleRows * ImGui.GetFrameHeightWithSpacing())
+        ImGui.BeginChildFrame(1, 0, ImGuiEx.GetContentRegionAvailHeight())
 
         for _, result in pairs(watcher.results) do
             if ImGui.TreeNodeEx(result.description, ImGuiTreeNodeFlags.SpanFullWidth) then
@@ -2622,6 +2644,8 @@ end
 -- GUI :: Streaming --
 
 local function drawStreamingContent()
+    ImGui.BeginChild('##RHT:WorldTools:Streaming', 0, ImGuiEx.GetContentRegionAvailHeight())
+
     local state, changed
 
     state = inspectionSystem:GetStreamingOverrideState()
@@ -2695,11 +2719,15 @@ local function drawStreamingContent()
     end
     ImGui.EndGroup()
     ImGui.EndGroup()
+
+    ImGui.EndChild()
 end
 
 -- GUI :: Settings --
 
 local function drawSettingsContent()
+    ImGui.BeginChild('##RHT:WorldTools:Settings', 0, ImGuiEx.GetContentRegionAvailHeight())
+
     local state, changed
 
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
@@ -2921,12 +2949,18 @@ local function drawSettingsContent()
         userState.highlightLookupResult = state
     end
     --]]
+
+    ImGui.EndChild()
 end
 
 -- GUI :: Hotkeys --
 
 local function drawHotkeysContent()
+    ImGui.BeginChild('##RHT:WorldTools:Hotkeys', 0, ImGuiEx.GetContentRegionAvailHeight())
+
     app.drawHotkeys(moduleID)
+
+    ImGui.EndChild()
 end
 
 -- GUI :: Drawing --
@@ -3496,25 +3530,23 @@ end
 
 -- GUI :: Windows --
 
-local function pushWindowStyle()
-    local windowX, windowY, condition
+local currentWindowHeightMode
 
-    if userState.windowSnapping == WindowSnapping.Disabled then
-        condition = ImGuiCond.FirstUseEver
-        windowX = viewStyle.windowDefaultX
-        windowY = viewStyle.windowDefaultY
-    elseif userState.windowSnapping == WindowSnapping.TopLeft then
-        condition = ImGuiCond.Always
-        windowX = viewStyle.windowLeftX
-        windowY = viewStyle.windowTopY
-    elseif userState.windowSnapping == WindowSnapping.TopRight then
-        condition = ImGuiCond.Always
-        windowX = viewStyle.windowRightX
-        windowY = viewStyle.windowTopY
+local function pushWindowStyle()
+    local autoHeightMode = not viewState.isConsoleOpen
+
+    if autoHeightMode then
+        ImGui.SetNextWindowSizeConstraints(viewStyle.windowMinWidth, 0, viewStyle.windowMaxWidth, viewStyle.windowMaxHeight)
+        ImGui.SetNextWindowSize(userState.windowWidth, 0, ImGuiCond.Always)
+    else
+        ImGui.SetNextWindowSizeConstraints(viewStyle.windowMinWidth, viewStyle.windowMinHeight, viewStyle.windowMaxWidth, viewStyle.windowMaxHeight)
+        if currentWindowHeightMode ~= autoHeightMode then
+            ImGui.SetNextWindowSize(firstNotEmpty(userState.windowWidth, viewStyle.windowMinWidth), firstNotEmpty(userState.windowHeight, viewStyle.windowMinHeight), ImGuiCond.Always)
+        end
     end
 
-    ImGui.SetNextWindowPos(windowX, windowY, condition)
-    ImGui.SetNextWindowSize(viewStyle.windowFullWidth, viewStyle.windowHeight)
+    currentWindowHeightMode = autoHeightMode
+
     ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, viewStyle.windowPaddingX, viewStyle.windowPaddingY)
 end
 
@@ -3522,9 +3554,36 @@ local function popWindowStyle()
     ImGui.PopStyleVar()
 end
 
+local function snapWindow()
+    if ImGui.IsAnyMouseDown() then
+        return
+    end
+
+    local windowX, windowY, condition
+
+    if userState.windowSnapping == WindowSnapping.TopLeft then
+        windowX = viewStyle.windowMarginX
+        windowY = viewStyle.windowMarginY
+        condition = ImGuiCond.Always
+    elseif userState.windowSnapping == WindowSnapping.TopRight then
+        local screenWidth, _ = GetDisplayResolution()
+        local windowWidth, _ = ImGui.GetWindowSize()
+        windowX = screenWidth - windowWidth - viewStyle.windowMarginX
+        windowY = viewStyle.windowMarginY
+        condition = ImGuiCond.Always
+    else
+        return
+    end
+
+    ImGui.SetWindowPos(windowX, windowY, condition)
+end
+
 local function drawOnScreenWindow()
     pushWindowStyle()
+
     ImGui.Begin('World Inspector##RHT:WorldTools', viewStyle.inspectorWindowFlags)
+
+    snapWindow()
 
     ImGui.SetCursorPosY(ImGui.GetCursorPosY() - 2)
     if userState.selectedTab == MainTab.Scan and userState.highlightScannerResult and scanner.hovered and scanner.results[scanner.hovered] then
@@ -3544,6 +3603,9 @@ local function drawMainWindow()
     viewState.isWindowExpanded = not ImGui.IsWindowCollapsed()
 
     if viewState.isWindowOpen and viewState.isWindowExpanded then
+        syncWindowMetrics()
+        snapWindow()
+
         app.drawSharedMenu(moduleID)
 
         ImGui.BeginTabBar('##RHT:WorldTools:TabBar')
