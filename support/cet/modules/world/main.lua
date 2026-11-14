@@ -1659,12 +1659,16 @@ local watcher = {
     },
 }
 
-local function watchTarget(entity)
+local function getEntityKey(entity)
+    return tostring(entity:GetEntityID().hash)
+end
+
+local function watchEntity(entity)
     if not IsDefined(entity) then
         return
     end
 
-    local key = tostring(entity:GetEntityID().hash)
+    local key = getEntityKey(entity)
     local target = { entity = Ref.Weak(entity) }
 
     watcher.targets[key] = target
@@ -1672,12 +1676,12 @@ local function watchTarget(entity)
     watcher.numTargets = watcher.numTargets + 1
 end
 
-local function forgetTarget(entity)
+local function forgetEntity(entity)
     if not IsDefined(entity) then
         return
     end
 
-    local key = tostring(entity:GetEntityID().hash)
+    local key = getEntityKey(entity)
 
     if watcher.targets[key] then
         watcher.targets[key] = nil
@@ -1688,42 +1692,58 @@ local function forgetTarget(entity)
     end
 end
 
+local function canWatchTarget(target)
+    return target and IsDefined(target.entity)
+end
+
+local function isWatchedTarget(target)
+    return target and IsDefined(target.entity) and watcher.targets[getEntityKey(target.entity)] ~= nil
+end
+
+local function watchTarget(target)
+    watchEntity(target.entity)
+end
+
+local function forgetTarget(target)
+    forgetEntity(target.entity)
+end
+
 local function initializeWatcher()
-    watchTarget(GetPlayer())
-    watchTarget(GetMountedVehicle(GetPlayer()))
+    watchEntity(GetPlayer())
+    watchEntity(GetMountedVehicle(GetPlayer()))
 
     ObserveAfter('PlayerPuppet', 'OnGameAttached', function(this)
-        watchTarget(this)
+        watchEntity(this)
     end)
 
     ObserveAfter('PlayerPuppet', 'OnDetach', function(this)
-        forgetTarget(this)
+        forgetEntity(this)
     end)
 
     ObserveBefore('gameuiPuppetPreviewGameController', 'OnPreviewInitialized', function(this)
-        watchTarget(this:GetGamePuppet())
+        watchEntity(this:GetGamePuppet())
     end)
 
     ObserveBefore('gameuiPuppetPreviewGameController', 'OnUninitialize', function(this)
         if this:IsA('gameuiPuppetPreviewGameController') then
-            forgetTarget(this:GetGamePuppet())
+            forgetEntity(this:GetGamePuppet())
         end
     end)
 
     ObserveAfter('PhotoModePlayerEntityComponent', 'SetupInventory', function(this)
-        watchTarget(this.fakePuppet)
+        watchEntity(this.fakePuppet)
     end)
 
     ObserveBefore('PhotoModePlayerEntityComponent', 'ClearInventory', function(this)
-        forgetTarget(this.fakePuppet)
+        forgetEntity(this.fakePuppet)
     end)
 
     ObserveAfter('vehicleBaseObject', 'OnVehicleFinishedMounting', function(this, event)
         if this:IsPlayerVehicle() then
             if event.character:IsPlayer() and event.isMounting then
-                watchTarget(this)
+                watchEntity(this)
             else
-                forgetTarget(this)
+                forgetEntity(this)
             end
         end
     end)
@@ -1855,24 +1875,40 @@ local function initializeViewStyle()
 
         viewStyle.defaultTextColor = ImGui.GetColorU32(ImGuiCol.Text, 1)
         viewStyle.defaultFrameBg = ImGui.GetColorU32(ImGuiCol.FrameBg, 1)
+        viewStyle.defaultFramePaddingX = ImGui.GetStyle().FramePadding.x
+        viewStyle.defaultFramePaddingY = ImGui.GetStyle().FramePadding.y
     end
 end
 
 -- GUI :: Actions --
 
-local function getToggleNodeActionName()
-    return 'Toggle node visibility'
-end
-
 local function getTargetActions(target, isInputMode)
     local actions = {}
 
     if isInputMode then
+        if canWatchTarget(target) then
+            if isWatchedTarget(target) then
+                table.insert(actions, {
+                    type = 'button',
+                    label = 'Unwatch entity',
+                    callback = forgetTarget,
+                    inline = true,
+                })
+            else
+                table.insert(actions, {
+                    type = 'button',
+                    label = 'Watch entity',
+                    callback = watchTarget,
+                    inline = true,
+                })
+            end
+        end
         if canToggleNodeState(target) then
             table.insert(actions, {
                 type = 'button',
-                label = getToggleNodeActionName(target),
+                label = 'Toggle visibility',
                 callback = toggleNodeState,
+                inline = true,
             })
         end
     end
@@ -2414,6 +2450,8 @@ local function drawFieldset(targetData, withSeparators, withExtras, withExtrasFr
 
     local actions = getTargetActions(targetData, withExtras)
     if #actions > 0 then
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, viewStyle.defaultFramePaddingX, viewStyle.defaultFramePaddingY)
+
         if withSeparators then
             ImGui.Spacing()
             ImGui.Separator()
@@ -2458,6 +2496,8 @@ local function drawFieldset(targetData, withSeparators, withExtras, withExtrasFr
                 end
             end
         end
+
+        ImGui.PopStyleVar()
     end
 end
 
