@@ -380,14 +380,10 @@ local function resolveHighlightProfile(target)
    return nil
 end
 
-local function applyHighlightEffect(target, profile, enabled, changed)
+local function applyHighlightEffect(target, profile, enabled)
     if not profile or (not profile.focusOutlineIndex and not profile.focusFillIndex) then
         return false
     end
-
-    --if not changed then
-    --    return false
-    --end
 
     local effect = entRenderHighlightEvent.new({
         seeThroughWalls = true,
@@ -408,10 +404,6 @@ local function applyHighlightEffect(target, profile, enabled, changed)
         effect.componentName = target.component.name
         return inspectionSystem:ApplyHighlightEffect(target.component:GetEntity(), effect)
     end
-
-    --if IsDefined(target.parentInstance) then
-    --    return inspectionSystem:ApplyHighlightEffect(target.parentInstance, effect)
-    --end
 
     if IsDefined(target.nodeInstance) then
         return inspectionSystem:ApplyHighlightEffect(target.nodeInstance, effect)
@@ -573,12 +565,12 @@ local function resolveVisualTags(entity, owner)
     local visualTags = {}
 
     for _, tag in ipairs(RedHotTools.GetEntityVisualTags(entity)) do
-        table.insert(visualTags, tag.value)
+        table.insert(visualTags, { value = tag.value })
     end
 
     if entity:IsA('gameItemObject') then
         for _, tag in ipairs(transactionSystem:GetVisualTagsByItemID(entity:GetItemID(), owner)) do
-            table.insert(visualTags, tag.value)
+            table.insert(visualTags, { value = tag.value })
         end
     end
 
@@ -640,9 +632,13 @@ local function resolveAttachments(entity)
             data.attachments = resolveAttachments(item)
             data.visualTags = resolveVisualTags(item, entity)
 
-            data.hasComponents = (#data.components > 0)
-            data.hasAttachments = (#data.attachments > 0)
-            data.hasVisualTags = (#data.visualTags > 0)
+            data.numComponents = #data.components
+            data.numAttachments = #data.attachments
+            data.numVisualTags = #data.visualTags
+
+            data.hasComponents = data.numComponents > 0
+            data.hasAttachments = data.numAttachments > 0
+            data.hasVisualTags = data.numVisualTags > 0
 
             data.hash = RedHotTools.GetObjectHash(item)
         elseif isItem then
@@ -685,10 +681,12 @@ local function fillTargetEntityData(target, data)
                 for _, item in ipairs(items) do
                     local itemID = item:GetID().id.value
                     if isNotEmpty(itemID) then
-                        table.insert(data.inventory, itemID)
+                        table.insert(data.inventory, { value = itemID })
                     end
                 end
-                table.sort(data.inventory)
+                table.sort(data.inventory, function(a, b)
+                    return a.value < b.value
+                end)
             end
         end
 
@@ -705,10 +703,15 @@ local function fillTargetEntityData(target, data)
         data.attachments = resolveAttachments(entity)
         data.visualTags = resolveVisualTags(entity)
 
-        data.hasInventory = (#data.inventory > 0)
-        data.hasComponents = (#data.components > 0)
-        data.hasAttachments = (#data.attachments > 0)
-        data.hasVisualTags = (#data.visualTags > 0)
+        data.numInventory = #data.inventory
+        data.numComponents = #data.components
+        data.numAttachments = #data.attachments
+        data.numVisualTags = #data.visualTags
+
+        data.hasInventory = data.numInventory > 0
+        data.hasComponents = data.numComponents > 0
+        data.hasAttachments = data.numAttachments > 0
+        data.hasVisualTags = data.numVisualTags > 0
 
         if IsDefined(target.component) then
             data.componentName = target.component.name.value
@@ -1091,6 +1094,121 @@ local function updateGeometryData(data)
     fillRuntimeGeometryData(data)
 end
 
+-- Filtering --
+
+local partialMatchFields = {
+    'value',
+    'nodeType',
+    'nodeRef',
+    'nodeProxyRef',
+    'nodeParentRef',
+    'sectorPath',
+    'debugName',
+    'componentType',
+    'componentName',
+    'recordID',
+    'triggerNotifiers',
+    'meshPath',
+    'appearanceName',
+    'materialPath',
+    'effectPath',
+    'templatePath',
+    'slotID',
+    'itemID',
+    'itemType',
+}
+
+local exactMatchFields = {
+    'instanceIndex',
+}
+
+local function buildFilterQuery(term)
+    if isEmpty(term) then
+        return nil
+    end
+
+    local exact = term:upper()
+    local escaped = exact:gsub('([^%w])', '%%%1')
+    local wildcard = escaped:gsub('%s+', '.* ') .. '.*'
+
+    return {
+        exact = exact,
+        escaped = escaped,
+        wildcard = wildcard,
+    }
+end
+
+local function filterTargetData(target, query)
+    if isEmpty(query) then
+        return true
+    end
+
+    for _, field in ipairs(exactMatchFields) do
+        if isNotEmpty(target[field]) then
+            local value = tostring(target[field]):upper()
+            if value == query.exact then
+                return true
+            end
+        end
+    end
+
+    for _, field in ipairs(partialMatchFields) do
+        if type(target[field]) == 'table' then
+            for _, item in ipairs(target[field]) do
+                local value = tostring(item):upper()
+                if value:find(query.exact, 1, true) or value:find(query.wildcard) then
+                    return true
+                end
+            end
+        elseif isNotEmpty(target[field]) then
+            local value = tostring(target[field]):upper()
+            if value:find(query.exact, 1, true) or value:find(query.wildcard) then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+local function filterTargetDataList(targets, query)
+    local numFiltered = 0
+
+    for _, target in ipairs(targets) do
+        target.filtered = filterTargetData(target, query)
+
+        if target.filtered then
+            numFiltered = numFiltered + 1
+        end
+    end
+
+    return numFiltered
+end
+
+local function filterTargetExtras(target, query)
+    if target.hasComponents then
+        target.numFilteredComponents = filterTargetDataList(target.components, query)
+    end
+
+    if target.hasAttachments then
+        target.numFilteredAttachments = filterTargetDataList(target.attachments, query)
+
+        for _, attachment in ipairs(target.attachments) do
+            if isNotEmpty(attachment.itemID) then
+                filterTargetExtras(attachment, query)
+            end
+        end
+    end
+
+    if target.hasInventory then
+        target.numFilteredInventory = filterTargetDataList(target.inventory, query)
+    end
+
+    if target.hasVisualTags then
+        target.numFilteredVisualTags = filterTargetDataList(target.visualTags, query)
+    end
+end
+
 -- Nodes --
 
 local lastTarget
@@ -1122,6 +1240,10 @@ local inspector = {
     targets = nil,
     results = nil,
     active = nil,
+    filter = {
+        term = '',
+        target = nil,
+    },
 }
 
 local function compareTargets(setA, setB, sorted)
@@ -1162,7 +1284,7 @@ local function updateTargets(results, targets)
     end
 end
 
-local function inspectTargets(targets)
+local function updateInspectorTargets(targets)
     if not targets or #targets == 0 then
         inspector.targets = {}
         inspector.results = {}
@@ -1289,8 +1411,24 @@ local function cyclePrevInspectedResult()
     end
 end
 
-local function updateInspector()
-    inspectTargets(getLookAtTargets())
+local function filterInspectedTarget(filter)
+    local selected = inspector.active and inspector.results[inspector.active] or nil
+
+    if inspector.filter.term == filter and inspector.filter.target == selected then
+        return
+    end
+
+    if selected then
+        filterTargetExtras(selected, buildFilterQuery(filter))
+    end
+
+    inspector.filter.term = filter
+    inspector.filter.target = selected
+end
+
+local function updateInspector(filter)
+    updateInspectorTargets(getLookAtTargets())
+    filterInspectedTarget(filter)
 
     if userState.highlightInspectorResult and inspector.active and not targetingPaused then
         highlightTarget(inspector.results[inspector.active])
@@ -1322,7 +1460,7 @@ local function unselectScannedResult()
     scanner.hovered = nil
 end
 
-local function scanTargets()
+local function updateScannerTargets()
     if not scanner.requested then
         return
     end
@@ -1361,81 +1499,17 @@ local function filterTargetByGroup(target, group)
     return isEmpty(group) or target.nodeGroup == group
 end
 
-local partialMatchFields = {
-    'nodeType',
-    'nodeRef',
-    'nodeProxyRef',
-    'nodeParentRef',
-    'sectorPath',
-    'meshPath',
-    'materialPath',
-    'effectPath',
-    'templatePath',
-    'recordID',
-    'triggerNotifiers',
-    'debugName',
-}
-
-local exactMatchFields = {
-    'instanceIndex',
-}
-
-local function buildQuery(term)
-    if isEmpty(term) then
-        return nil
-    end
-
-    local exact = term:upper()
-    local escaped = exact:gsub('([^%w])', '%%%1')
-    local wildcard = escaped:gsub('%s+', '.* ') .. '.*'
-
-    return {
-        exact = exact,
-        escaped = escaped,
-        wildcard = wildcard,
-    }
-end
-
 local function filterTargetByQuery(target, query)
-    if isEmpty(query) then
-        return true
-    end
-
-    for _, field in ipairs(exactMatchFields) do
-        if isNotEmpty(target[field]) then
-            local value = tostring(target[field]):upper()
-            if value == query.exact then
-                return true
-            end
-        end
-    end
-
-    for _, field in ipairs(partialMatchFields) do
-        if type(target[field]) == 'table' then
-            for _, item in ipairs(target[field]) do
-                local value = tostring(item):upper()
-                if value:find(query.escaped) or value:find(query.wildcard) then
-                    return true
-                end
-            end
-        elseif isNotEmpty(target[field]) then
-            local value = tostring(target[field]):upper()
-            if value:find(query.escaped) or value:find(query.wildcard) then
-                return true
-            end
-        end
-    end
-
-    return false
+    return isEmpty(query) or filterTargetData(target, query)
 end
 
-local function filterTargets(maxDistance, group, term)
+local function filterScannerTargets(maxDistance, group, term)
     if scanner.group == group and scanner.term == term and scanner.distance == maxDistance then
         return
     end
 
     local filtered = {}
-    local query = buildQuery(term)
+    local query = buildFilterQuery(term)
 
     for _, result in ipairs(scanner.results) do
         if filterTargetByDistance(result, maxDistance)
@@ -1452,8 +1526,8 @@ local function filterTargets(maxDistance, group, term)
 end
 
 local function updateScanner(distance, group, filter)
-    scanTargets()
-    filterTargets(distance, group, filter)
+    updateScannerTargets()
+    filterScannerTargets(distance, group, filter)
 
     if userState.highlightScannerResult and scanner.hovered then
         highlightTarget(scanner.results[scanner.hovered])
@@ -1580,6 +1654,9 @@ local watcher = {
     targets = {},
     results = {},
     numTargets = 0,
+    filter = {
+        term = '',
+    },
 }
 
 local function watchTarget(entity)
@@ -1652,10 +1729,17 @@ local function initializeWatcher()
     end)
 end
 
-local function updateWatcher()
+local function updateWatcher(filter)
+    local query = buildFilterQuery(filter)
+
     for key, target in pairs(watcher.targets) do
-        watcher.results[key] = resolveTargetData(target)
+        local result = resolveTargetData(target)
+        filterTargetExtras(result, query)
+
+        watcher.results[key] = result
     end
+
+    watcher.filter.term = filter
 end
 
 -- GUI --
@@ -1666,6 +1750,8 @@ local viewState = {
     isWindowOpen = true,
     isWindowExpanded = true,
     lookupQuery = '',
+    inspectorFilter = '',
+    watcherFilter = '',
 }
 
 local viewData = {
@@ -1744,7 +1830,17 @@ local function initializeViewStyle()
 
         viewStyle.buttonHeight = 21 * viewStyle.viewScale
 
+        viewStyle.treeNodeArrowWidth = viewStyle.fontSize + ImGui.GetStyle().ItemSpacing.x / 2
+        viewStyle.treeNodePaddingX = 4 * viewStyle.viewScale
+        viewStyle.treeNodePaddingY = 0
+
+        viewStyle.componentToggleWidth = ImGui.GetFrameHeight()
+        viewStyle.componentToggleMarginX = 4 * viewStyle.viewScale
+
         viewStyle.inspectorTargetWidth = ImGui.CalcTextSize(' 00 ') + ImGui.GetStyle().FramePadding.x * 2 - 3
+        viewStyle.inspectorFilterWidth = 100 * viewStyle.viewScale
+        viewStyle.inspectorFilterHeight = ImGui.GetFrameHeight()
+        viewStyle.inspectorFilterBg = ImGui.GetColorU32(ImGuiCol.WindowBg, 1)
 
         viewStyle.scannerFilterWidth = 95 * viewStyle.viewScale
         viewStyle.scannerGroupWidth = 75 * viewStyle.viewScale
@@ -1757,6 +1853,7 @@ local function initializeViewStyle()
         viewStyle.settingsMiddleComboRowWidth = 210 * viewStyle.viewScale
         viewStyle.settingsLongComboRowWidth = 240 * viewStyle.viewScale
 
+        viewStyle.defaultTextColor = ImGui.GetColorU32(ImGuiCol.Text, 1)
         viewStyle.defaultFrameBg = ImGui.GetColorU32(ImGuiCol.FrameBg, 1)
     end
 end
@@ -2113,77 +2210,143 @@ local function drawField(field, data)
     end
 end
 
-local function drawComponents(components)
-    for _, componentData in ipairs(components) do
-        ImGui.BeginGroup()
-        local componentID = tostring(componentData.hash)
-        if ImGui.TreeNodeEx(componentData.description .. '##' .. componentID, ImGuiTreeNodeFlags.SpanFullWidth) then
-            for _, field in ipairs(componentSchema) do
-                if isVisibleField(field, componentData) then
-                    drawField(field, componentData)
-                end
-            end
-            ImGui.PushStyleColor(ImGuiCol.FrameBg, viewStyle.defaultFrameBg)
-            local enabled, changed = ImGui.Checkbox('Enabled', componentData.component and componentData.component:IsEnabled())
-            if changed then
-                componentData.component:Toggle(enabled)
-            end
-            ImGui.PopStyleColor()
-            ImGui.TreePop()
-        end
-        ImGui.EndGroup()
-        if ImGui.IsItemHovered() and componentData.component:IsA('entIVisualComponent') then
-            highlightTarget(componentData)
-        end
+local drawExtras
+
+local function drawComponentToggle(componentData, toggleX)
+    local component = componentData.component
+
+    if not IsDefined(component) then
+        return
     end
+
+    ImGui.SameLine(toggleX)
+    ImGui.PushStyleColor(ImGuiCol.FrameBg, viewStyle.defaultFrameBg)
+    local enabled, changed = ImGui.Checkbox('##RHT:WorldTools:ComponentToggle:' .. tostring(componentData.hash), component:IsEnabled())
+    if changed then
+        component:Toggle(enabled)
+    end
+    ImGui.PopStyleColor()
 end
 
-local function drawItemList(items)
-    for _, item in ipairs(items) do
-        ImGui.Selectable(tostring(item))
-        if ImGui.IsItemClicked(ImGuiMouseButton.Middle) then
-            ImGui.SetClipboardText(tostring(item))
+local function drawComponents(components)
+    local toggleX, labelWidth
+
+    for _, componentData in ipairs(components) do
+        if componentData.filtered ~= false then
+            ImGui.BeginGroup()
+
+            if toggleX == nil or labelWidth == nil then
+                local indentX = ImGui.GetCursorPosX()
+                local rowRightX = indentX + ImGuiEx.GetContentRegionAvailWidth()
+                toggleX = rowRightX - viewStyle.componentToggleWidth - viewStyle.componentToggleMarginX
+                labelWidth = toggleX - indentX - viewStyle.treeNodeArrowWidth - viewStyle.treeNodePaddingX
+            end
+
+            local label = ImGuiEx.TruncateText(componentData.description, labelWidth)
+            local isOpen = ImGui.TreeNodeEx(label .. '###' .. tostring(componentData.hash), ImGuiTreeNodeFlags.SpanFullWidth + ImGuiTreeNodeFlags.AllowItemOverlap)
+
+            if isOpen then
+                for _, field in ipairs(componentSchema) do
+                    if isVisibleField(field, componentData) then
+                        drawField(field, componentData)
+                    end
+                end
+                ImGui.TreePop()
+            end
+
+            ImGui.EndGroup()
+
+            if ImGui.IsItemHovered() and componentData.component:IsA('entIVisualComponent') then
+                highlightTarget(componentData)
+            end
+
+            drawComponentToggle(componentData, toggleX)
         end
     end
 end
 
 local function drawAttachments(attachments)
     for _, attachmentData in ipairs(attachments) do
-        local flags = ImGuiTreeNodeFlags.SpanFullWidth
-        if not attachmentData.itemID then
-            flags = flags + ImGuiTreeNodeFlags.Leaf
-        end
-
-        if ImGui.TreeNodeEx(attachmentData.slotID .. '##' .. tostring(attachmentData.hash), flags) then
-            if attachmentData.itemID then
-                for _, field in ipairs(attachmentSchema) do
-                    if isVisibleField(field, attachmentData) then
-                        drawField(field, attachmentData)
-                    end
-                end
-
-                if attachmentData.hasComponents then
-                    if ImGui.TreeNodeEx(('Components (%d)##Components'):format(#attachmentData.components), ImGuiTreeNodeFlags.SpanFullWidth) then
-                        drawComponents(attachmentData.components)
-                        ImGui.TreePop()
-                    end
-                end
-
-                if attachmentData.hasAttachments then
-                    if ImGui.TreeNodeEx(('Attachments (%d)##Attachments'):format(#attachmentData.attachments), ImGuiTreeNodeFlags.SpanFullWidth) then
-                        drawAttachments(attachmentData.attachments)
-                        ImGui.TreePop()
-                    end
-                end
-
-                if attachmentData.hasVisualTags then
-                    if ImGui.TreeNodeEx(('Visual Tags (%d)##VisualTags'):format(#attachmentData.visualTags), ImGuiTreeNodeFlags.SpanFullWidth) then
-                        drawItemList(attachmentData.visualTags)
-                        ImGui.TreePop()
-                    end
-                end
+        if attachmentData.filtered ~= false then
+            local flags = ImGuiTreeNodeFlags.SpanFullWidth
+            if not attachmentData.itemID then
+                flags = flags + ImGuiTreeNodeFlags.Leaf
             end
 
+            if ImGui.TreeNodeEx(attachmentData.slotID .. '##' .. tostring(attachmentData.hash), flags) then
+                if attachmentData.itemID then
+                    for _, field in ipairs(attachmentSchema) do
+                        if isVisibleField(field, attachmentData) then
+                            drawField(field, attachmentData)
+                        end
+                    end
+
+                    drawExtras(attachmentData)
+                end
+
+                ImGui.TreePop()
+            end
+        end
+    end
+end
+
+local function drawItemList(items)
+    for _, item in ipairs(items) do
+        if item.filtered ~= false then
+            ImGui.Selectable(item.value)
+            if ImGui.IsItemClicked(ImGuiMouseButton.Middle) then
+                ImGui.SetClipboardText(item.value)
+            end
+        end
+    end
+end
+
+local function drawExtraTreeNode(label, numFiltered, numTotal)
+    if numFiltered == nil then
+        numFiltered = numTotal
+    end
+
+    local isOpen = false
+    local hasChildren = numFiltered > 0
+    local counterLabel = numFiltered ~= numTotal and (' (%d / %d)'):format(numFiltered, numTotal) or (' (%d)'):format(numTotal)
+    local fullLabel = label .. counterLabel .. '###' .. label
+
+    if hasChildren then
+        isOpen = ImGui.TreeNodeEx(fullLabel, ImGuiTreeNodeFlags.SpanFullWidth)
+    else
+        ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.mutedTextColor)
+        ImGui.TreeNodeEx(fullLabel, ImGuiTreeNodeFlags.SpanFullWidth + ImGuiTreeNodeFlags.NoTreePushOnOpen)
+        ImGui.PopStyleColor()
+    end
+
+    return isOpen
+end
+
+drawExtras = function(targetData)
+    if targetData.hasComponents then
+        if drawExtraTreeNode('Components', targetData.numFilteredComponents, targetData.numComponents) then
+            drawComponents(targetData.components)
+            ImGui.TreePop()
+        end
+    end
+
+    if targetData.hasAttachments then
+        if drawExtraTreeNode('Attachments', targetData.numFilteredAttachments, targetData.numAttachments) then
+            drawAttachments(targetData.attachments)
+            ImGui.TreePop()
+        end
+    end
+
+    if targetData.hasInventory then
+        if drawExtraTreeNode('Inventory', targetData.numFilteredInventory, targetData.numInventory) then
+            drawItemList(targetData.inventory)
+            ImGui.TreePop()
+        end
+    end
+
+    if targetData.hasVisualTags then
+        if drawExtraTreeNode('Visual Tags', targetData.numFilteredVisualTags, targetData.numVisualTags) then
+            drawItemList(targetData.visualTags)
             ImGui.TreePop()
         end
     end
@@ -2235,41 +2398,15 @@ local function drawFieldset(targetData, withSeparators, withExtras, withExtrasFr
             ImGui.Spacing()
         end
 
-        if hasExtras and withExtrasFrame then
-            ImGui.BeginChildFrame(1, 0, 15 * ImGui.GetFrameHeightWithSpacing())
-        end
+        --if hasExtras and withExtrasFrame then
+        --    ImGui.BeginChildFrame(1, 0, 15 * ImGui.GetFrameHeightWithSpacing())
+        --end
 
-        if targetData.hasComponents then
-            if ImGui.TreeNodeEx(('Components (%d)##Components'):format(#targetData.components), ImGuiTreeNodeFlags.SpanFullWidth) then
-                drawComponents(targetData.components)
-                ImGui.TreePop()
-            end
-        end
+        drawExtras(targetData)
 
-        if targetData.hasAttachments then
-            if ImGui.TreeNodeEx(('Attachments (%d)##Attachments'):format(#targetData.attachments), ImGuiTreeNodeFlags.SpanFullWidth) then
-                drawAttachments(targetData.attachments)
-                ImGui.TreePop()
-            end
-        end
-
-        if targetData.hasInventory then
-            if ImGui.TreeNodeEx(('Inventory (%d)##Inventory'):format(#targetData.inventory), ImGuiTreeNodeFlags.SpanFullWidth) then
-                drawItemList(targetData.inventory)
-                ImGui.TreePop()
-            end
-        end
-
-        if targetData.hasVisualTags then
-            if ImGui.TreeNodeEx(('Visual Tags (%d)##VisualTags'):format(#targetData.visualTags), ImGuiTreeNodeFlags.SpanFullWidth) then
-                drawItemList(targetData.visualTags)
-                ImGui.TreePop()
-            end
-        end
-
-        if hasExtras and withExtrasFrame then
-            ImGui.EndChildFrame()
-        end
+        --if hasExtras and withExtrasFrame then
+        --    ImGui.EndChildFrame()
+        --end
     end
 
     ImGui.PopStyleColor()
@@ -2394,14 +2531,50 @@ local function drawInspectorContent(isModal)
         ImGui.Spacing()
         ImGui.Separator()
         ImGui.Spacing()
+
         if not isModal then
+            local resultTopY = ImGui.GetCursorPosY()
+            local resultBottomY
+            local contentRightX
+
             ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, 0, 0)
             ImGui.BeginChild('##RHT:WorldTools:Inspect:Result', 0, ImGuiEx.GetContentRegionAvailHeight())
-        end
-        drawFieldset(selected, true, not isModal, false)
-        if not isModal then
+            drawFieldset(selected, true, true, false)
+            contentRightX = ImGui.GetCursorPosX() + ImGuiEx.GetContentRegionAvailWidth()
             ImGui.EndChild()
             ImGui.PopStyleVar()
+            resultBottomY = ImGui.GetCursorPosY()
+
+            if selected.hasComponents or selected.hasAttachments or selected.hasInventory or selected.hasVisualTags then
+                local filterFrameBg = viewState.inspectorFilterActive and viewStyle.inspectorFilterBg or 0
+                local filterWidth = viewState.inspectorFilterActive and viewStyle.inspectorFilterWidth or (viewStyle.fontSize + viewStyle.windowPaddingX)
+                local filterHint = viewState.inspectorFilterActive and '' or '󰺮'
+
+                ImGui.SetCursorPosX(contentRightX - filterWidth + viewStyle.windowPaddingX)
+                ImGui.SetCursorPosY(resultTopY)
+
+                ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, 0, 0)
+                ImGui.PushStyleColor(ImGuiCol.ChildBg, 0)
+                ImGui.BeginChild('##RHT:WorldTools:Inspect:FilterWrapper', filterWidth, viewStyle.inspectorFilterHeight, 0, ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse)
+                ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 1.0)
+                ImGui.PushStyleColor(ImGuiCol.FrameBg, filterFrameBg)
+                ImGui.PushStyleColor(ImGuiCol.TextDisabled, viewStyle.hintTextColor)
+                ImGui.SetNextItemWidth(filterWidth)
+                local filtetText, filterChanged = ImGui.InputTextWithHint('##InspectorFilter', filterHint, viewState.inspectorFilter, viewData.maxInputLen)
+                if filterChanged then
+                    viewState.inspectorFilter = ImGuiEx.SanitizeInputText(filtetText)
+                end
+                viewState.inspectorFilterActive = isNotEmpty(viewState.inspectorFilter) or ImGui.IsItemActive()
+                ImGui.PopStyleColor(2)
+                ImGui.PopStyleVar()
+                ImGui.EndChild()
+                ImGui.PopStyleColor()
+                ImGui.PopStyleVar()
+
+                ImGui.SetCursorPosY(resultBottomY)
+            end
+        else
+            drawFieldset(selected, true, false, false)
         end
     else
         ImGui.SameLine()
@@ -2417,7 +2590,7 @@ end
 
 local function drawScannerContent(isModal)
     if isModal then
-            if scanner.hovered and scanner.results[scanner.hovered] then
+        if scanner.hovered and scanner.results[scanner.hovered] then
             ImGui.Text(('Scan Result #%d'):format(scanner.hovered))
             ImGui.Spacing()
             ImGui.Separator()
@@ -2611,7 +2784,16 @@ end
 -- GUI :: Watcher --
 
 local function drawWatcherContent()
-    ImGui.TextWrapped('Watch all player related entities.')
+    ImGui.Text('Watch tracked entities. Player related entities are auto-tracked.')
+
+    ImGui.Spacing()
+    ImGui.PushStyleColor(ImGuiCol.TextDisabled, viewStyle.hintTextColor)
+    ImGui.SetNextItemWidth(ImGuiEx.GetContentRegionAvailWidth())
+    local filterText, filterChanged = ImGui.InputTextWithHint('##WatcherFilter', 'Filter components, inventory, attachments, tags, etc.', viewState.watcherFilter, viewData.maxInputLen)
+    if filterChanged then
+        viewState.watcherFilter = ImGuiEx.SanitizeInputText(filterText)
+    end
+    ImGui.PopStyleColor()
 
     if watcher.numTargets > 0 then
         ImGui.Spacing()
@@ -3780,13 +3962,13 @@ local function onInit()
             if viewState.isConsoleOpen then
                 if viewState.isWindowExpanded then
                     if userState.selectedTab == MainTab.Inspect then
-                        updateInspector()
+                        updateInspector(viewState.inspectorFilter)
                     elseif userState.selectedTab == MainTab.Scan then
                         updateScanner(userState.scannerDistance, userState.scannerGroup, userState.scannerFilter)
                     elseif userState.selectedTab == MainTab.Lookup then
                         updateLookup(viewState.lookupQuery)
                     elseif userState.selectedTab == MainTab.Watch then
-                        updateWatcher()
+                        updateWatcher(viewState.watcherFilter)
                     end
                 end
             elseif userState.isOnScreenDisplayActive then

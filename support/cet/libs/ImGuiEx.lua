@@ -15,6 +15,43 @@ local function sanitizeInputText(text)
     return text:gsub('`', '')
 end
 
+local function truncateText(text, maxWidth)
+    if maxWidth <= 0 then
+        return ''
+    end
+
+    if ImGui.CalcTextSize(text) <= maxWidth then
+        return text
+    end
+
+    local ellipsis = '...'
+    local ellipsisWidth = ImGui.CalcTextSize(ellipsis)
+
+    if maxWidth <= ellipsisWidth then
+        return ''
+    end
+
+    local textWidth = ImGui.CalcTextSize(text)
+    local textLen = string.len(text)
+    local index = math.min(textLen, math.max(1, math.floor(textLen * (maxWidth - ellipsisWidth) / textWidth)))
+
+    while index > 0 do
+        if bit32.band(string.byte(text, index + 1) or 0, 0xC0) == 0x80 then
+            index = index - 1
+        else
+            local candidate = text:sub(1, index)
+
+            if ImGui.CalcTextSize(candidate) + ellipsisWidth <= maxWidth then
+                return candidate .. ellipsis
+            end
+
+            index = index - 1
+        end
+    end
+
+    return ellipsis
+end
+
 local function buildComboOptions(values, capitalize)
     local options = {}
     for index, value in ipairs(values) do
@@ -68,6 +105,7 @@ return {
     BuildComboOptions = buildComboOptions,
     BuildEnumOptions = buildEnumOptions,
     SanitizeInputText = sanitizeInputText,
+    TruncateText = truncateText,
     Opacity = opacity,
     Fade = fade,
     FadeFactor = fadeFactor,
