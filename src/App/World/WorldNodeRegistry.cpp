@@ -2,38 +2,28 @@
 
 void App::WorldNodeRegistry::OnBootstrap()
 {
-    HookBefore<Raw::StreamingSector::PostLoad>(&OnStreamingSectorLoad);
+    Hook<Raw::StreamingSector::PostLoad>(&OnStreamingSectorLoad);
     HookBefore<Raw::StreamingSector::Destruct>(&OnStreamingSectorDestruct);
     HookAfter<Raw::WorldNodeInstance::Initialize>(&OnNodeInstanceInitialize);
     HookAfter<Raw::WorldNodeInstance::Attach>(&OnNodeInstanceAttach);
     HookBefore<Raw::WorldNodeInstance::Detach>(&OnNodeInstanceDetach);
 }
 
-void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aSector, uint64_t)
+void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aSector, uint64_t a2)
 {
-    std::scoped_lock _(s_nodeStaticDataLock, s_nodeInstanceDataLock);
-
     auto instanceCount = aSector->compiled.buffer.nodeSetups.Size();
     auto nodeCount = aSector->compiled.nodes.Size();
     auto sectorHash = aSector->path.hash;
 
-    for (auto& nodeRef : aSector->compiled.nodeRefs)
-    {
-        auto& nodeRefData = s_nodeRefToStaticDataMap[nodeRef];
-        if (!nodeRefData.sectorHash)
-        {
-            nodeRefData.sectorHash = sectorHash;
-        }
-    }
+    Core::Vector<WorldNodeInstanceStaticData> staticNodeData(instanceCount);
 
-    for (auto instanceIndex = 0; instanceIndex < aSector->compiled.buffer.nodeSetups.Size(); ++instanceIndex)
+    for (auto instanceIndex = 0; instanceIndex < instanceCount; ++instanceIndex)
     {
         auto& nodeSetup = aSector->compiled.buffer.nodeSetups[instanceIndex];
         auto nodeIndex = nodeSetup.GetNodeIndex(aSector->compiled.buffer.version);
-
         auto* nodeDefinition = aSector->compiled.nodes[nodeIndex].instance;
 
-        auto& nodeData = s_nodeSetupToStaticDataMap[&nodeSetup];
+        auto& nodeData = staticNodeData[instanceIndex];
         nodeData.sectorHash = sectorHash;
         nodeData.instanceIndex = instanceIndex;
         nodeData.instanceCount = instanceCount;
@@ -42,7 +32,7 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
         nodeData.nodeType = nodeDefinition->GetType()->GetName();
         nodeData.nodeID = nodeSetup.globalNodeID;
         nodeData.proxyID = nodeSetup.proxyNodeID;
-        nodeData.interior = nodeSetup.HasFlag(aSector->compiled.buffer.version, Red:: worldNodeFlag::Interior);
+        nodeData.interior = nodeSetup.HasFlag(aSector->compiled.buffer.version, Red::worldNodeFlag::Interior);
 
         if (nodeDefinition->unk18.refCount)
         {
@@ -54,6 +44,26 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
         {
             nodeData.debugName = *reinterpret_cast<Red::CString*>(&nodeDefinition->ref);
         }
+    }
+
+    for (auto& node : aSector->compiled.nodes)
+    {
+        node->ref.instance = node.instance;
+        node->ref.refCount = node.refCount;
+        node->unk18.instance = nullptr;
+        node->unk18.refCount = nullptr;
+    }
+
+    Raw::StreamingSector::PostLoad(aSector, a2);
+
+    std::scoped_lock _(s_nodeStaticDataLock, s_nodeInstanceDataLock);
+
+    for (auto instanceIndex = 0; instanceIndex < instanceCount; ++instanceIndex)
+    {
+        auto& nodeSetup = aSector->compiled.buffer.nodeSetups[instanceIndex];
+        auto nodeIndex = nodeSetup.GetNodeIndex(68);
+        auto* nodeDefinition = aSector->compiled.nodes[nodeIndex].instance;
+        auto& nodeData = staticNodeData[instanceIndex];
 
         if (nodeData.nodeID)
         {
@@ -173,15 +183,17 @@ void App::WorldNodeRegistry::OnStreamingSectorLoad(Red::worldStreamingSector* aS
             s_knownWorldResources.insert(terrainNode->meshRef.path);
         }
 
+        s_nodeSetupToStaticDataMap[&nodeSetup] = nodeData;
         s_nodeSetupToRuntimeDataMap[&nodeSetup] = {&nodeSetup, {}, aSector->compiled.nodes[nodeIndex]};
     }
 
-    for (auto& node : aSector->compiled.nodes)
+    for (auto& nodeRef : aSector->compiled.nodeRefs)
     {
-        node->ref.instance = node.instance;
-        node->ref.refCount = node.refCount;
-        node->unk18.instance = nullptr;
-        node->unk18.refCount = nullptr;
+        auto& nodeRefData = s_nodeRefToStaticDataMap[nodeRef];
+        if (!nodeRefData.sectorHash)
+        {
+            nodeRefData.sectorHash = sectorHash;
+        }
     }
 }
 
