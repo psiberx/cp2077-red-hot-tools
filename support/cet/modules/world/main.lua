@@ -1986,35 +1986,77 @@ local function isValidChunkMask(data)
     return type(data.chunkMask) == 'cdata' or type(data.chunkMask) == 'number'
 end
 
-local hex2bin = {
-    ['0'] = '0000',
-    ['1'] = '0001',
-    ['2'] = '0010',
-    ['3'] = '0011',
-    ['4'] = '0100',
-    ['5'] = '0101',
-    ['6'] = '0110',
-    ['7'] = '0111',
-    ['8'] = '1000',
-    ['9'] = '1001',
-    ['A'] = '1010',
-    ['B'] = '1011',
-    ['C'] = '1100',
-    ['D'] = '1101',
-    ['E'] = '1110',
-    ['F'] = '1111'
-}
+local function getBit(value, index)
+    return bit32.band(bit32.rshift(value, index), 1) ~= 0
+end
 
-local function formatChunkMask(data)
-    local value = type(data) == 'table' and data.chunkMask or data
-    local bs = {}
-    local hs = ('%016X'):format(value)
-    local ln = hs:len()
-    for i = 1, ln do
-        table.insert(bs, hex2bin[hs:sub(i, i)])
+local function setBit(value, index, state)
+    local bit = bit32.lshift(1ULL, index)
+    return state and bit32.bor(value, bit) or bit32.band(value, bit32.bnot(bit))
+end
+
+local function drawBitEditor(data, field)
+    ImGui.SameLine()
+
+    local startX = ImGui.GetCursorPosX()
+    local bitWidth = ImGui.CalcTextSize('0') + 2
+    local bitSpacing = 1
+    local groupWidth = 8 * bitWidth + 7 * bitSpacing
+    local groupSpacing = 7
+
+    ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 1, 1)
+    ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 0, 0)
+    ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 0)
+    ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0)
+
+    for row = 0, 1 do
+        if row > 0 then
+            ImGui.SetCursorPosX(startX)
+        end
+
+        for group = 0, 3 do
+            for bit = 0, 7 do
+                local index = row * 32 + group * 8 + bit
+
+                if index % 32 ~= 0 then
+                    ImGui.SameLine()
+                    ImGui.SetCursorPosX(startX + group * (groupWidth + groupSpacing) + bit * (bitWidth + bitSpacing))
+                end
+
+                local isSet = getBit(data[field.name], index)
+
+                ImGui.PushID(index)
+
+                ImGui.PushStyleColor(ImGuiCol.Button, 0)
+                ImGui.PushStyleColor(ImGuiCol.ButtonHovered, 0)
+                ImGui.PushStyleColor(ImGuiCol.ButtonActive, 0)
+                ImGui.PushStyleColor(ImGuiCol.Text, isSet and viewStyle.defaultTextColor or viewStyle.mutedTextColor)
+
+                if ImGui.Button(isSet and '1' or '0', bitWidth, 0) then
+                    data[field.name] = setBit(data[field.name], index, not isSet)
+
+                    if IsDefined(data.component) then
+                        data.component[field.name] = data[field.name]
+
+                        if data.component:IsEnabled() then
+                            data.component:Toggle(false)
+                            data.component:Toggle(true)
+                        end
+                    end
+                end
+
+                ImGui.PopStyleColor(4)
+
+                if ImGui.IsItemHovered() then
+                    ImGui.SetTooltip(('Chunk %d: %s'):format(index + 1, isSet and 'visible' or 'hidden'))
+                end
+
+                ImGui.PopID()
+            end
+        end
     end
-    local str = table.concat(bs, ' '):reverse()
-    return str:sub(1, 39) .. '\n' .. str:sub(41)
+
+    ImGui.PopStyleVar(4)
 end
 
 local function isValidAppearanceSource(data)
@@ -2173,7 +2215,7 @@ local componentSchema = {
     { name = 'morphPath', label = 'Morph Target:', wrap = true },
     { name = 'meshPath', label = 'Mesh:', wrap = true },
     { name = 'meshAppearance', label = 'Appearance:', wrap = true },
-    { name = 'chunkMask', label = 'Chunk Mask:', wrap = true, format = formatChunkMask, validate = isValidChunkMask },
+    { name = 'chunkMask', label = 'Chunk Mask:', render = drawBitEditor, validate = isValidChunkMask },
     { name = 'effects', label = 'Effects:', format = formatArrayField, validate = isValidArrayField, wrap = true },
     { name = 'appearancePath', label = 'Source:', format = formatAppearanceSource, validate = isValidAppearanceSource, wrap = true },
 }
@@ -2222,6 +2264,11 @@ local function drawField(field, data)
     ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
     ImGui.Text(label)
     ImGui.PopStyleColor()
+
+    if type(field.render) == 'function' then
+        field.render(data, field)
+        return
+    end
 
     local value = data[field.name]
     if field.format then
