@@ -150,6 +150,10 @@ void App::WorldInspector::UpdateStreamedNodes()
             if (meshResource)
             {
                 auto meshNode = Red::Cast<Red::worldInstancedMeshNode>(nodeDefinition);
+
+                if (nodeSetup->innerNodeIndex >= meshNode->transformRanges.Size())
+                    continue;
+
                 auto startIndex = meshNode->transformRanges[nodeSetup->innerNodeIndex].transformStartIndex;
                 auto numTransforms = meshNode->transformRanges[nodeSetup->innerNodeIndex].numTransforms;
 
@@ -302,6 +306,9 @@ void App::WorldInspector::UpdateStreamedNodes()
 
             if (auto cookedBendedNode = Red::Cast<Red::worldCookedBendedMeshNode>(nodeDefinition))
             {
+                if (nodeSetup->innerNodeIndex >= cookedBendedNode->deformedBoxes.Size())
+                    continue;
+
                 actor.boundingBox = cookedBendedNode->deformedBoxes[nodeSetup->innerNodeIndex];
             }
             else if (auto bendedNode = Red::Cast<Red::worldBendedMeshNode>(nodeDefinition))
@@ -1407,8 +1414,12 @@ App::PhysicsTraceResultObject App::WorldInspector::GetPhysicsTraceObject(Red::Sc
                 auto nodeSetup = *Raw::WorldNodeInstance::Setup::Ref(collisionNodeInstance);
                 auto instanceIndex = nodeSetup->innerNodeIndex;
 
-                result.actorCount = cookedDefinition->GetInnerNodes().At(instanceIndex).numActors;
-                result.shapeCount = cookedDefinition->GetCollisionDataView(instanceIndex).actors[result.actorIndex].numShapes;
+                auto innerNodes = cookedDefinition->GetInnerNodes();
+                if (nodeSetup->innerNodeIndex < innerNodes.Size())
+                {
+                    result.actorCount = innerNodes.At(instanceIndex).numActors;
+                    result.shapeCount = cookedDefinition->GetCollisionDataView(instanceIndex).actors[result.actorIndex].numShapes;
+                }
             }
             else if (auto simpleDefinition = Red::Cast<Red::worldCollisionNode>(nodeDefinition))
             {
