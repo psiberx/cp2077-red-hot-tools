@@ -304,7 +304,13 @@ local modules = {}
 local function loadModules(paths)
     for _, path in ipairs(paths) do
         local id = #modules + 1
-        local module = loadfile(path .. '/main.lua')(privateApi, id, path)
+        local src, err = loadfile(path .. '/main.lua')
+
+        if not src then
+            error(err)
+        end
+
+        local module = src(privateApi, id, path)
 
         if module.events then
             for event, _ in pairs(events) do
