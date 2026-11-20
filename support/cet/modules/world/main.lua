@@ -509,8 +509,8 @@ function resolving.resolveComponents(entity)
             componentType = component:GetClassName().value,
             componentName = component:GetName().value,
             componentID = RedHotTools.GetCRUIDHash(component.id),
-            appearancePath = RedHotTools.GetResourcePath(RedHotTools.GetComponentAppearanceResourceHash(component)),
-            appearanceDef = RedHotTools.GetComponentAppearanceDefinition(component).value,
+            sourcePath = RedHotTools.GetResourcePath(RedHotTools.GetComponentSourceHash(component)),
+            sourceAppearance = RedHotTools.GetComponentSourceDefinition(component).value,
         }
 
         if component:IsA('entMeshComponent') or component:IsA('entSkinnedMeshComponent') then
@@ -2068,12 +2068,12 @@ function view.drawBitEditor(data, field)
     ImGui.PopStyleVar(4)
 end
 
-function view.isValidAppearanceSource(data)
-    return isNotEmpty(data.appearancePath) and isNotEmpty(data.appearanceDef)
+function view.isValidComponentSource(data)
+    return isNotEmpty(data.sourcePath) and isNotEmpty(data.sourceAppearance)
 end
 
-function view.formatAppearanceSource(data)
-    return data.appearanceDef .. ' @ ' .. data.appearancePath
+function view.formatComponentSource(data)
+    return data.sourceAppearance .. ' @ ' .. data.sourcePath
 end
 
 function view.isValidNodeIndex(data)
@@ -2226,7 +2226,7 @@ view.componentSchema = {
     { name = 'meshAppearance', label = 'Appearance:', wrap = true },
     { name = 'chunkMask', label = 'Chunk Mask:', render = view.drawBitEditor, validate = view.isValidChunkMask },
     { name = 'effects', label = 'Effects:', format = view.formatArrayField, validate = view.isValidArrayField, wrap = true },
-    { name = 'appearancePath', label = 'Source:', format = view.formatAppearanceSource, validate = view.isValidAppearanceSource, wrap = true },
+    { name = 'source', label = 'Source:', format = view.formatComponentSource, validate = view.isValidComponentSource, wrap = true },
 }
 
 view.attachmentSchema = {

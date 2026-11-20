@@ -143,12 +143,12 @@ uint64_t App::Facade::GetCRUIDHash(Red::CRUID aValue)
     return aValue.unk00;
 }
 
-uint64_t App::Facade::GetComponentAppearanceResourceHash(const Red::Handle<Red::IComponent>& aComponent)
+uint64_t App::Facade::GetComponentSourceHash(const Red::Handle<Red::IComponent>& aComponent)
 {
     return aComponent->appearancePath.hash;
 }
 
-Red::CName App::Facade::GetComponentAppearanceDefinition(const Red::Handle<Red::IComponent>& aComponent)
+Red::CName App::Facade::GetComponentSourceDefinition(const Red::Handle<Red::IComponent>& aComponent)
 {
     return aComponent->appearanceName;
 }

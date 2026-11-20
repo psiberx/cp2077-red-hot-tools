@@ -23,8 +23,9 @@ public:
     static Red::DynArray<Red::Handle<Red::IComponent>> GetEntityComponents(const Red::WeakHandle<Red::Entity>& aEntity);
     static Red::ResourceAsyncReference<> GetEntityTemplatePath(const Red::WeakHandle<Red::Entity>& aEntity);
     static Red::DynArray<Red::CName> GetEntityVisualTags(const Red::WeakHandle<Red::Entity>& aEntity);
-    static uint64_t GetComponentAppearanceResourceHash(const Red::Handle<Red::IComponent>& aComponent);
-    static Red::CName GetComponentAppearanceDefinition(const Red::Handle<Red::IComponent>& aComponent);
+    static uint64_t GetComponentSourceHash(const Red::Handle<Red::IComponent>& aComponent);
+    static Red::CName GetComponentSourceDefinition(const Red::Handle<Red::IComponent>& aComponent);
+    static Red::DynArray<Red::CName> GetComponentAppearances(const Red::Handle<Red::IComponent>& aComponent);
 
     static Red::CString GetResourcePath(uint64_t aHash);
     static Red::CString GetReferencePath(const Red::Handle<Red::ISerializable>& aInstace, Red::CName aPropName);
