@@ -56,36 +56,37 @@ local BoundingBoxMode = Enumeration('Always', 'ForStaticTargets', 'ForInvisibleT
 local MarkerMode = Enumeration('Always', 'ForStaticTargets', 'ForInvisibleTargets', 'Never')
 local WindowSnapping = Enumeration('Disabled', 'TopLeft', 'TopRight')
 
-local userState = {}
-local userStateSchema = {
-    isModuleActive = { type = 'boolean', default = true },
-    isOnScreenDisplayActive = { type = 'boolean', default = false },
-    selectedTab = { type = MainTab, default = MainTab.Inspect },
-    windowSnapping = { type = WindowSnapping, default = WindowSnapping.Disabled },
-    scannerFilter = { type = 'string', default = '' },
-    scannerGroup = { type = 'string', default = '' },
-    scannerDistance = { type = 'number', default = 25.0 },
-    frustumDistance = { type = 'number', default = 0.0 },
-    targetingDistance = { type = 'number', default = 0.0 },
-    outlineMode = { type = OutlineMode, default = OutlineMode.ForSupportedTargets },
-    markerMode = { type = MarkerMode, default = MarkerMode.Always },
-    boundingBoxMode = { type = BoundingBoxMode, default = BoundingBoxMode.Always },
-    showMarkerDistance = { type = 'boolean', default = true },
-    showBoundingBoxDistances = { type = 'boolean', default = true },
-    targetingMode = { type = TargetingMode, default = TargetingMode.GamePhysics },
-    collisionGranularity = { type = CollisionGranularity, default = CollisionGranularity.Actor },
-    maxTargets = { type = 'number', default = 16 },
-    cycleInspectorResults = { type = 'boolean', default = false },
-    highlightInspectorResult = { type = 'boolean', default = true },
-    highlightScannerResult = { type = 'boolean', default = true },
-    highlightLookupResult = { type = 'boolean', default = false },
-    keepLastHoveredResultHighlighted = { type = 'boolean', default = true },
-    syncObserverPositionWithPlayer = { type = 'boolean', default = true },
-    windowWidth = { type = 'number', default = 0 },
-    windowHeight = { type = 'number', default = 0 },
+local userState = {
+    schema = {
+        isModuleActive = { type = 'boolean', default = true },
+        isOnScreenDisplayActive = { type = 'boolean', default = false },
+        selectedTab = { type = MainTab, default = MainTab.Inspect },
+        windowSnapping = { type = WindowSnapping, default = WindowSnapping.Disabled },
+        scannerFilter = { type = 'string', default = '' },
+        scannerGroup = { type = 'string', default = '' },
+        scannerDistance = { type = 'number', default = 25.0 },
+        frustumDistance = { type = 'number', default = 0.0 },
+        targetingDistance = { type = 'number', default = 0.0 },
+        outlineMode = { type = OutlineMode, default = OutlineMode.ForSupportedTargets },
+        markerMode = { type = MarkerMode, default = MarkerMode.Always },
+        boundingBoxMode = { type = BoundingBoxMode, default = BoundingBoxMode.Always },
+        showMarkerDistance = { type = 'boolean', default = true },
+        showBoundingBoxDistances = { type = 'boolean', default = true },
+        targetingMode = { type = TargetingMode, default = TargetingMode.GamePhysics },
+        collisionGranularity = { type = CollisionGranularity, default = CollisionGranularity.Actor },
+        maxTargets = { type = 'number', default = 16 },
+        cycleInspectorResults = { type = 'boolean', default = false },
+        highlightInspectorResult = { type = 'boolean', default = true },
+        highlightScannerResult = { type = 'boolean', default = true },
+        highlightLookupResult = { type = 'boolean', default = false },
+        keepLastHoveredResultHighlighted = { type = 'boolean', default = true },
+        syncObserverPositionWithPlayer = { type = 'boolean', default = true },
+        windowWidth = { type = 'number', default = 0 },
+        windowHeight = { type = 'number', default = 0 },
+    },
 }
 
-local function syncInspectionSystemState()
+function userState.syncInspectionSystem()
     inspectionSystem:SetFrustumDistance(userState.frustumDistance)
     inspectionSystem:SetTargetingDistance(userState.targetingDistance)
 
@@ -94,52 +95,53 @@ local function syncInspectionSystemState()
     userState.scannerDistance = MathEx.Clamp(userState.scannerDistance, 0.5, userState.frustumDistance)
 end
 
-local function syncWindowMetrics()
+function userState.syncWindowMetrics()
     userState.windowWidth, userState.windowHeight = ImGui.GetWindowSize()
 end
 
-local function initializeUserState()
-    PersistentState.Initialize(userState, modulePath .. '/.state', userStateSchema)
-    syncInspectionSystemState()
+function userState.initialize()
+    PersistentState.Initialize(userState, modulePath .. '/.state', userState.schema)
+    userState.syncInspectionSystem()
 end
 
-local function saveUserState()
+function userState.save()
     PersistentState.Flush(userState)
 end
 
 -- Targeting --
 
-local targetingReady = false
-local targetingPaused = false
+local targeting = {
+    ready = false,
+    paused = false,
+    collisionGroups = require(modulePath .. '/data/collision-groups'),
+}
 
-local collisionGroups = require(modulePath .. '/data/collision-groups')
-
-local function initializeTargeting()
-    for _, collision in ipairs(collisionGroups) do
+function targeting.initialize()
+    for _, collision in ipairs(targeting.collisionGroups) do
         collision.name = StringToName(collision.name)
     end
 
     GameSession.OnStart(function()
-        targetingReady = true
+        targeting.ready = true
     end)
 
     GameSession.OnEnd(function()
-        targetingReady = false
+        targeting.ready = false
     end)
 
     GameSession.OnPause(function()
-        targetingPaused = true
+        targeting.paused = true
     end)
 
     GameSession.OnResume(function()
-        targetingPaused = false
+        targeting.paused = false
     end)
 
-    targetingReady = GameSession.IsLoaded()
-    targetingPaused = GameSession.IsPaused()
+    targeting.ready = GameSession.IsLoaded()
+    targeting.paused = GameSession.IsPaused()
 end
 
-local function getCameraData(distance)
+function targeting.getCameraData(distance)
 	local player = GetPlayer()
 
 	if not IsDefined(player) or IsDefined(GetMountedVehicle(player)) or IsDefined(player:GetActiveWeapon()) then
@@ -173,8 +175,8 @@ local function getCameraData(distance)
     }
 end
 
-local function getLookAtTargets(maxDistance)
-	if not targetingReady or not inspectionSystem:IsReady() then
+function targeting.getLookAtTargets(maxDistance)
+	if not targeting.ready or not inspectionSystem:IsReady() then
         return
 	end
 
@@ -182,7 +184,7 @@ local function getLookAtTargets(maxDistance)
         maxDistance = userState.targetingDistance
 	end
 
-	local camera = getCameraData(maxDistance)
+	local camera = targeting.getCameraData(maxDistance)
 
 	if not camera then
         return
@@ -201,7 +203,7 @@ local function getLookAtTargets(maxDistance)
                 entity = Ref.Weak(entity),
                 component = Ref.Weak(component),
                 distance = Vector4.Distance(camera.world, ToVector4(entity:GetWorldPosition())),
-                collision = collisionGroups[1], -- Dynamic
+                collision = targeting.collisionGroups[1], -- Dynamic
             }
 
             if entity:IsA('gameObject') and entity:IsNPC() then
@@ -222,7 +224,7 @@ local function getLookAtTargets(maxDistance)
             targetMap[tostring(result.hash)] = result
         end
 
-        for _, collision in ipairs(collisionGroups) do
+        for _, collision in ipairs(targeting.collisionGroups) do
             local filter = physicsQueryFilter.AddGroup(collision.name)
             local traces = inspectionSystem:SyncRaycastMultiple(camera.position, camera.forward, camera.distance, filter)
 
@@ -330,7 +332,7 @@ local function getLookAtTargets(maxDistance)
         end
 
         for i = #results, 1, -1 do
-            results[i].collision = collisionGroups[2] -- Static
+            results[i].collision = targeting.collisionGroups[2] -- Static
 
             if camera.interior and RedHotTools.IsInstanceOf(results[i].nodeDefinition, 'worldStaticLightNode') then
                 results[i].interior = true
@@ -352,35 +354,34 @@ end
 
 -- Highlighting --
 
-local highlight = {
+local highlighting = {
     pending = nil,
     target = nil,
     profile = nil,
     projections = {},
+    profiles = require(modulePath .. '/data/highlight-profiles'),
+    nodeMapping = require(modulePath .. '/data/highlight-node-mapping'),
 }
 
-local highlightProfiles = require(modulePath .. '/data/highlight-profiles')
-local highlightNodeMapping = require(modulePath .. '/data/highlight-node-mapping')
-
-local function initializeHighlighting()
+function highlighting.initialize()
     --
 end
 
-local function resolveHighlightProfile(target)
+function highlighting.resolveProfile(target)
    if target then
        if IsDefined(target.entity) then
-           return highlightProfiles[target.entity:IsA('gameObject') and 'Object' or 'Dynamic']
+           return highlighting.profiles[target.entity:IsA('gameObject') and 'Object' or 'Dynamic']
        end
 
        if target.nodeType then
-            return highlightProfiles[highlightNodeMapping[target.nodeType]]
+            return highlighting.profiles[highlighting.nodeMapping[target.nodeType]]
        end
    end
 
    return nil
 end
 
-local function applyHighlightEffect(target, profile, enabled)
+function highlighting.applyEffect(target, profile, enabled)
     if not profile or (not profile.focusOutlineIndex and not profile.focusFillIndex) then
         return false
     end
@@ -412,68 +413,68 @@ local function applyHighlightEffect(target, profile, enabled)
     return false
 end
 
-local function disableHighlights()
-    if highlight.target then
-        applyHighlightEffect(highlight.target, highlight.profile, false, true)
+function highlighting.disable()
+    if highlighting.target then
+        highlighting.applyEffect(highlighting.target, highlighting.profile, false, true)
 
-        highlight.target = nil
-        highlight.profile = nil
-        highlight.projections = {}
+        highlighting.target = nil
+        highlighting.profile = nil
+        highlighting.projections = {}
     end
 end
 
-local function updateHighlights()
-    if not highlight.pending then
-        disableHighlights()
+function highlighting.update()
+    if not highlighting.pending then
+        highlighting.disable()
         return
     end
 
-    highlight.changed = true
+    highlighting.changed = true
 
-    if highlight.target then
-        if highlight.target.hash ~= highlight.pending.hash then
-            disableHighlights()
+    if highlighting.target then
+        if highlighting.target.hash ~= highlighting.pending.hash then
+            highlighting.disable()
         else
-            highlight.changed = false
+            highlighting.changed = false
         end
     end
 
-    highlight.target = highlight.pending
-    highlight.pending = nil
+    highlighting.target = highlighting.pending
+    highlighting.pending = nil
 
-    highlight.profile = resolveHighlightProfile(highlight.target)
-    highlight.projections = {}
+    highlighting.profile = highlighting.resolveProfile(highlighting.target)
+    highlighting.projections = {}
 
-    if not highlight.profile then
+    if not highlighting.profile then
         return
     end
 
     local showOrigin = false
-    if highlight.target.position and not highlight.target.position:IsXYZZero() then
+    if highlighting.target.position and not highlighting.target.position:IsXYZZero() then
         if userState.markerMode == MarkerMode.Always then
             showOrigin = true
         elseif userState.markerMode == MarkerMode.ForStaticTargets then
-            showOrigin = not highlight.target.isEntity
+            showOrigin = not highlighting.target.isEntity
         elseif userState.markerMode == MarkerMode.ForInvisibleTargets then
-            showOrigin = not highlight.target.isEntity and not highlight.target.isVisibleNode
+            showOrigin = not highlighting.target.isEntity and not highlighting.target.isVisibleNode
         end
     end
 
     local showBoundingBox = false
-    if highlight.target.boundingBox and highlight.target.boundingBox:GetRange() > 0 then
+    if highlighting.target.boundingBox and highlighting.target.boundingBox:GetRange() > 0 then
         if userState.boundingBoxMode == BoundingBoxMode.Always then
             showBoundingBox = true
         elseif userState.boundingBoxMode == BoundingBoxMode.ForStaticTargets then
-            showBoundingBox = not highlight.target.isEntity
+            showBoundingBox = not highlighting.target.isEntity
         elseif userState.boundingBoxMode == BoundingBoxMode.ForInvisibleTargets then
-            showBoundingBox = not highlight.target.isEntity and not highlight.target.isVisibleNode
+            showBoundingBox = not highlighting.target.isEntity and not highlighting.target.isVisibleNode
         end
     end
 
     if showOrigin or showBoundingBox then
-        highlight.projections[highlight.target.hash] = {
-            target = highlight.target,
-            profile = highlight.profile,
+        highlighting.projections[highlighting.target.hash] = {
+            target = highlighting.target,
+            profile = highlighting.profile,
             showOrigin = showOrigin,
             showOriginDistance = userState.showMarkerDistance,
             showBoundingBox = showBoundingBox,
@@ -482,23 +483,25 @@ local function updateHighlights()
     end
 
     if userState.outlineMode == OutlineMode.ForSupportedTargets then
-        applyHighlightEffect(highlight.target, highlight.profile, true, highlight.changed)
+        highlighting.applyEffect(highlighting.target, highlighting.profile, true, highlighting.changed)
     end
 end
 
-local function highlightTarget(target)
+function highlighting.setTarget(target)
     if target and target.hash then
-        highlight.pending = target
+        highlighting.pending = target
     else
-        highlight.pending = nil
+        highlighting.pending = nil
     end
 end
 
 -- Resolving --
 
-local nodeGroupMapping = require(modulePath .. '/data/target-group-mapping')
+local resolving = {
+    nodeGroupMapping = require(modulePath .. '/data/target-group-mapping'),
+}
 
-local function resolveComponents(entity)
+function resolving.resolveComponents(entity)
     local components = {}
 
     for _, component in ipairs(RedHotTools.GetEntityComponents(entity)) do
@@ -561,7 +564,7 @@ local function resolveComponents(entity)
     return components
 end
 
-local function resolveVisualTags(entity, owner)
+function resolving.resolveVisualTags(entity, owner)
     local visualTags = {}
 
     for _, tag in ipairs(RedHotTools.GetEntityVisualTags(entity)) do
@@ -577,7 +580,7 @@ local function resolveVisualTags(entity, owner)
     return visualTags
 end
 
-local function resolveAttachments(entity)
+function resolving.resolveAttachments(entity)
     if not entity:IsA('gameObject') then
         return {}
     end
@@ -628,9 +631,9 @@ local function resolveAttachments(entity)
                 data.appearanceName = transactionSystem:GetItemAppearance(entity, item:GetItemID()).value
             end
 
-            data.components = resolveComponents(item)
-            data.attachments = resolveAttachments(item)
-            data.visualTags = resolveVisualTags(item, entity)
+            data.components = resolving.resolveComponents(item)
+            data.attachments = resolving.resolveAttachments(item)
+            data.visualTags = resolving.resolveVisualTags(item, entity)
 
             data.numComponents = #data.components
             data.numAttachments = #data.attachments
@@ -654,7 +657,7 @@ local function resolveAttachments(entity)
     return attachments
 end
 
-local function fillTargetEntityData(target, data)
+function resolving.fillTargetEntityData(target, data)
     if IsDefined(target.entity) then
         local entity = target.entity
         data.entityID = entity:GetEntityID().hash
@@ -699,9 +702,9 @@ local function fillTargetEntityData(target, data)
             end
         end
 
-        data.components = resolveComponents(entity)
-        data.attachments = resolveAttachments(entity)
-        data.visualTags = resolveVisualTags(entity)
+        data.components = resolving.resolveComponents(entity)
+        data.attachments = resolving.resolveAttachments(entity)
+        data.visualTags = resolving.resolveVisualTags(entity)
 
         data.numInventory = #data.inventory
         data.numComponents = #data.components
@@ -724,7 +727,7 @@ local function fillTargetEntityData(target, data)
     data.isEntity = IsDefined(data.entity)
 end
 
-local function fillTargetCommunityData(target, data)
+function resolving.fillTargetCommunityData(target, data)
     if IsDefined(target.entity) then
         local communityData = inspectionSystem:ResolveCommunityEntryDataFromEntityID(target.entity:GetEntityID().hash)
         if communityData.sectorHash ~= 0 then
@@ -741,7 +744,7 @@ local function fillTargetCommunityData(target, data)
     end
 end
 
-local function fillTargetNodeData(target, data)
+function resolving.fillTargetNodeData(target, data)
     local sectorData
     if IsDefined(target.nodeInstance) then
         sectorData = inspectionSystem:ResolveSectorDataFromNodeInstance(target.nodeInstance)
@@ -895,11 +898,11 @@ local function fillTargetNodeData(target, data)
     end
 
     if isNotEmpty(data.nodeType) then
-        data.nodeGroup = nodeGroupMapping[data.nodeType]
+        data.nodeGroup = resolving.nodeGroupMapping[data.nodeType]
     end
 end
 
-local function fillRuntimeGeometryData(data)
+function resolving.fillRuntimeGeometryData(data)
     if IsDefined(data.entity) then
         local geometry = (data.entity:IsA('gameObject') and (data.entity:IsNPC() or data.entity:IsContainer())) and inspectionSystem:GetPhysicsObjectGeometry(data.entity) or inspectionSystem:GetVisualObjectGeometry(data.entity)
         data.position = geometry.position
@@ -917,7 +920,7 @@ local function fillRuntimeGeometryData(data)
     end
 end
 
-local function fillTargetGeomertyData(target, data)
+function resolving.fillTargetGeomertyData(target, data)
     data.collision = target.collision
     data.distance = target.distance
     data.position = target.position
@@ -960,7 +963,7 @@ local function fillTargetGeomertyData(target, data)
         data.actorCount = target.actorCount or 0
     end
 
-    fillRuntimeGeometryData(data)
+    resolving.fillRuntimeGeometryData(data)
 
     if data.boundingBox and data.boundingBox:GetRange() <= 0 then
         data.boundingBox = nil
@@ -971,7 +974,7 @@ local function fillTargetGeomertyData(target, data)
     end
 end
 
-local function fillTargetDescription(_, data)
+function resolving.fillTargetDescription(_, data)
     if isNotEmpty(data.nodeType) then
         local description = { data.nodeType }
         if isNotEmpty(data.meshPath) then
@@ -1005,7 +1008,7 @@ local function fillTargetDescription(_, data)
     end
 end
 
-local function fillTargetHash(target, data)
+function resolving.fillTargetHash(target, data)
     if isNotEmpty(target.hash) then
         data.hash = target.hash
     elseif IsDefined(target.entity) then
@@ -1017,7 +1020,7 @@ local function fillTargetHash(target, data)
     end
 end
 
-local function expandTarget(target)
+function resolving.expandTarget(target)
     if IsDefined(target.entity) and not IsDefined(target.nodeDefinition) then
         local entityID = target.entity:GetEntityID().hash
         local nodeID
@@ -1040,21 +1043,21 @@ local function expandTarget(target)
     end
 end
 
-local function resolveTargetData(target)
-    expandTarget(target)
+function resolving.resolveTargetData(target)
+    resolving.expandTarget(target)
 
     local result = {}
-    fillTargetEntityData(target, result)
-    fillTargetCommunityData(target, result)
-    fillTargetNodeData(target, result)
-    fillTargetGeomertyData(target, result)
-    fillTargetDescription(target, result)
-    fillTargetHash(target, result)
+    resolving.fillTargetEntityData(target, result)
+    resolving.fillTargetCommunityData(target, result)
+    resolving.fillTargetNodeData(target, result)
+    resolving.fillTargetGeomertyData(target, result)
+    resolving.fillTargetDescription(target, result)
+    resolving.fillTargetHash(target, result)
 
     return result
 end
 
-local function updateTargetData(target, data)
+function resolving.updateTargetData(target, data)
     data.distance = target.distance
 
     if IsDefined(target.entity) then
@@ -1090,39 +1093,40 @@ local function updateTargetData(target, data)
     end
 end
 
-local function updateGeometryData(data)
-    fillRuntimeGeometryData(data)
+function resolving.updateGeometryData(data)
+    resolving.fillRuntimeGeometryData(data)
 end
 
 -- Filtering --
 
-local partialMatchFields = {
-    'value',
-    'nodeType',
-    'nodeRef',
-    'nodeProxyRef',
-    'nodeParentRef',
-    'sectorPath',
-    'debugName',
-    'componentType',
-    'componentName',
-    'recordID',
-    'triggerNotifiers',
-    'meshPath',
-    'appearanceName',
-    'materialPath',
-    'effectPath',
-    'templatePath',
-    'slotID',
-    'itemID',
-    'itemType',
+local filtering = {
+    partialMatchFields = {
+        'value',
+        'nodeType',
+        'nodeRef',
+        'nodeProxyRef',
+        'nodeParentRef',
+        'sectorPath',
+        'debugName',
+        'componentType',
+        'componentName',
+        'recordID',
+        'triggerNotifiers',
+        'meshPath',
+        'appearanceName',
+        'materialPath',
+        'effectPath',
+        'templatePath',
+        'slotID',
+        'itemID',
+        'itemType',
+    },
+    exactMatchFields = {
+        'instanceIndex',
+    },
 }
 
-local exactMatchFields = {
-    'instanceIndex',
-}
-
-local function buildFilterQuery(term)
+function filtering.buildQuery(term)
     if isEmpty(term) then
         return nil
     end
@@ -1138,12 +1142,12 @@ local function buildFilterQuery(term)
     }
 end
 
-local function filterTargetData(target, query)
+function filtering.filterTargetData(target, query)
     if isEmpty(query) then
         return true
     end
 
-    for _, field in ipairs(exactMatchFields) do
+    for _, field in ipairs(filtering.exactMatchFields) do
         if isNotEmpty(target[field]) then
             local value = tostring(target[field]):upper()
             if value == query.exact then
@@ -1152,7 +1156,7 @@ local function filterTargetData(target, query)
         end
     end
 
-    for _, field in ipairs(partialMatchFields) do
+    for _, field in ipairs(filtering.partialMatchFields) do
         if type(target[field]) == 'table' then
             for _, item in ipairs(target[field]) do
                 local value = tostring(item):upper()
@@ -1171,11 +1175,11 @@ local function filterTargetData(target, query)
     return false
 end
 
-local function filterTargetDataList(targets, query)
+function filtering.filterTargetDataList(targets, query)
     local numFiltered = 0
 
     for _, target in ipairs(targets) do
-        target.filtered = filterTargetData(target, query)
+        target.filtered = filtering.filterTargetData(target, query)
 
         if target.filtered then
             numFiltered = numFiltered + 1
@@ -1185,51 +1189,53 @@ local function filterTargetDataList(targets, query)
     return numFiltered
 end
 
-local function filterTargetExtras(target, query)
+function filtering.filterTargetExtras(target, query)
     if target.hasComponents then
-        target.numFilteredComponents = filterTargetDataList(target.components, query)
+        target.numFilteredComponents = filtering.filterTargetDataList(target.components, query)
     end
 
     if target.hasAttachments then
-        target.numFilteredAttachments = filterTargetDataList(target.attachments, query)
+        target.numFilteredAttachments = filtering.filterTargetDataList(target.attachments, query)
 
         for _, attachment in ipairs(target.attachments) do
             if isNotEmpty(attachment.itemID) then
-                filterTargetExtras(attachment, query)
+                filtering.filterTargetExtras(attachment, query)
             end
         end
     end
 
     if target.hasInventory then
-        target.numFilteredInventory = filterTargetDataList(target.inventory, query)
+        target.numFilteredInventory = filtering.filterTargetDataList(target.inventory, query)
     end
 
     if target.hasVisualTags then
-        target.numFilteredVisualTags = filterTargetDataList(target.visualTags, query)
+        target.numFilteredVisualTags = filtering.filterTargetDataList(target.visualTags, query)
     end
 end
 
--- Nodes --
+-- Control --
 
-local lastTarget
+local control = {
+    lastTarget = nil,
+}
 
-local function canToggleNodeState(target)
+function control.canToggleState(target)
     return target and IsDefined(target.nodeInstance) and target.isVisibleNode
 end
 
-local function toggleNodeState(target)
-    if not target or not canToggleNodeState(target) then
-        target = lastTarget
-        lastTarget = nil
+function control.toggleState(target)
+    if not target or not control.canToggleState(target) then
+        target = control.lastTarget
+        control.lastTarget = nil
     end
 
     if target then
         if IsDefined(target.parentInstance) then
             inspectionSystem:ToggleNodeVisibility(target.parentInstance)
-            lastTarget = target
+            control.lastTarget = target
         elseif IsDefined(target.nodeInstance) then
             inspectionSystem:ToggleNodeVisibility(target.nodeInstance)
-            lastTarget = target
+            control.lastTarget = target
         end
     end
 end
@@ -1246,7 +1252,7 @@ local inspector = {
     },
 }
 
-local function compareTargets(setA, setB, sorted)
+function inspector.compareTargets(setA, setB, sorted)
     local sizeA = #setA
     local sizeB = #setB
     local size = math.min(sizeA, sizeB)
@@ -1273,18 +1279,18 @@ local function compareTargets(setA, setB, sorted)
     return sizeA == sizeB, size
 end
 
-local function updateTargets(results, targets)
+function inspector.updateTargets(results, targets)
     for _, target in ipairs(targets) do
         for _, result in ipairs(results) do
             if result.hash == target.hash then
-                updateTargetData(target, result)
+                resolving.updateTargetData(target, result)
                 break
             end
         end
     end
 end
 
-local function updateInspectorTargets(targets)
+function inspector.updateTargetsFromLookAt(targets)
     if not targets or #targets == 0 then
         inspector.targets = {}
         inspector.results = {}
@@ -1322,16 +1328,16 @@ local function updateInspectorTargets(targets)
     local sameUpToIndex = false
     local isStaticMode = userState.targetingMode == TargetingMode.StaticBounds
     if inspector.targets then
-        sameTargets, sameUpToIndex = compareTargets(inspector.targets, targets, isStaticMode)
+        sameTargets, sameUpToIndex = inspector.compareTargets(inspector.targets, targets, isStaticMode)
         if sameTargets then
-            updateTargets(inspector.results, targets)
+            inspector.updateTargets(inspector.results, targets)
             return
         end
     end
 
     local results = {}
     for _, target in ipairs(targets) do
-        local result = resolveTargetData(target)
+        local result = resolving.resolveTargetData(target)
         if result then
             table.insert(results, result)
         end
@@ -1384,7 +1390,7 @@ local function updateInspectorTargets(targets)
     inspector.active = active
 end
 
-local function selectInspectedResult(index)
+function inspector.selectResult(index)
     inspector.active = index
     if inspector.active < 1 then
         inspector.active = 1
@@ -1393,8 +1399,8 @@ local function selectInspectedResult(index)
     end
 end
 
-local function cycleNextInspectedResult()
-    if inspector.active and not targetingPaused then
+function inspector.cycleNext()
+    if inspector.active and not targeting.paused then
         inspector.active = inspector.active + 1
         if inspector.active > #inspector.results then
             inspector.active = userState.cycleInspectorResults and 1 or #inspector.results
@@ -1402,8 +1408,8 @@ local function cycleNextInspectedResult()
     end
 end
 
-local function cyclePrevInspectedResult()
-    if inspector.active and not targetingPaused then
+function inspector.cyclePrev()
+    if inspector.active and not targeting.paused then
         inspector.active = inspector.active - 1
         if inspector.active < 1 then
             inspector.active = userState.cycleInspectorResults and #inspector.results or 1
@@ -1411,7 +1417,7 @@ local function cyclePrevInspectedResult()
     end
 end
 
-local function filterInspectedTarget(filter)
+function inspector.filterTarget(filter)
     local selected = inspector.active and inspector.results[inspector.active] or nil
 
     if inspector.filter.term == filter and inspector.filter.target == selected then
@@ -1419,19 +1425,19 @@ local function filterInspectedTarget(filter)
     end
 
     if selected then
-        filterTargetExtras(selected, buildFilterQuery(filter))
+        filtering.filterTargetExtras(selected, filtering.buildQuery(filter))
     end
 
     inspector.filter.term = filter
     inspector.filter.target = selected
 end
 
-local function updateInspector(filter)
-    updateInspectorTargets(getLookAtTargets())
-    filterInspectedTarget(filter)
+function inspector.update(filter)
+    inspector.updateTargetsFromLookAt(targeting.getLookAtTargets())
+    inspector.filterTarget(filter)
 
-    if userState.highlightInspectorResult and inspector.active and not targetingPaused then
-        highlightTarget(inspector.results[inspector.active])
+    if userState.highlightInspectorResult and inspector.active and not targeting.paused then
+        highlighting.setTarget(inspector.results[inspector.active])
     end
 end
 
@@ -1448,19 +1454,19 @@ local scanner = {
     hovered = nil,
 }
 
-local function requestScan()
+function scanner.requestScan()
     scanner.requested = true
 end
 
-local function selectScannedResult(index)
+function scanner.selectResult(index)
     scanner.hovered = index
 end
 
-local function unselectScannedResult()
+function scanner.unselectResult()
     scanner.hovered = nil
 end
 
-local function updateScannerTargets()
+function scanner.updateTargets()
     if not scanner.requested then
         return
     end
@@ -1470,7 +1476,7 @@ local function updateScannerTargets()
     local results = {}
 
     for _, target in ipairs(inspectionSystem:GetStreamedNodesInFrustum()) do
-        local result = resolveTargetData(target)
+        local result = resolving.resolveTargetData(target)
         if result then
             table.insert(results, result)
         end
@@ -1491,30 +1497,30 @@ local function updateScannerTargets()
     scanner.finished = true
 end
 
-local function filterTargetByDistance(target, distance)
+function scanner.filterByDistance(target, distance)
     return isEmpty(distance) or target.distance <= distance
 end
 
-local function filterTargetByGroup(target, group)
+function scanner.filterByGroup(target, group)
     return isEmpty(group) or target.nodeGroup == group
 end
 
-local function filterTargetByQuery(target, query)
-    return isEmpty(query) or filterTargetData(target, query)
+function scanner.filterByQuery(target, query)
+    return isEmpty(query) or filtering.filterTargetData(target, query)
 end
 
-local function filterScannerTargets(maxDistance, group, term)
+function scanner.filterTargets(maxDistance, group, term)
     if scanner.group == group and scanner.term == term and scanner.distance == maxDistance then
         return
     end
 
     local filtered = {}
-    local query = buildFilterQuery(term)
+    local query = filtering.buildQuery(term)
 
     for _, result in ipairs(scanner.results) do
-        if filterTargetByDistance(result, maxDistance)
-        and filterTargetByGroup(result, group)
-        and filterTargetByQuery(result, query) then
+        if scanner.filterByDistance(result, maxDistance)
+        and scanner.filterByGroup(result, group)
+        and scanner.filterByQuery(result, query) then
             table.insert(filtered, result)
         end
     end
@@ -1525,12 +1531,12 @@ local function filterScannerTargets(maxDistance, group, term)
     scanner.filtered = filtered
 end
 
-local function updateScanner(distance, group, filter)
-    updateScannerTargets()
-    filterScannerTargets(distance, group, filter)
+function scanner.update(distance, group, filter)
+    scanner.updateTargets()
+    scanner.filterTargets(distance, group, filter)
 
     if userState.highlightScannerResult and scanner.hovered then
-        highlightTarget(scanner.results[scanner.hovered])
+        highlighting.setTarget(scanner.results[scanner.hovered])
     end
 end
 
@@ -1542,7 +1548,7 @@ local lookup = {
     empty = true,
 }
 
-local function parseLookupHash(lookupQuery)
+function lookup.parseHash(lookupQuery)
     local lookupHex = lookupQuery:match('^0x([0-9A-F]+)$')
     if lookupHex ~= nil then
         return loadstring('return 0x' .. lookupHex .. 'ULL', '')()
@@ -1556,7 +1562,7 @@ local function parseLookupHash(lookupQuery)
     return nil
 end
 
-local function lookupTarget(lookupQuery)
+function lookup.lookupTarget(lookupQuery)
     if isEmpty(lookupQuery) then
         lookup.query = nil
         lookup.result = nil
@@ -1569,7 +1575,7 @@ local function lookupTarget(lookupQuery)
 
     local target = {}
 
-    local lookupHash = parseLookupHash(lookupQuery)
+    local lookupHash = lookup.parseHash(lookupQuery)
     if lookupHash ~= nil then
         target.resourceHash = lookupHash
         target.tdbidHash = lookupHash
@@ -1613,7 +1619,7 @@ local function lookupTarget(lookupQuery)
         end
     end
 
-    local data = resolveTargetData(target) or {}
+    local data = resolving.resolveTargetData(target) or {}
 
     if isNotEmpty(target.resourceHash) then
         data.resolvedPath = RedHotTools.GetResourcePath(target.resourceHash)
@@ -1640,11 +1646,11 @@ local function lookupTarget(lookupQuery)
     lookup.query = lookupQuery
 end
 
-local function updateLookup(lookupQuery)
-    lookupTarget(lookupQuery)
+function lookup.update(lookupQuery)
+    lookup.lookupTarget(lookupQuery)
 
     if userState.highlightLookupResult then
-        highlightTarget(lookup.result)
+        highlighting.setTarget(lookup.result)
     end
 end
 
@@ -1659,29 +1665,29 @@ local watcher = {
     },
 }
 
-local function getEntityKey(entity)
+function watcher.getEntityKey(entity)
     return tostring(entity:GetEntityID().hash)
 end
 
-local function watchEntity(entity)
+function watcher.watchEntity(entity)
     if not IsDefined(entity) then
         return
     end
 
-    local key = getEntityKey(entity)
+    local key = watcher.getEntityKey(entity)
     local target = { entity = Ref.Weak(entity) }
 
     watcher.targets[key] = target
-    watcher.results[key] = resolveTargetData(target)
+    watcher.results[key] = resolving.resolveTargetData(target)
     watcher.numTargets = watcher.numTargets + 1
 end
 
-local function forgetEntity(entity)
+function watcher.forgetEntity(entity)
     if not IsDefined(entity) then
         return
     end
 
-    local key = getEntityKey(entity)
+    local key = watcher.getEntityKey(entity)
 
     if watcher.targets[key] then
         watcher.targets[key] = nil
@@ -1692,69 +1698,69 @@ local function forgetEntity(entity)
     end
 end
 
-local function canWatchTarget(target)
+function watcher.canWatchTarget(target)
     return target and IsDefined(target.entity)
 end
 
-local function isWatchedTarget(target)
-    return target and IsDefined(target.entity) and watcher.targets[getEntityKey(target.entity)] ~= nil
+function watcher.isWatchedTarget(target)
+    return target and IsDefined(target.entity) and watcher.targets[watcher.getEntityKey(target.entity)] ~= nil
 end
 
-local function watchTarget(target)
-    watchEntity(target.entity)
+function watcher.watchTarget(target)
+    watcher.watchEntity(target.entity)
 end
 
-local function forgetTarget(target)
-    forgetEntity(target.entity)
+function watcher.forgetTarget(target)
+    watcher.forgetEntity(target.entity)
 end
 
-local function initializeWatcher()
-    watchEntity(GetPlayer())
-    watchEntity(GetMountedVehicle(GetPlayer()))
+function watcher.initialize()
+    watcher.watchEntity(GetPlayer())
+    watcher.watchEntity(GetMountedVehicle(GetPlayer()))
 
     ObserveAfter('PlayerPuppet', 'OnGameAttached', function(this)
-        watchEntity(this)
+        watcher.watchEntity(this)
     end)
 
     ObserveAfter('PlayerPuppet', 'OnDetach', function(this)
-        forgetEntity(this)
+        watcher.forgetEntity(this)
     end)
 
     ObserveBefore('gameuiPuppetPreviewGameController', 'OnPreviewInitialized', function(this)
-        watchEntity(this:GetGamePuppet())
+        watcher.watchEntity(this:GetGamePuppet())
     end)
 
     ObserveBefore('gameuiPuppetPreviewGameController', 'OnUninitialize', function(this)
         if this:IsA('gameuiPuppetPreviewGameController') then
-            forgetEntity(this:GetGamePuppet())
+            watcher.forgetEntity(this:GetGamePuppet())
         end
     end)
 
     ObserveAfter('PhotoModePlayerEntityComponent', 'SetupInventory', function(this)
-        watchEntity(this.fakePuppet)
+        watcher.watchEntity(this.fakePuppet)
     end)
 
     ObserveBefore('PhotoModePlayerEntityComponent', 'ClearInventory', function(this)
-        forgetEntity(this.fakePuppet)
+        watcher.forgetEntity(this.fakePuppet)
     end)
 
     ObserveAfter('vehicleBaseObject', 'OnVehicleFinishedMounting', function(this, event)
         if this:IsPlayerVehicle() then
             if event.character:IsPlayer() and event.isMounting then
-                watchEntity(this)
+                watcher.watchEntity(this)
             else
-                forgetEntity(this)
+                watcher.forgetEntity(this)
             end
         end
     end)
 end
 
-local function updateWatcher(filter)
-    local query = buildFilterQuery(filter)
+function watcher.update(filter)
+    local query = filtering.buildQuery(filter)
 
     for key, target in pairs(watcher.targets) do
-        local result = resolveTargetData(target)
-        filterTargetExtras(result, query)
+        local result = resolving.resolveTargetData(target)
+        filtering.filterTargetExtras(result, query)
 
         watcher.results[key] = result
     end
@@ -1771,11 +1777,8 @@ local viewState = {
     isWindowExpanded = true,
     lookupQuery = '',
     inspectorFilter = '',
+    inspectorFilterActive = nil,
     watcherFilter = '',
-}
-
-local viewData = {
-    maxInputLen = 512,
 }
 
 local viewStyle = {
@@ -1787,7 +1790,13 @@ local viewStyle = {
     groupCaptionSize = 0.8,
 }
 
-local function buildMappingOptions(mapping, first)
+local view = {
+    maxInputLen = 512,
+    currentWindowHeightMode = nil,
+    meshAppearanceCache = {},
+}
+
+function view.buildMappingOptions(mapping, first)
     local options = {}
     for _, group in pairs(mapping) do
         if not options[group] then
@@ -1808,21 +1817,21 @@ local function buildMappingOptions(mapping, first)
     return options
 end
 
-local function initializeViewData()
-    viewData.targetingModeOptions = ImGuiEx.BuildComboOptions(TargetingMode.values, true)
-    viewData.collisionGranularityOptions = ImGuiEx.BuildComboOptions(CollisionGranularity.values, true)
-    viewData.outlineModeOptions = ImGuiEx.BuildComboOptions(OutlineMode.values)
-    viewData.markerModeOptions = ImGuiEx.BuildComboOptions(MarkerMode.values)
-    viewData.boundingBoxModeOptions = ImGuiEx.BuildComboOptions(BoundingBoxMode.values)
-    viewData.windowSnappingOptions = ImGuiEx.BuildComboOptions(WindowSnapping.values, true)
-    viewData.nodeGroupOptions = buildMappingOptions(nodeGroupMapping, 'All')
+function view.initializeData()
+    view.targetingModeOptions = ImGuiEx.BuildComboOptions(TargetingMode.values, true)
+    view.collisionGranularityOptions = ImGuiEx.BuildComboOptions(CollisionGranularity.values, true)
+    view.outlineModeOptions = ImGuiEx.BuildComboOptions(OutlineMode.values)
+    view.markerModeOptions = ImGuiEx.BuildComboOptions(MarkerMode.values)
+    view.boundingBoxModeOptions = ImGuiEx.BuildComboOptions(BoundingBoxMode.values)
+    view.windowSnappingOptions = ImGuiEx.BuildComboOptions(WindowSnapping.values, true)
+    view.nodeGroupOptions = view.buildMappingOptions(resolving.nodeGroupMapping, 'All')
 
-    if not viewData.nodeGroupOptions[userState.scannerGroup] then
+    if not view.nodeGroupOptions[userState.scannerGroup] then
         userState.scannerGroup = ''
     end
 end
 
-local function initializeViewStyle()
+function view.initializeStyle()
     if not viewStyle.fontSize then
         viewStyle.fontSize = ImGui.GetFontSize()
         viewStyle.viewScale = viewStyle.fontSize / 13
@@ -1882,32 +1891,32 @@ end
 
 -- GUI :: Actions --
 
-local function getTargetActions(target, isInputMode)
+function view.getTargetActions(target, isInputMode)
     local actions = {}
 
     if isInputMode then
-        if canWatchTarget(target) then
-            if isWatchedTarget(target) then
+        if watcher.canWatchTarget(target) then
+            if watcher.isWatchedTarget(target) then
                 table.insert(actions, {
                     type = 'button',
                     label = 'Unwatch entity',
-                    callback = forgetTarget,
+                    callback = watcher.forgetTarget,
                     inline = true,
                 })
             else
                 table.insert(actions, {
                     type = 'button',
                     label = 'Watch entity',
-                    callback = watchTarget,
+                    callback = watcher.watchTarget,
                     inline = true,
                 })
             end
         end
-        if canToggleNodeState(target) then
+        if control.canToggleState(target) then
             table.insert(actions, {
                 type = 'button',
                 label = 'Toggle visibility',
-                callback = toggleNodeState,
+                callback = control.toggleState,
                 inline = true,
             })
         end
@@ -1940,62 +1949,62 @@ end
 
 -- GUI :: Fieldsets --
 
-local function isValidArrayField(data, field)
+function view.isValidArrayField(data, field)
     return type(data[field.name]) == 'table' and #data[field.name] > 0
 end
 
-local function formatArrayField(data, field)
+function view.formatArrayField(data, field)
     return table.concat(data[field.name], '\n')
 end
 
-local function isValidPosition(data, field)
+function view.isValidPosition(data, field)
     local vec = data[field.name]
     return vec and (vec.x ~= 0 or vec.y ~= 0 or vec.z ~= 0)
 end
 
-local function formatPosition(data, field)
+function view.formatPosition(data, field)
     local vec = data[field.name]
     return ('%.3f, %.3f, %.3f, %.3f'):format(vec.x, vec.y, vec.z, vec.w):gsub('%.000', '.0')
 end
 
-local function isValidOrientation(data, field)
+function view.isValidOrientation(data, field)
     local quat = data[field.name]
     return quat and (quat.i ~= 0 or quat.j ~= 0 or quat.k ~= 0 or quat.r ~= 1)
 end
 
-local function formatOrientation(data, field)
+function view.formatOrientation(data, field)
     local quat = data[field.name]
     return ('%.3f, %.3f, %.3f, %.3f'):format(quat.i, quat.j, quat.k, quat.r):gsub('%.000', '.0')
 end
 
-local function isValidScale(data, field)
+function view.isValidScale(data, field)
     local vec = data[field.name]
     return vec and (vec.x ~= 1 or vec.y ~= 1 or vec.z ~= 1)
 end
 
-local function formatScale(data, field)
+function view.formatScale(data, field)
     local vec = data[field.name]
     return ('%.3f, %.3f, %.3f'):format(vec.x, vec.y, vec.z):gsub('%.000', '.0')
 end
 
-local function formatDistance(data)
+function view.formatDistance(data)
     return ('%.1fm'):format(type(data) == 'table' and data.distance or data)
 end
 
-local function isValidChunkMask(data)
+function view.isValidChunkMask(data)
     return type(data.chunkMask) == 'cdata' or type(data.chunkMask) == 'number'
 end
 
-local function getBit(value, index)
+function view.getBit(value, index)
     return bit32.band(bit32.rshift(value, index), 1) ~= 0
 end
 
-local function setBit(value, index, state)
+function view.setBit(value, index, state)
     local bit = bit32.lshift(1ULL, index)
     return state and bit32.bor(value, bit) or bit32.band(value, bit32.bnot(bit))
 end
 
-local function drawBitEditor(data, field)
+function view.drawBitEditor(data, field)
     ImGui.SameLine()
 
     local startX = ImGui.GetCursorPosX()
@@ -2023,7 +2032,7 @@ local function drawBitEditor(data, field)
                     ImGui.SetCursorPosX(startX + group * (groupWidth + groupSpacing) + bit * (bitWidth + bitSpacing))
                 end
 
-                local isSet = getBit(data[field.name], index)
+                local isSet = view.getBit(data[field.name], index)
 
                 ImGui.PushID(index)
 
@@ -2033,7 +2042,7 @@ local function drawBitEditor(data, field)
                 ImGui.PushStyleColor(ImGuiCol.Text, isSet and viewStyle.defaultTextColor or viewStyle.mutedTextColor)
 
                 if ImGui.Button(isSet and '1' or '0', bitWidth, 0) then
-                    data[field.name] = setBit(data[field.name], index, not isSet)
+                    data[field.name] = view.setBit(data[field.name], index, not isSet)
 
                     if IsDefined(data.component) then
                         data.component[field.name] = data[field.name]
@@ -2059,35 +2068,35 @@ local function drawBitEditor(data, field)
     ImGui.PopStyleVar(4)
 end
 
-local function isValidAppearanceSource(data)
+function view.isValidAppearanceSource(data)
     return isNotEmpty(data.appearancePath) and isNotEmpty(data.appearanceDef)
 end
 
-local function formatAppearanceSource(data)
+function view.formatAppearanceSource(data)
     return data.appearanceDef .. ' @ ' .. data.appearancePath
 end
 
-local function isValidNodeIndex(data)
+function view.isValidNodeIndex(data)
     return type(data.instanceIndex) == 'number' and data.instanceIndex >= 0
         and type(data.instanceCount) == 'number' and data.instanceCount > 0
 end
 
-local function isValidInnerIndex(data)
+function view.isValidInnerIndex(data)
     return type(data.innerIndex) == 'number' and data.innerIndex >= 0
         and type(data.innerCount) == 'number' and data.innerCount > 0
 end
 
-local function hasValidCommunityIndex(data)
+function view.hasValidCommunityIndex(data)
     return type(data.communityIndex) == 'number' and data.communityIndex >= 0
         and type(data.communityCount) == 'number' and data.communityCount > 0
 end
 
-local function hasValidActorIndex(data)
+function view.hasValidActorIndex(data)
     return type(data.actorIndex) == 'number' and data.actorIndex >= 0
         and type(data.actorCount) == 'number' and data.actorCount > 0
 end
 
-local function formatActorLabel(data)
+function view.formatActorLabel(data)
     if IsDefined(data.nodeDefinition) then
         if data.isCollisionNode then
             return 'Collision Actor:'
@@ -2109,12 +2118,12 @@ local function formatActorLabel(data)
     return 'Node Actor:'
 end
 
-local function hasValidShapeIndex(data)
+function view.hasValidShapeIndex(data)
     return type(data.shapeIndex) == 'number' and data.shapeIndex >= 0
         and type(data.shapeCount) == 'number' and data.shapeCount > 0
 end
 
-local function formatShapeLabel(data)
+function view.formatShapeLabel(data)
     if IsDefined(data.nodeDefinition) then
         if data.isCollisionNode then
             return 'Collision Shape:'
@@ -2124,41 +2133,41 @@ local function formatShapeLabel(data)
     return 'Node Shape:'
 end
 
-local function hasValidCommunityEntryIndex(data)
+function view.hasValidCommunityEntryIndex(data)
     return type(data.communityEntryIndex) == 'number' and data.communityEntryIndex >= 0
         and type(data.communityEntryCount) == 'number' and data.communityEntryCount > 0
 end
 
-local function isValidCommunityRegistry(data)
+function view.isValidCommunityRegistry(data)
     return type(data.communityRegistryPath) == 'string'
         and type(data.communityRegistryIndex) == 'number' and data.communityRegistryIndex > 0
 end
 
-local function formatCommunityRegistry(data)
+function view.formatCommunityRegistry(data)
     return ('%s (%d)'):format(data.communityRegistryPath, data.communityRegistryIndex)
 end
 
-local function hasValidComponentInfo(data)
+function view.hasValidComponentInfo(data)
     return type(data.componentName) == 'string' and type(data.componentType) == 'string'
 end
 
-local resultSchema = {
+view.resultSchema = {
     {
         { name = 'nodeType', label = 'Node Type:' },
         { name = 'nodeID', label = 'Node ID:', format = '%u' },
         { name = 'nodeRef', label = 'Node Ref:', wrap = true },
         { name = 'nodeProxyRef', label = 'Node Proxy:', wrap = true },
         { name = 'nodeParentRef', label = 'Node Parent:', wrap = true },
-        { name = 'nodePosition', label = 'Node Position:', format = formatPosition, validate = isValidPosition },
-        { name = 'nodeOrientation', label = 'Node Orientation:', format = formatOrientation, validate = isValidOrientation },
-        { name = 'nodeScale', label = 'Node Scale:', format = formatScale, validate = isValidScale },
+        { name = 'nodePosition', label = 'Node Position:', format = view.formatPosition, validate = view.isValidPosition },
+        { name = 'nodeOrientation', label = 'Node Orientation:', format = view.formatOrientation, validate = view.isValidOrientation },
+        { name = 'nodeScale', label = 'Node Scale:', format = view.formatScale, validate = view.isValidScale },
         { name = 'sectorPath', label = 'Node Sector:', wrap = true },
-        { name = 'nodeIndex', label = 'Node Definition:', format = '%d', validate = isValidNodeIndex },
-        { name = 'nodeCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
-        { name = 'instanceIndex', label = 'Node Instance:', format = '%d', validate = isValidNodeIndex },
-        { name = 'instanceCount', label = '/', format = '%d', inline = true, validate = isValidNodeIndex },
-        { name = 'innerIndex', label = 'Cooked Instance:', format = '%d', validate = isValidInnerIndex },
-        { name = 'innerCount', label = '/', format = '%d', inline = true, validate = isValidInnerIndex },
+        { name = 'nodeIndex', label = 'Node Definition:', format = '%d', validate = view.isValidNodeIndex },
+        { name = 'nodeCount', label = '/', format = '%d', inline = true, validate = view.isValidNodeIndex },
+        { name = 'instanceIndex', label = 'Node Instance:', format = '%d', validate = view.isValidNodeIndex },
+        { name = 'instanceCount', label = '/', format = '%d', inline = true, validate = view.isValidNodeIndex },
+        { name = 'innerIndex', label = 'Cooked Instance:', format = '%d', validate = view.isValidInnerIndex },
+        { name = 'innerCount', label = '/', format = '%d', inline = true, validate = view.isValidInnerIndex },
         { name = 'debugName', label = 'Debug Name:' },
         { name = 'sourcePrefabHash', label = 'Source Prefab Hash:', format = '%u' },
     },
@@ -2166,11 +2175,11 @@ local resultSchema = {
         { name = 'communityID', label = 'Community ID:', format = '%u' },
         { name = 'communityEntryName', label = 'Community Entry Name:' },
         { name = 'communityEntryPhase', label = 'Community Entry Phase:' },
-        { name = 'communityRegistry', label = 'Community Registry:', format = formatCommunityRegistry, wrap = true, validate = isValidCommunityRegistry },
-        { name = 'communityIndex', label = 'Community Index:', format = '%d', validate = hasValidCommunityIndex },
-        { name = 'communityCount', label = '/', format = '%d', inline = true, validate = hasValidCommunityIndex },
-        { name = 'communityEntryIndex', label = 'Community Entry Index:', format = '%d', validate = hasValidCommunityEntryIndex },
-        { name = 'communityEntryCount', label = '/', format = '%d', inline = true, validate = hasValidCommunityEntryIndex },
+        { name = 'communityRegistry', label = 'Community Registry:', format = view.formatCommunityRegistry, wrap = true, validate = view.isValidCommunityRegistry },
+        { name = 'communityIndex', label = 'Community Index:', format = '%d', validate = view.hasValidCommunityIndex },
+        { name = 'communityCount', label = '/', format = '%d', inline = true, validate = view.hasValidCommunityIndex },
+        { name = 'communityEntryIndex', label = 'Community Entry Index:', format = '%d', validate = view.hasValidCommunityEntryIndex },
+        { name = 'communityEntryCount', label = '/', format = '%d', inline = true, validate = view.hasValidCommunityEntryIndex },
     },
     {
         { name = 'entityType', label = 'Entity Type:' },
@@ -2180,10 +2189,10 @@ local resultSchema = {
         { name = 'templatePath', label = 'Entity Template:', wrap = true },
         { name = 'appearanceName', label = 'Entity Appearance:', wrap = true },
         { name = 'deviceClass', label = 'Device Class:' },
-        { name = 'entityPosition', label = 'Entity Position:', format = formatPosition },
-        { name = 'entityOrientation', label = 'Entity Orientation:', format = formatOrientation },
-        { name = 'componentType', label = 'Hit Component:', wrap = true, validate = hasValidComponentInfo },
-        { name = 'componentName', label = '·', inline = true, validate = hasValidComponentInfo },
+        { name = 'entityPosition', label = 'Entity Position:', format = view.formatPosition },
+        { name = 'entityOrientation', label = 'Entity Orientation:', format = view.formatOrientation },
+        { name = 'componentType', label = 'Hit Component:', wrap = true, validate = view.hasValidComponentInfo },
+        { name = 'componentName', label = '·', inline = true, validate = view.hasValidComponentInfo },
         { name = 'meshPath', label = 'Mesh Resource:', wrap = true },
         { name = 'meshAppearance', label = 'Mesh Appearance:', wrap = true },
         { name = 'materialPath', label = 'Material Resource:', wrap = true },
@@ -2192,12 +2201,12 @@ local resultSchema = {
         { name = 'workspotPath', label = 'Workspot Resource:', wrap = true },
         { name = 'foliagePath', label = 'Foliage Resource:', wrap = true },
         { name = 'occluderType', label = 'Occluder Type:' },
-        { name = 'actorIndex', label = formatActorLabel, format = '%d', validate = hasValidActorIndex },
-        { name = 'actorCount', label = '/', format = '%d', inline = true, validate = hasValidActorIndex },
-        { name = 'shapeIndex', label = formatShapeLabel, format = '%d', validate = hasValidShapeIndex },
-        { name = 'shapeCount', label = '/', format = '%d', inline = true, validate = hasValidShapeIndex },
-        { name = 'triggerNotifiers', label = 'Trigger Notifiers:', format = formatArrayField, validate = isValidArrayField },
-        { name = 'lootTables', label = 'Loot Tables:', format = formatArrayField, validate = isValidArrayField },
+        { name = 'actorIndex', label = view.formatActorLabel, format = '%d', validate = view.hasValidActorIndex },
+        { name = 'actorCount', label = '/', format = '%d', inline = true, validate = view.hasValidActorIndex },
+        { name = 'shapeIndex', label = view.formatShapeLabel, format = '%d', validate = view.hasValidShapeIndex },
+        { name = 'shapeCount', label = '/', format = '%d', inline = true, validate = view.hasValidShapeIndex },
+        { name = 'triggerNotifiers', label = 'Trigger Notifiers:', format = view.formatArrayField, validate = view.isValidArrayField },
+        { name = 'lootTables', label = 'Loot Tables:', format = view.formatArrayField, validate = view.isValidArrayField },
     },
     {
         { name = 'resolvedPath', label = 'Resource:', wrap = true },
@@ -2206,7 +2215,7 @@ local resultSchema = {
     }
 }
 
-local componentSchema = {
+view.componentSchema = {
     { name = 'componentType', label = 'Type:' },
     { name = 'componentName', label = 'Name:', wrap = true },
     { name = 'componentID', label = 'ID:', format = '%u' },
@@ -2215,12 +2224,12 @@ local componentSchema = {
     { name = 'morphPath', label = 'Morph Target:', wrap = true },
     { name = 'meshPath', label = 'Mesh:', wrap = true },
     { name = 'meshAppearance', label = 'Appearance:', wrap = true },
-    { name = 'chunkMask', label = 'Chunk Mask:', render = drawBitEditor, validate = isValidChunkMask },
-    { name = 'effects', label = 'Effects:', format = formatArrayField, validate = isValidArrayField, wrap = true },
-    { name = 'appearancePath', label = 'Source:', format = formatAppearanceSource, validate = isValidAppearanceSource, wrap = true },
+    { name = 'chunkMask', label = 'Chunk Mask:', render = view.drawBitEditor, validate = view.isValidChunkMask },
+    { name = 'effects', label = 'Effects:', format = view.formatArrayField, validate = view.isValidArrayField, wrap = true },
+    { name = 'appearancePath', label = 'Source:', format = view.formatAppearanceSource, validate = view.isValidAppearanceSource, wrap = true },
 }
 
-local attachmentSchema = {
+view.attachmentSchema = {
     { name = 'slotID', label = 'Slot ID:' },
     { name = 'itemID', label = 'Item ID:', wrap = true },
     { name = 'itemType', label = 'Item Type:' },
@@ -2228,7 +2237,7 @@ local attachmentSchema = {
     { name = 'appearanceName', label = 'Item Appearance:', wrap = true },
 }
 
-local function isVisibleField(field, data)
+function view.isVisibleField(field, data)
     if type(field.validate) == 'function' then
         if not field.validate(data, field) then
             return false
@@ -2241,7 +2250,7 @@ local function isVisibleField(field, data)
     return true
 end
 
-local function drawField(field, data)
+function view.drawField(field, data)
     local label = field.label
     if type(label) == 'function' then
         label = label(data, field)
@@ -2293,9 +2302,7 @@ local function drawField(field, data)
     end
 end
 
-local drawExtras
-
-local function drawComponentToggle(componentData, toggleX)
+function view.drawComponentToggle(componentData, toggleX)
     local component = componentData.component
 
     if not IsDefined(component) then
@@ -2311,7 +2318,7 @@ local function drawComponentToggle(componentData, toggleX)
     ImGui.PopStyleColor()
 end
 
-local function drawComponents(components)
+function view.drawComponents(components)
     local toggleX, labelWidth
 
     for _, componentData in ipairs(components) do
@@ -2329,9 +2336,9 @@ local function drawComponents(components)
             local isOpen = ImGui.TreeNodeEx(label .. '###' .. tostring(componentData.hash), ImGuiTreeNodeFlags.SpanFullWidth + ImGuiTreeNodeFlags.AllowItemOverlap)
 
             if isOpen then
-                for _, field in ipairs(componentSchema) do
-                    if isVisibleField(field, componentData) then
-                        drawField(field, componentData)
+                for _, field in ipairs(view.componentSchema) do
+                    if view.isVisibleField(field, componentData) then
+                        view.drawField(field, componentData)
                     end
                 end
                 ImGui.TreePop()
@@ -2340,15 +2347,15 @@ local function drawComponents(components)
             ImGui.EndGroup()
 
             if ImGui.IsItemHovered() and componentData.component:IsA('entIVisualComponent') then
-                highlightTarget(componentData)
+                highlighting.setTarget(componentData)
             end
 
-            drawComponentToggle(componentData, toggleX)
+            view.drawComponentToggle(componentData, toggleX)
         end
     end
 end
 
-local function drawAttachments(attachments)
+function view.drawAttachments(attachments)
     for _, attachmentData in ipairs(attachments) do
         if attachmentData.filtered ~= false then
             local flags = ImGuiTreeNodeFlags.SpanFullWidth
@@ -2358,13 +2365,13 @@ local function drawAttachments(attachments)
 
             if ImGui.TreeNodeEx(attachmentData.slotID .. '##' .. tostring(attachmentData.hash), flags) then
                 if attachmentData.itemID then
-                    for _, field in ipairs(attachmentSchema) do
-                        if isVisibleField(field, attachmentData) then
-                            drawField(field, attachmentData)
+                    for _, field in ipairs(view.attachmentSchema) do
+                        if view.isVisibleField(field, attachmentData) then
+                            view.drawField(field, attachmentData)
                         end
                     end
 
-                    drawExtras(attachmentData)
+                    view.drawExtras(attachmentData)
                 end
 
                 ImGui.TreePop()
@@ -2373,7 +2380,7 @@ local function drawAttachments(attachments)
     end
 end
 
-local function drawItemList(items)
+function view.drawItemList(items)
     for _, item in ipairs(items) do
         if item.filtered ~= false then
             ImGui.Selectable(item.value)
@@ -2384,7 +2391,7 @@ local function drawItemList(items)
     end
 end
 
-local function drawExtraTreeNode(label, numFiltered, numTotal)
+function view.drawExtraTreeNode(label, numFiltered, numTotal)
     if numFiltered == nil then
         numFiltered = numTotal
     end
@@ -2405,37 +2412,37 @@ local function drawExtraTreeNode(label, numFiltered, numTotal)
     return isOpen
 end
 
-drawExtras = function(targetData)
+function view.drawExtras(targetData)
     if targetData.hasComponents then
-        if drawExtraTreeNode('Components', targetData.numFilteredComponents, targetData.numComponents) then
-            drawComponents(targetData.components)
+        if view.drawExtraTreeNode('Components', targetData.numFilteredComponents, targetData.numComponents) then
+            view.drawComponents(targetData.components)
             ImGui.TreePop()
         end
     end
 
     if targetData.hasAttachments then
-        if drawExtraTreeNode('Attachments', targetData.numFilteredAttachments, targetData.numAttachments) then
-            drawAttachments(targetData.attachments)
+        if view.drawExtraTreeNode('Attachments', targetData.numFilteredAttachments, targetData.numAttachments) then
+            view.drawAttachments(targetData.attachments)
             ImGui.TreePop()
         end
     end
 
     if targetData.hasInventory then
-        if drawExtraTreeNode('Inventory', targetData.numFilteredInventory, targetData.numInventory) then
-            drawItemList(targetData.inventory)
+        if view.drawExtraTreeNode('Inventory', targetData.numFilteredInventory, targetData.numInventory) then
+            view.drawItemList(targetData.inventory)
             ImGui.TreePop()
         end
     end
 
     if targetData.hasVisualTags then
-        if drawExtraTreeNode('Visual Tags', targetData.numFilteredVisualTags, targetData.numVisualTags) then
-            drawItemList(targetData.visualTags)
+        if view.drawExtraTreeNode('Visual Tags', targetData.numFilteredVisualTags, targetData.numVisualTags) then
+            view.drawItemList(targetData.visualTags)
             ImGui.TreePop()
         end
     end
 end
 
-local function drawFieldset(targetData, withSeparators, withExtras, withExtrasFrame)
+function view.drawFieldset(targetData, withSeparators, withExtras, withExtrasFrame)
     if withSeparators == nil then
         withSeparators = true
     end
@@ -2453,10 +2460,10 @@ local function drawFieldset(targetData, withSeparators, withExtras, withExtrasFr
     ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
 
     local isFirstGroup = true
-    for _, groupSchema in ipairs(resultSchema) do
+    for _, groupSchema in ipairs(view.resultSchema) do
         local isFirstField = true
         for _, field in ipairs(groupSchema) do
-            if isVisibleField(field, targetData) then
+            if view.isVisibleField(field, targetData) then
                 if isFirstField then
                     isFirstField = false
                     if isFirstGroup then
@@ -2467,7 +2474,7 @@ local function drawFieldset(targetData, withSeparators, withExtras, withExtrasFr
                         ImGui.Spacing()
                     end
                 end
-                drawField(field, targetData)
+                view.drawField(field, targetData)
             end
         end
     end
@@ -2485,7 +2492,7 @@ local function drawFieldset(targetData, withSeparators, withExtras, withExtrasFr
         --    ImGui.BeginChildFrame(1, 0, 15 * ImGui.GetFrameHeightWithSpacing())
         --end
 
-        drawExtras(targetData)
+        view.drawExtras(targetData)
 
         --if hasExtras and withExtrasFrame then
         --    ImGui.EndChildFrame()
@@ -2495,7 +2502,7 @@ local function drawFieldset(targetData, withSeparators, withExtras, withExtrasFr
     ImGui.PopStyleColor()
     ImGui.PopStyleVar(2)
 
-    local actions = getTargetActions(targetData, withExtras)
+    local actions = view.getTargetActions(targetData, withExtras)
     if #actions > 0 then
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, viewStyle.defaultFramePaddingX, viewStyle.defaultFramePaddingY)
 
@@ -2550,8 +2557,8 @@ end
 
 -- GUI :: Inspector --
 
-local function drawInspectorContent(isModal)
-    ImGui.Text(viewData.targetingModeOptions[TargetingMode.values[userState.targetingMode]])
+function view.drawInspectorContent(isModal)
+    ImGui.Text(view.targetingModeOptions[TargetingMode.values[userState.targetingMode]])
 
     if inspectionSystem:GetStreamingOverrideState() then
         ImGui.SameLine()
@@ -2570,7 +2577,7 @@ local function drawInspectorContent(isModal)
             ImGui.Text('@')
             ImGui.PopStyleColor()
             ImGui.SameLine()
-            ImGui.Text(formatDistance(selected.distance))
+            ImGui.Text(view.formatDistance(selected.distance))
         end
         local extra = {}
         if selected.collision then
@@ -2580,7 +2587,7 @@ local function drawInspectorContent(isModal)
            table.insert(extra, 'Interior')
         end
         if selected.isCollisionNode then
-            table.insert(extra, viewData.collisionGranularityOptions[CollisionGranularity.values[userState.collisionGranularity]])
+            table.insert(extra, view.collisionGranularityOptions[CollisionGranularity.values[userState.collisionGranularity]])
         end
         if #extra > 0 then
             ImGui.SameLine()
@@ -2599,7 +2606,7 @@ local function drawInspectorContent(isModal)
                     ImGui.PushStyleColor(ImGuiCol.Button, 0)
                 end
                 if ImGui.Button(tostring(index), viewStyle.inspectorTargetWidth, 0) then
-                    selectInspectedResult(index)
+                    inspector.selectResult(index)
                 end
                 if not isActive then
                     ImGui.PopStyleColor()
@@ -2626,7 +2633,7 @@ local function drawInspectorContent(isModal)
 
             ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, 0, 0)
             ImGui.BeginChild('##RHT:WorldTools:Inspect:Result', 0, ImGuiEx.GetContentRegionAvailHeight())
-            drawFieldset(selected, true, true, false)
+            view.drawFieldset(selected, true, true, false)
             contentRightX = ImGui.GetCursorPosX() + ImGuiEx.GetContentRegionAvailWidth()
             ImGui.EndChild()
             ImGui.PopStyleVar()
@@ -2647,7 +2654,7 @@ local function drawInspectorContent(isModal)
                 ImGui.PushStyleColor(ImGuiCol.FrameBg, filterFrameBg)
                 ImGui.PushStyleColor(ImGuiCol.TextDisabled, viewStyle.hintTextColor)
                 ImGui.SetNextItemWidth(filterWidth)
-                local filtetText, filterChanged = ImGui.InputTextWithHint('##InspectorFilter', filterHint, viewState.inspectorFilter, viewData.maxInputLen)
+                local filtetText, filterChanged = ImGui.InputTextWithHint('##InspectorFilter', filterHint, viewState.inspectorFilter, view.maxInputLen)
                 if filterChanged then
                     viewState.inspectorFilter = ImGuiEx.SanitizeInputText(filtetText)
                 end
@@ -2661,7 +2668,7 @@ local function drawInspectorContent(isModal)
                 ImGui.SetCursorPosY(resultBottomY)
             end
         else
-            drawFieldset(selected, true, false, false)
+            view.drawFieldset(selected, true, false, false)
         end
     else
         ImGui.SameLine()
@@ -2675,14 +2682,14 @@ end
 
 -- GUI :: Scanner --
 
-local function drawScannerContent(isModal)
+function view.drawScannerContent(isModal)
     if isModal then
         if scanner.hovered and scanner.results[scanner.hovered] then
             ImGui.Text(('Scan Result #%d'):format(scanner.hovered))
             ImGui.Spacing()
             ImGui.Separator()
             ImGui.Spacing()
-            drawFieldset(scanner.results[scanner.hovered], true, true, false)
+            view.drawFieldset(scanner.results[scanner.hovered], true, true, false)
         else
             ImGui.SameLine()
             ImGui.PushStyleColor(ImGuiCol.Text, viewStyle.labelTextColor)
@@ -2696,12 +2703,12 @@ local function drawScannerContent(isModal)
     ImGui.Spacing()
 
     if ImGui.Button('Scan world nodes', ImGuiEx.GetContentRegionAvailWidth(), viewStyle.buttonHeight) then
-        requestScan()
+        scanner.requestScan()
     end
 
     if scanner.finished then
         if not userState.keepLastHoveredResultHighlighted then
-            unselectScannedResult()
+            scanner.unselectResult()
         end
 
         ImGui.Spacing()
@@ -2714,9 +2721,9 @@ local function drawScannerContent(isModal)
             ImGui.Text('Group:')
             ImGui.SameLine()
             ImGui.SetNextItemWidth(viewStyle.scannerGroupWidth)
-            local groupIndex, groupChanged = ImGui.Combo('##ScannerGroup', viewData.nodeGroupOptions[userState.scannerGroup] - 1, viewData.nodeGroupOptions, #viewData.nodeGroupOptions)
+            local groupIndex, groupChanged = ImGui.Combo('##ScannerGroup', view.nodeGroupOptions[userState.scannerGroup] - 1, view.nodeGroupOptions, #view.nodeGroupOptions)
             if groupChanged then
-                userState.scannerGroup = groupIndex ~= 0 and viewData.nodeGroupOptions[groupIndex + 1] or ''
+                userState.scannerGroup = groupIndex ~= 0 and view.nodeGroupOptions[groupIndex + 1] or ''
             end
 
             ImGui.SameLine()
@@ -2725,7 +2732,7 @@ local function drawScannerContent(isModal)
             ImGui.SameLine()
             ImGui.SetNextItemWidth(viewStyle.scannerFilterWidth)
             ImGui.PushStyleColor(ImGuiCol.TextDisabled, viewStyle.hintTextColor)
-            local filter, filterChanged = ImGui.InputTextWithHint('##ScannerFilter', '', userState.scannerFilter, viewData.maxInputLen)
+            local filter, filterChanged = ImGui.InputTextWithHint('##ScannerFilter', '', userState.scannerFilter, view.maxInputLen)
             if filterChanged then
                 userState.scannerFilter = ImGuiEx.SanitizeInputText(filter)
             end
@@ -2809,14 +2816,14 @@ local function drawScannerContent(isModal)
                     if ImGui.TreeNodeEx(result.description .. '##' .. resultID, nodeFlags) then
                         ImGui.PopStyleColor()
                         ImGui.PopStyleVar()
-                        drawFieldset(result, false, true, false)
+                        view.drawFieldset(result, false, true, false)
                         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
                         ImGui.PushStyleColor(ImGuiCol.FrameBg, 0)
                         ImGui.TreePop()
                     end
                     ImGui.EndGroup()
                     if ImGui.IsItemHovered() then
-                        selectScannedResult(result.index)
+                        scanner.selectResult(result.index)
                     end
                 end
 
@@ -2838,12 +2845,12 @@ end
 
 -- GUI :: Lookup --
 
-local function drawLookupContent()
+function view.drawLookupContent()
     ImGui.TextWrapped('Search world nodes and spawned entities by their identities.')
     ImGui.Spacing()
     ImGui.SetNextItemWidth(ImGuiEx.GetContentRegionAvailWidth())
     ImGui.PushStyleColor(ImGuiCol.TextDisabled, viewStyle.hintTextColor)
-    local query, queryChanged = ImGui.InputTextWithHint('##LookupQuery', 'Enter node reference or entity id or hash', viewState.lookupQuery, viewData.maxInputLen)
+    local query, queryChanged = ImGui.InputTextWithHint('##LookupQuery', 'Enter node reference or entity id or hash', viewState.lookupQuery, view.maxInputLen)
     if queryChanged then
         viewState.lookupQuery = ImGuiEx.SanitizeInputText(query)
     end
@@ -2856,7 +2863,7 @@ local function drawLookupContent()
             ImGui.Spacing()
             ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, 0, 0)
             ImGui.BeginChild('##RHT:WorldTools:Lookup:Result', 0, ImGuiEx.GetContentRegionAvailHeight())
-            drawFieldset(lookup.result, true, true, false)
+            view.drawFieldset(lookup.result, true, true, false)
             ImGui.EndChild()
             ImGui.PopStyleVar()
         else
@@ -2870,13 +2877,13 @@ end
 
 -- GUI :: Watcher --
 
-local function drawWatcherContent()
+function view.drawWatcherContent()
     ImGui.Text('Watch tracked entities. Player related entities are auto-tracked.')
 
     ImGui.Spacing()
     ImGui.PushStyleColor(ImGuiCol.TextDisabled, viewStyle.hintTextColor)
     ImGui.SetNextItemWidth(ImGuiEx.GetContentRegionAvailWidth())
-    local filterText, filterChanged = ImGui.InputTextWithHint('##WatcherFilter', 'Filter components, inventory, attachments, tags, etc.', viewState.watcherFilter, viewData.maxInputLen)
+    local filterText, filterChanged = ImGui.InputTextWithHint('##WatcherFilter', 'Filter components, inventory, attachments, tags, etc.', viewState.watcherFilter, view.maxInputLen)
     if filterChanged then
         viewState.watcherFilter = ImGuiEx.SanitizeInputText(filterText)
     end
@@ -2895,7 +2902,7 @@ local function drawWatcherContent()
 
         for _, result in pairs(watcher.results) do
             if ImGui.TreeNodeEx(result.description, ImGuiTreeNodeFlags.SpanFullWidth) then
-                drawFieldset(result, false, true, false)
+                view.drawFieldset(result, false, true, false)
                 ImGui.TreePop()
             end
         end
@@ -2912,7 +2919,7 @@ end
 
 -- GUI :: Streaming --
 
-local function drawStreamingContent()
+function view.drawStreamingContent()
     ImGui.BeginChild('##RHT:WorldTools:Streaming', 0, ImGuiEx.GetContentRegionAvailHeight())
 
     local state, changed
@@ -2994,7 +3001,7 @@ end
 
 -- GUI :: Settings --
 
-local function drawSettingsContent()
+function view.drawSettingsContent()
     ImGui.BeginChild('##RHT:WorldTools:Settings', 0, ImGuiEx.GetContentRegionAvailHeight())
 
     local state, changed
@@ -3010,7 +3017,7 @@ local function drawSettingsContent()
     ImGui.Text('Window snapping:')
     ImGui.SameLine()
     ImGui.SetNextItemWidth(viewStyle.settingsMiddleComboRowWidth - ImGui.GetCursorPosX())
-    state, changed = ImGui.Combo('##WindowSnapping', WindowSnapping.values[userState.windowSnapping] - 1, viewData.windowSnappingOptions, #viewData.windowSnappingOptions)
+    state, changed = ImGui.Combo('##WindowSnapping', WindowSnapping.values[userState.windowSnapping] - 1, view.windowSnappingOptions, #view.windowSnappingOptions)
     if changed then
         userState.windowSnapping = WindowSnapping.values[state + 1]
     end
@@ -3031,7 +3038,7 @@ local function drawSettingsContent()
     ImGui.Text('Show outline:')
     ImGui.SameLine()
     ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
-    state, changed = ImGui.Combo('##OutlineMode', OutlineMode.values[userState.outlineMode] - 1, viewData.outlineModeOptions, #viewData.outlineModeOptions)
+    state, changed = ImGui.Combo('##OutlineMode', OutlineMode.values[userState.outlineMode] - 1, view.outlineModeOptions, #view.outlineModeOptions)
     if changed then
        userState.outlineMode = OutlineMode.values[state + 1]
     end
@@ -3042,7 +3049,7 @@ local function drawSettingsContent()
     ImGui.Text('Show origin point:')
     ImGui.SameLine()
     ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
-    state, changed = ImGui.Combo('##MarkerMode', MarkerMode.values[userState.markerMode] - 1, viewData.markerModeOptions, #viewData.markerModeOptions)
+    state, changed = ImGui.Combo('##MarkerMode', MarkerMode.values[userState.markerMode] - 1, view.markerModeOptions, #view.markerModeOptions)
     if changed then
        userState.markerMode = MarkerMode.values[state + 1]
     end
@@ -3053,7 +3060,7 @@ local function drawSettingsContent()
     ImGui.Text('Show bounding box:')
     ImGui.SameLine()
     ImGui.SetNextItemWidth(viewStyle.settingsLongComboRowWidth - ImGui.GetCursorPosX())
-    state, changed = ImGui.Combo('##BoundingBoxMode', BoundingBoxMode.values[userState.boundingBoxMode] - 1, viewData.boundingBoxModeOptions, #viewData.boundingBoxModeOptions)
+    state, changed = ImGui.Combo('##BoundingBoxMode', BoundingBoxMode.values[userState.boundingBoxMode] - 1, view.boundingBoxModeOptions, #view.boundingBoxModeOptions)
     if changed then
         userState.boundingBoxMode = BoundingBoxMode.values[state + 1]
     end
@@ -3086,7 +3093,7 @@ local function drawSettingsContent()
     ImGui.Text('Targeting mode:')
     ImGui.SameLine()
     ImGui.SetNextItemWidth(viewStyle.settingsMiddleComboRowWidth - ImGui.GetCursorPosX())
-    state, changed = ImGui.Combo('##TargetingMode', TargetingMode.values[userState.targetingMode] - 1, viewData.targetingModeOptions, #viewData.targetingModeOptions)
+    state, changed = ImGui.Combo('##TargetingMode', TargetingMode.values[userState.targetingMode] - 1, view.targetingModeOptions, #view.targetingModeOptions)
     if changed then
         userState.targetingMode = TargetingMode.values[state + 1]
     end
@@ -3096,13 +3103,13 @@ local function drawSettingsContent()
         local cursorY = ImGui.GetCursorPosY()
         ImGui.Dummy(220 * viewStyle.viewScale, 0)
         ImGui.SetCursorPosY(cursorY)
-        ImGui.Text(viewData.targetingModeOptions[1])
+        ImGui.Text(view.targetingModeOptions[1])
         ImGui.TextWrapped(
             'Uses the same ray casting method and physical data as during normal gameplay, ' ..
             'pixel accurate but cannot target non-collision meshes and decals.')
         ImGui.Spacing()
         ImGui.Separator()
-        ImGui.Text(viewData.targetingModeOptions[2])
+        ImGui.Text(view.targetingModeOptions[2])
         ImGui.TextWrapped(
             'Uses alternative ray casting method based on static bounding boxes of world nodes, ' ..
             'ignores transparency and generally less accurate but can target non-collision meshes and decals.')
@@ -3114,7 +3121,7 @@ local function drawSettingsContent()
     ImGui.Text('Collision granularity:')
     ImGui.SameLine()
     ImGui.SetNextItemWidth(viewStyle.settingsMiddleComboRowWidth - ImGui.GetCursorPosX())
-    state, changed = ImGui.Combo('##CollisionGranularity', CollisionGranularity.values[userState.collisionGranularity] - 1, viewData.collisionGranularityOptions, #viewData.collisionGranularityOptions)
+    state, changed = ImGui.Combo('##CollisionGranularity', CollisionGranularity.values[userState.collisionGranularity] - 1, view.collisionGranularityOptions, #view.collisionGranularityOptions)
     if changed then
         userState.collisionGranularity = CollisionGranularity.values[state + 1]
     end
@@ -3128,7 +3135,7 @@ local function drawSettingsContent()
     state, changed = ImGui.InputFloat('##TargetingDistance', userState.targetingDistance, 1.0, 10.0, '%.1fm', ImGuiInputTextFlags.None)
     if changed then
         userState.targetingDistance = state
-        syncInspectionSystemState()
+        userState.syncInspectionSystem()
     end
     ImGui.EndGroup()
 
@@ -3176,7 +3183,7 @@ local function drawSettingsContent()
     state, changed = ImGui.InputFloat('##FrustumDistance', userState.frustumDistance, 1.0, 10.0, '%.1fm', ImGuiInputTextFlags.None)
     if changed then
         userState.frustumDistance = state
-        syncInspectionSystemState()
+        userState.syncInspectionSystem()
     end
     ImGui.EndGroup()
 
@@ -3224,7 +3231,7 @@ end
 
 -- GUI :: Hotkeys --
 
-local function drawHotkeysContent()
+function view.drawHotkeysContent()
     ImGui.BeginChild('##RHT:WorldTools:Hotkeys', 0, ImGuiEx.GetContentRegionAvailHeight())
 
     app.drawHotkeys(moduleID)
@@ -3234,7 +3241,7 @@ end
 
 -- GUI :: Drawing --
 
-local function getScreenDescriptor(camera)
+function view.getScreenDescriptor(camera)
     local screen = {}
     screen.width, screen.height = GetDisplayResolution()
 
@@ -3251,7 +3258,7 @@ local function getScreenDescriptor(camera)
     return screen
 end
 
-local function getProjectedPoint(screen, point, clamp)
+function view.getProjectedPoint(screen, point, clamp)
     local projected = inspectionSystem:ProjectWorldPoint(point)
 
     local result = {
@@ -3280,7 +3287,7 @@ local function getProjectedPoint(screen, point, clamp)
     return result
 end
 
-local function drawCircle(point, color, radius, thickness)
+function view.drawCircle(point, color, radius, thickness)
     if thickness == nil then
         ImGui.ImDrawListAddCircleFilled(ImGui.GetWindowDrawList(), point.x, point.y, radius, color, -1)
     else
@@ -3288,14 +3295,14 @@ local function drawCircle(point, color, radius, thickness)
     end
 end
 
-local function drawLine(line, color, thickness)
+function view.drawLine(line, color, thickness)
     ImGui.ImDrawListAddLine(ImGui.GetWindowDrawList(),
         line[1].x, line[1].y,
         line[2].x, line[2].y,
         color, thickness or 1)
 end
 
-local function drawTriangle(triangle, color, thickness)
+function view.drawTriangle(triangle, color, thickness)
     if thickness == nil then
         ImGui.ImDrawListAddTriangleFilled(ImGui.GetWindowDrawList(),
             triangle[1].x, triangle[1].y,
@@ -3311,7 +3318,7 @@ local function drawTriangle(triangle, color, thickness)
     end
 end
 
-local function drawRoundRect(rect, color, radius, thickness)
+function view.drawRoundRect(rect, color, radius, thickness)
     if thickness == nil then
         ImGui.ImDrawListAddRectFilled(ImGui.GetWindowDrawList(),
             rect[1].x, rect[1].y,
@@ -3325,7 +3332,7 @@ local function drawRoundRect(rect, color, radius, thickness)
     end
 end
 
-local function drawQuad(quad, color, thickness)
+function view.drawQuad(quad, color, thickness)
     if thickness == nil then
         ImGui.ImDrawListAddQuadFilled(ImGui.GetWindowDrawList(),
             quad[1].x, quad[1].y,
@@ -3343,11 +3350,11 @@ local function drawQuad(quad, color, thickness)
     end
 end
 
-local function drawText(position, color, size, text)
+function view.drawText(position, color, size, text)
     ImGui.ImDrawListAddText(ImGui.GetWindowDrawList(), size, position.x, position.y, color, tostring(text))
 end
 
-local function drawBadge(origin, text, offsetX, offsetY, badgeColor, textColor, fontRatio)
+function view.drawBadge(origin, text, offsetX, offsetY, badgeColor, textColor, fontRatio)
     if not fontRatio then
         fontRatio = 0.8
     end
@@ -3380,13 +3387,13 @@ local function drawBadge(origin, text, offsetX, offsetY, badgeColor, textColor, 
         { x = position.x + paddingX + textWidth, y = position.y + paddingY + textHeight },
     }
 
-    drawRoundRect(badge, badgeColor, 4)
+    view.drawRoundRect(badge, badgeColor, 4)
 
-    drawText(label, textColor, fontSize, text)
-    drawText(label, textColor, fontSize, text)
+    view.drawText(label, textColor, fontSize, text)
+    view.drawText(label, textColor, fontSize, text)
 end
 
-local cubeEdgeVertices = {
+view.cubeEdgeVertices = {
     { 1, 2 },
     { 2, 4 },
     { 3, 4 },
@@ -3401,7 +3408,7 @@ local cubeEdgeVertices = {
     { 4, 8 },
 }
 
-local cubeFaceVertices = {
+view.cubeFaceVertices = {
     { 1, 2, 4, 3 },
     { 1, 5, 6, 2 },
     { 7, 8, 6, 5 },
@@ -3410,7 +3417,7 @@ local cubeFaceVertices = {
     { 1, 3, 7, 5 },
 }
 
-local cubeFaceEdges = {
+view.cubeFaceEdges = {
     { 1, 2, 3, 4 },
     { 9, 5, 10, 1 },
     { 7, 6, 5, 8 },
@@ -3419,11 +3426,11 @@ local cubeFaceEdges = {
     { 4, 11, 8, 9 },
 }
 
-local cubeFadeLimit = 0.8
-local cubeFadeRangeMin = 50
-local cubeFadeRangeMax = 200
+view.cubeFadeLimit = 0.8
+view.cubeFadeRangeMin = 50
+view.cubeFadeRangeMax = 200
 
-local function makeCubeFromBox(box, position, orientation)
+function view.makeCubeFromBox(box, position, orientation)
     local vertices = {
         ToVector4{ x = box.Min.x, y = box.Min.y, z = box.Min.z, w = 1.0 },
         ToVector4{ x = box.Min.x, y = box.Min.y, z = box.Max.z, w = 1.0 },
@@ -3444,7 +3451,7 @@ local function makeCubeFromBox(box, position, orientation)
     return vertices
 end
 
-local function drawProjectedBox(screen, projection)
+function view.drawProjectedBox(screen, projection)
     if not projection.showBoundingBox then
         return
     end
@@ -3453,7 +3460,7 @@ local function drawProjectedBox(screen, projection)
     local orientation = projection.target.orientation
     local box = projection.target.boundingBox
 
-    local vertices = makeCubeFromBox(box, position, orientation)
+    local vertices = view.makeCubeFromBox(box, position, orientation)
     local points = {}
     local outline = {
         { x = screen[3].x, y = screen[3].y },
@@ -3461,7 +3468,7 @@ local function drawProjectedBox(screen, projection)
     }
 
     for id, vertice in ipairs(vertices) do
-        local point = getProjectedPoint(screen, vertice)
+        local point = view.getProjectedPoint(screen, vertice)
         point.id = id
         point.distance = Vector4.Distance(screen.camera.world, vertice)
 
@@ -3483,7 +3490,7 @@ local function drawProjectedBox(screen, projection)
     local clippings = {}
     local inside = true
 
-    for id, indexes in ipairs(cubeEdgeVertices) do
+    for id, indexes in ipairs(view.cubeEdgeVertices) do
         local edge = {}
         edge.id = id
         edge.indexes = indexes
@@ -3509,7 +3516,7 @@ local function drawProjectedBox(screen, projection)
             local clipVertice, clipDistance = MathEx.IntersectPlane(screen.camera.nearPlane, clipLine)
 
             if clipVertice and clipDistance >= 0 then
-                local clipPoint = getProjectedPoint(screen, clipVertice)
+                local clipPoint = view.getProjectedPoint(screen, clipVertice)
 
                 edge.points[b] = clipPoint
 
@@ -3524,12 +3531,12 @@ local function drawProjectedBox(screen, projection)
         end
 
         edge.distance = Vector4.DistanceToEdge(screen.camera.world, edge.vertices[1], edge.vertices[2])
-        edge.fading = MathEx.Clamp((edge.distance - cubeFadeRangeMin) / (cubeFadeRangeMax - cubeFadeRangeMin), 0, 1)
+        edge.fading = MathEx.Clamp((edge.distance - view.cubeFadeRangeMin) / (view.cubeFadeRangeMax - view.cubeFadeRangeMin), 0, 1)
 
         table.insert(edges, edge)
     end
 
-    for id, indexes in ipairs(cubeFaceVertices) do
+    for id, indexes in ipairs(view.cubeFaceVertices) do
         local face = {}
         face.id = id
         face.indexes = indexes
@@ -3579,7 +3586,7 @@ local function drawProjectedBox(screen, projection)
             if face.front then
                 inside = false
 
-                for _, edgeId in ipairs(cubeFaceEdges[face.id]) do
+                for _, edgeId in ipairs(view.cubeFaceEdges[face.id]) do
                     edges[edgeId].front = true
 
                     for _, index in ipairs(edges[edgeId].indexes) do
@@ -3589,9 +3596,9 @@ local function drawProjectedBox(screen, projection)
             end
         end
 
-        for _, edgeId in ipairs(cubeFaceEdges[face.id]) do
+        for _, edgeId in ipairs(view.cubeFaceEdges[face.id]) do
             face.distance = math.min(face.distance or 999, edges[edgeId].distance)
-            face.fading = MathEx.Clamp((face.distance - cubeFadeRangeMin) / (cubeFadeRangeMax - cubeFadeRangeMin), 0, 1)
+            face.fading = MathEx.Clamp((face.distance - view.cubeFadeRangeMin) / (view.cubeFadeRangeMax - view.cubeFadeRangeMin), 0, 1)
         end
 
         table.insert(faces, face)
@@ -3644,12 +3651,12 @@ local function drawProjectedBox(screen, projection)
 
             local offset = 2
             if #face.points >= 4 then
-                drawQuad(face.points, faceColor)
+                view.drawQuad(face.points, faceColor)
                 offset = 4
             end
 
             for i = offset, #face.points - 1 do
-                drawTriangle({ face.points[1], face.points[i], face.points[i + 1] }, faceColor)
+                view.drawTriangle({ face.points[1], face.points[i], face.points[i + 1] }, faceColor)
             end
         end
     end
@@ -3660,7 +3667,7 @@ local function drawProjectedBox(screen, projection)
 
     for _, edge in ipairs(edges) do
         if edge.front then
-            drawLine(edge.points, frontEdgeShadow, edgeWidth + 1)
+            view.drawLine(edge.points, frontEdgeShadow, edgeWidth + 1)
         end
     end
 
@@ -3669,11 +3676,11 @@ local function drawProjectedBox(screen, projection)
             local edgeColor = edge.front and frontEdgeColor or backEdgeColor
 
             if not inside and edge.fading then
-                local faceOpacity = MathEx.Clamp(ImGuiEx.Opacity(edgeColor) * (1 - edge.fading * cubeFadeLimit), edge.front and 0x88 or 0x44, 0xFF)
+                local faceOpacity = MathEx.Clamp(ImGuiEx.Opacity(edgeColor) * (1 - edge.fading * view.cubeFadeLimit), edge.front and 0x88 or 0x44, 0xFF)
                 edgeColor = ImGuiEx.Fade(edgeColor, faceOpacity)
             end
 
-            drawLine(edge.points, edgeColor, edgeWidth)
+            view.drawLine(edge.points, edgeColor, edgeWidth)
         end
     end
 
@@ -3683,7 +3690,7 @@ local function drawProjectedBox(screen, projection)
     local bounds = {}
     local showBounds = false
 
-    local origin = getProjectedPoint(screen, position, true)
+    local origin = view.getProjectedPoint(screen, position, true)
     origin.distance = Vector4.Distance(screen.camera.world, position)
 
     for _, point in ipairs(points) do
@@ -3732,11 +3739,11 @@ local function drawProjectedBox(screen, projection)
             for _, point in ipairs(bounds) do
                 local pointColor = ImGuiEx.FadeFactor(point.front and frontEdgeColor or backEdgeColor, 1.1)
 
-                drawCircle(point, pointColor, 4)
-                drawCircle(point, labelColor, 2)
+                view.drawCircle(point, pointColor, 4)
+                view.drawCircle(point, labelColor, 2)
 
                 if projection.showBoundingBoxDistances then
-                    drawBadge(point, formatDistance(point.distance), true, point.front and -10 or 11, pointColor, labelColor)
+                    view.drawBadge(point, view.formatDistance(point.distance), true, point.front and -10 or 11, pointColor, labelColor)
                 end
 
                 if projection.showOrigin then
@@ -3749,48 +3756,48 @@ local function drawProjectedBox(screen, projection)
     end
 end
 
-local function drawProjectedOrigin(screen, projection)
+function view.drawProjectedOrigin(screen, projection)
     if not projection.showOrigin then
         return
     end
 
     local position = projection.target.position
-    local point = getProjectedPoint(screen, position, true)
+    local point = view.getProjectedPoint(screen, position, true)
 
-    drawCircle(point, projection.profile.primaryColor, 5)
-    drawCircle(point, projection.profile.labelColor, 3)
+    view.drawCircle(point, projection.profile.primaryColor, 5)
+    view.drawCircle(point, projection.profile.labelColor, 3)
 
     if projection.showOriginDistance then
         local distance = Vector4.Distance(screen.camera.world, position)
-        drawBadge(point, formatDistance(distance), true, -12, projection.profile.primaryColor, projection.profile.labelColor)
+        view.drawBadge(point, view.formatDistance(distance), true, -12, projection.profile.primaryColor, projection.profile.labelColor)
     end
 end
 
-local function drawProjections()
+function view.drawProjections()
     if not userState.isModuleActive then
         return
     end
 
-    if next(highlight.projections) == nil then
+    if next(highlighting.projections) == nil then
         return
     end
 
-    local camera = getCameraData()
+    local camera = targeting.getCameraData()
 
     if not camera then
         return
     end
 
-    local screen = getScreenDescriptor(camera)
+    local screen = view.getScreenDescriptor(camera)
 
     ImGui.SetNextWindowSize(screen.width, screen.height, ImGuiCond.Always)
     ImGui.SetNextWindowPos(0, 0, ImGuiCond.Always)
 
     if ImGui.Begin('##RHT:WorldTools:Projections', true, viewStyle.projectionWindowFlags) then
-        for _, projection in pairs(highlight.projections) do
-            updateGeometryData(highlight.target)
-            drawProjectedBox(screen, projection)
-            drawProjectedOrigin(screen, projection)
+        for _, projection in pairs(highlighting.projections) do
+            resolving.updateGeometryData(highlighting.target)
+            view.drawProjectedBox(screen, projection)
+            view.drawProjectedOrigin(screen, projection)
         end
     end
 
@@ -3799,9 +3806,7 @@ end
 
 -- GUI :: Windows --
 
-local currentWindowHeightMode
-
-local function pushWindowStyle()
+function view.pushWindowStyle()
     local autoHeightMode = not viewState.isConsoleOpen
 
     if autoHeightMode then
@@ -3809,21 +3814,21 @@ local function pushWindowStyle()
         ImGui.SetNextWindowSize(userState.windowWidth, 0, ImGuiCond.Always)
     else
         ImGui.SetNextWindowSizeConstraints(viewStyle.windowMinWidth, viewStyle.windowMinHeight, viewStyle.windowMaxWidth, viewStyle.windowMaxHeight)
-        if currentWindowHeightMode ~= autoHeightMode then
+        if view.currentWindowHeightMode ~= autoHeightMode then
             ImGui.SetNextWindowSize(firstNotEmpty(userState.windowWidth, viewStyle.windowMinWidth), firstNotEmpty(userState.windowHeight, viewStyle.windowMinHeight), ImGuiCond.Always)
         end
     end
 
-    currentWindowHeightMode = autoHeightMode
+    view.currentWindowHeightMode = autoHeightMode
 
     ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, viewStyle.windowPaddingX, viewStyle.windowPaddingY)
 end
 
-local function popWindowStyle()
+function view.popWindowStyle()
     ImGui.PopStyleVar()
 end
 
-local function snapWindow()
+function view.snapWindow()
     if ImGui.IsAnyMouseDown() then
         return
     end
@@ -3847,33 +3852,33 @@ local function snapWindow()
     ImGui.SetWindowPos(windowX, windowY, condition)
 end
 
-local function drawOnScreenWindow()
-    pushWindowStyle()
+function view.drawOnScreenWindow()
+    view.pushWindowStyle()
 
     ImGui.Begin('World Inspector##RHT:WorldTools', viewStyle.inspectorWindowFlags)
 
-    snapWindow()
+    view.snapWindow()
 
     ImGui.SetCursorPosY(ImGui.GetCursorPosY() - 2)
     if userState.selectedTab == MainTab.Scan and userState.highlightScannerResult and scanner.hovered and scanner.results[scanner.hovered] then
-        drawScannerContent(true)
+        view.drawScannerContent(true)
     else
-        drawInspectorContent(true)
+        view.drawInspectorContent(true)
     end
 
     ImGui.End()
-    popWindowStyle()
+    view.popWindowStyle()
 end
 
-local function drawMainWindow()
-    pushWindowStyle()
+function view.drawMainWindow()
+    view.pushWindowStyle()
 
     viewState.isWindowOpen = ImGuiEx.Begin('World Inspector##RHT:WorldTools', app.canCloseTools(), viewStyle.mainWindowFlags)
     viewState.isWindowExpanded = not ImGui.IsWindowCollapsed()
 
     if viewState.isWindowOpen and viewState.isWindowExpanded then
-        syncWindowMetrics()
-        snapWindow()
+        userState.syncWindowMetrics()
+        view.snapWindow()
 
         app.drawSharedMenu(moduleID)
 
@@ -3881,13 +3886,13 @@ local function drawMainWindow()
 
         local selectedTab
         local featureTabs = {
-            { id = MainTab.Inspect, draw = drawInspectorContent },
-            { id = MainTab.Scan, draw = drawScannerContent },
-            { id = MainTab.Watch, draw = drawWatcherContent },
-            { id = MainTab.Lookup, draw = drawLookupContent },
-            { id = MainTab.Streaming, draw = drawStreamingContent },
-            { id = MainTab.Settings, draw = drawSettingsContent },
-            { id = MainTab.Hotkeys, draw = drawHotkeysContent },
+            { id = MainTab.Inspect, draw = view.drawInspectorContent },
+            { id = MainTab.Scan, draw = view.drawScannerContent },
+            { id = MainTab.Watch, draw = view.drawWatcherContent },
+            { id = MainTab.Lookup, draw = view.drawLookupContent },
+            { id = MainTab.Streaming, draw = view.drawStreamingContent },
+            { id = MainTab.Settings, draw = view.drawSettingsContent },
+            { id = MainTab.Hotkeys, draw = view.drawHotkeysContent },
         }
 
         for _, featureTab in ipairs(featureTabs) do
@@ -3912,16 +3917,16 @@ local function drawMainWindow()
     end
 
     ImGui.End()
-    popWindowStyle()
+    view.popWindowStyle()
 
     if not viewState.isWindowOpen then
         userState.isModuleActive = false
         userState.isOnScreenDisplayActive = false
-        saveUserState()
+        userState.save()
     end
 end
 
-local function onDraw()
+function view.onDraw()
     if not userState.isModuleActive then
         return
     end
@@ -3930,31 +3935,33 @@ local function onDraw()
         return
     end
 
-    initializeViewStyle()
+    view.initializeStyle()
 
     if viewState.isConsoleOpen then
         if userState.isModuleActive and viewState.isWindowExpanded then
-            drawProjections()
+            view.drawProjections()
         end
-        drawMainWindow()
+        view.drawMainWindow()
     elseif userState.isOnScreenDisplayActive then
-        drawProjections()
-        drawOnScreenWindow()
+        view.drawProjections()
+        view.drawOnScreenWindow()
     end
 end
 
-local function onOverlayOpen()
+function view.onOverlayOpen()
     viewState.isConsoleOpen = true
 end
 
-local function onOverlayClose()
+function view.onOverlayClose()
     viewState.isConsoleOpen = false
-    saveUserState()
+    userState.save()
 end
 
--- Hotkeys --
+-- Module --
 
-local function onToggleInspectorHotkey()
+local module = {}
+
+function module.onToggleInspectorHotkey()
     if not viewState.isConsoleOpen then
         userState.isOnScreenDisplayActive = not userState.isOnScreenDisplayActive
         if userState.isOnScreenDisplayActive then
@@ -3962,55 +3969,55 @@ local function onToggleInspectorHotkey()
             viewState.isFirstOpen = true
             userState.selectedTab = MainTab.Inspect
         end
-        saveUserState()
+        userState.save()
     end
 end
 
-local function onSelectNextResultHotkey()
+function module.onSelectNextResultHotkey()
     if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
-        cycleNextInspectedResult()
+        inspector.cycleNext()
     end
 end
 
-local function onSelectPrevResultHotkey()
+function module.onSelectPrevResultHotkey()
     if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
-        cyclePrevInspectedResult()
+        inspector.cyclePrev()
     end
 end
 
-local function onToggleTargetStateHotkey()
+function module.onToggleTargetStateHotkey()
     if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
         if inspector.active then
-            toggleNodeState(inspector.results[inspector.active])
+            control.toggleState(inspector.results[inspector.active])
         else
-            toggleNodeState()
+            control.toggleState()
         end
     end
 end
 
-local function onCycleTargetingModeHotkey()
+function module.onCycleTargetingModeHotkey()
     if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
         local nextModeIndex = TargetingMode.values[userState.targetingMode] + 1
         if nextModeIndex > #TargetingMode.values then
             nextModeIndex = 1
         end
         userState.targetingMode = TargetingMode.values[nextModeIndex]
-        saveUserState()
+        userState.save()
     end
 end
 
-local function onCycleCollisionGranularityHotkey()
+function module.onCycleCollisionGranularityHotkey()
     if not viewState.isConsoleOpen and userState.isOnScreenDisplayActive then
         local nextModeIndex = CollisionGranularity.values[userState.collisionGranularity] + 1
         if nextModeIndex > #CollisionGranularity.values then
             nextModeIndex = 1
         end
         userState.collisionGranularity = CollisionGranularity.values[nextModeIndex]
-        saveUserState()
+        userState.save()
     end
 end
 
-local function onToggleObserverOverride()
+function module.onToggleObserverOverride()
     if userState.syncObserverPositionWithPlayer then
         inspectionSystem:SetStreamingOverridePosition(GetPlayer():GetWorldPosition())
     end
@@ -4018,83 +4025,81 @@ local function onToggleObserverOverride()
     inspectionSystem:SetStreamingOverrideState(not inspectionSystem:GetStreamingOverrideState())
 end
 
-local function onUpdateObserverPosition()
+function module.onUpdateObserverPosition()
     inspectionSystem:SetStreamingOverridePosition(GetPlayer():GetWorldPosition())
 end
 
--- Module --
-
-local function isActive()
+function module.isActive()
     return userState.isModuleActive
 end
 
-local function setActive(active)
+function module.setActive(active)
     userState.isModuleActive = active
     if not userState.isModuleActive then
         userState.isOnScreenDisplayActive = false
     end
-    saveUserState()
+    userState.save()
 end
 
-local function onInit()
+function module.onInit()
     initializeSystems()
-    initializeUserState()
-    initializeHighlighting()
-    initializeTargeting()
-    initializeWatcher()
-    initializeViewData()
+    userState.initialize()
+    highlighting.initialize()
+    targeting.initialize()
+    watcher.initialize()
+    view.initializeData()
 
     Cron.Every(1 / 60, function()
         if userState.isModuleActive then
             if viewState.isConsoleOpen then
                 if viewState.isWindowExpanded then
                     if userState.selectedTab == MainTab.Inspect then
-                        updateInspector(viewState.inspectorFilter)
+                        inspector.update(viewState.inspectorFilter)
                     elseif userState.selectedTab == MainTab.Scan then
-                        updateScanner(userState.scannerDistance, userState.scannerGroup, userState.scannerFilter)
+                        scanner.update(userState.scannerDistance, userState.scannerGroup, userState.scannerFilter)
                     elseif userState.selectedTab == MainTab.Lookup then
-                        updateLookup(viewState.lookupQuery)
+                        lookup.update(viewState.lookupQuery)
                     elseif userState.selectedTab == MainTab.Watch then
-                        updateWatcher(viewState.watcherFilter)
+                        watcher.update(viewState.watcherFilter)
                     end
                 end
             elseif userState.isOnScreenDisplayActive then
                 if userState.selectedTab == MainTab.Scan and userState.highlightScannerResult and scanner.hovered and scanner.results[scanner.hovered] then
-                    updateScanner(userState.scannerDistance, userState.scannerGroup, userState.scannerFilter)
+                    scanner.update(userState.scannerDistance, userState.scannerGroup, userState.scannerFilter)
                 else
-                    updateInspector()
+                    inspector.update()
                 end
             end
         end
-        updateHighlights()
+        highlighting.update()
     end)
 end
 
-local function onShutdown()
-    disableHighlights()
-    saveUserState()
+function module.onShutdown()
+    highlighting.disable()
+    userState.save()
 end
 
 return {
     events = {
-        onInit = onInit,
-        onShutdown = onShutdown,
-        onOverlayOpen = onOverlayOpen,
-        onOverlayClose = onOverlayClose,
-        onDraw = onDraw,
+        onInit = module.onInit,
+        onShutdown = module.onShutdown,
+        onOverlayOpen = view.onOverlayOpen,
+        onOverlayClose = view.onOverlayClose,
+        onDraw = view.onDraw,
     },
     tools = {
-        { id = 'WorldInspector', label = 'World Inspector', isActive = isActive, setActive = setActive }
+        { id = 'WorldInspector', label = 'World Inspector', isActive = module.isActive, setActive = module.setActive }
     },
     hotkeys = {
-        { id = 'ToggleWorldInspector', group = 'World Inspector', label = 'Toggle overlay', callback = onToggleInspectorHotkey },
-        { id = 'CycleTargetingMode', group = 'World Inspector', label = 'Cycle targeting modes', callback = onCycleTargetingModeHotkey },
-        { id = 'CycleCollisionGranularity', group = 'World Inspector', label = 'Cycle collision granularities', callback = onCycleCollisionGranularityHotkey },
-        { id = 'ToggleTargetState', group = 'World Inspector', label = 'Toggle target visibility', callback = onToggleTargetStateHotkey },
-        { id = 'ToggleObserverOverride', group = 'World Inspector', label = 'Toggle observer override', callback = onToggleObserverOverride },
-        { id = 'UpdateObserverPosition', group = 'World Inspector', label = 'Set observer position to player', callback = onUpdateObserverPosition },
-        { id = 'SelectNextResult', group = 'Target Control', label = 'Select next target', callback = onSelectNextResultHotkey },
-        { id = 'SelectPrevResult', group = 'Target Control', label = 'Select previous target', callback = onSelectPrevResultHotkey },
+        { id = 'ToggleWorldInspector', group = 'World Inspector', label = 'Toggle overlay', callback = module.onToggleInspectorHotkey },
+        { id = 'CycleTargetingMode', group = 'World Inspector', label = 'Cycle targeting modes', callback = module.onCycleTargetingModeHotkey },
+        { id = 'CycleCollisionGranularity', group = 'World Inspector', label = 'Cycle collision granularities', callback = module.onCycleCollisionGranularityHotkey },
+        { id = 'ToggleTargetState', group = 'World Inspector', label = 'Toggle target visibility', callback = module.onToggleTargetStateHotkey },
+        { id = 'ToggleObserverOverride', group = 'World Inspector', label = 'Toggle observer override', callback = module.onToggleObserverOverride },
+        { id = 'UpdateObserverPosition', group = 'World Inspector', label = 'Set observer position to player', callback = module.onUpdateObserverPosition },
+        { id = 'SelectNextResult', group = 'Target Control', label = 'Select next target', callback = module.onSelectNextResultHotkey },
+        { id = 'SelectPrevResult', group = 'Target Control', label = 'Select previous target', callback = module.onSelectPrevResultHotkey },
     },
     publicApi = {
         GetWorldInspectorTarget = function()
@@ -4112,7 +4117,7 @@ return {
         GetLookupResult = function()
             return lookup.result
         end,
-        GetLookAtObjects = getLookAtTargets,
-        ResolveObjectData = resolveTargetData,
+        GetLookAtObjects = targeting.getLookAtTargets,
+        ResolveObjectData = resolving.resolveTargetData,
     }
 }
