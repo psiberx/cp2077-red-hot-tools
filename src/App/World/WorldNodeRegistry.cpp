@@ -229,7 +229,8 @@ void App::WorldNodeRegistry::OnNodeInstanceInitialize(Red::worldINodeInstance* a
                                                       Red::worldCompiledNodeInstanceSetupInfo* aNodeSetup, void*)
 {
     std::unique_lock _(s_nodeInstanceDataLock);
-    s_nodeSetupToRuntimeDataMap[aNodeSetup].nodeInstance = Red::AsWeakHandle(aNodeInstance);
+    s_nodeSetupToRuntimeDataMap[aNodeSetup] = {aNodeSetup, Red::AsWeakHandle(aNodeInstance),
+                                               Raw::WorldNodeInstance::Node::Ref(aNodeInstance)};
     s_nodeInstanceToNodeSetupMap[aNodeInstance] = aNodeSetup;
 }
 
